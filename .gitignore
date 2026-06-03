@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.DS_Store
+*.xcuserstate
+
+# Reference OF project (binaries); keep logo PNGs in reference/
+reference/J04-spocks/
