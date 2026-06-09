@@ -17,10 +17,10 @@ function isColorKey(key, spec) {
 
 function isStructureKey(key, spec) {
   if (spec.kind === 'shape') return true;
-  if (key === 'uZoom' || key === 'uSegments' || key === 'uShapeMorph') return true;
+  if (key === 'uZoom' || key === 'uSegments' || key === 'uShapeMorph' || key === 'uPenShape' || key === 'uShapeVariety') return true;
   if (/^uCenter/.test(key)) return true;
   if (/^uShape/.test(key)) return true;
-  if (spec.kind === 'count' && /Segment|Shape|Ring|Ball|Ribbon|Orbit|Mirror/i.test(key)) {
+  if (spec.kind === 'count' && /Segment|Shape|Ring|Ball|Ribbon|Orbit|Mirror|Pen/i.test(key)) {
     return true;
   }
   return false;

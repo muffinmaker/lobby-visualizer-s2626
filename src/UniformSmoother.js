@@ -9,6 +9,7 @@ const DISCRETE_KEYS = new Set([
   'uShape3',
   'uShape4',
   'uPalette',
+  'uPenShape',
 ]);
 
 const KEY_SMOOTH_TIMES = {
@@ -16,8 +17,10 @@ const KEY_SMOOTH_TIMES = {
   uBgRed: 1.4,
   uBgGreen: 1.4,
   uBgBlue: 1.4,
-  uRotate: 2.2,
-  uMyTime: 2.0,
+  uColorSpeed: 2.0,
+  uGearRatio: 1.8,
+  uPenDistance: 1.8,
+  uWobble: 1.6,
   uScaleY: 2.0,
   uScaleZ: 2.0,
   uUp: 1.8,
@@ -25,6 +28,7 @@ const KEY_SMOOTH_TIMES = {
   uZoom: 2.5,
   uWidth: 1.6,
   uHeight: 1.6,
+  uParticleCount: 1.8,
 };
 
 export class UniformSmoother {

@@ -8,6 +8,16 @@ const MENU_ADJUST_HOLD = {
   RAMP_MS: 950,
 };
 
+/** Live D-pad psyche tuning: hold ▲▼◀▶ to keep nudging zoom / element counts. */
+const PSYCHE_ADJUST_HOLD = {
+  INITIAL_DELAY_MS: 280,
+  START_INTERVAL_MS: 110,
+  MIN_INTERVAL_MS: 28,
+  RAMP_MS: 800,
+};
+
+const PSYCHE_DPAD_KEYS = ['dpadUp', 'dpadDown', 'dpadLeft', 'dpadRight'];
+
 /** Standard Gamepad face buttons (SNES-style USB clones). */
 const FACE_BUTTONS = {
   b: 0,
@@ -40,20 +50,24 @@ const ACTIONS = {
   chaosFullShuffle: 'chaosFullShuffle',
   chaosJumpPreset: 'chaosJumpPreset',
   chaosRandomizeSliders: 'chaosRandomizeSliders',
+  psycheUp: 'psycheUp',
+  psycheDown: 'psycheDown',
+  psycheLess: 'psycheLess',
+  psycheMore: 'psycheMore',
 };
 
 const INPUT_TO_ACTION = {
   shoulderLeft: ACTIONS.shaderPrev,
   shoulderRight: ACTIONS.shaderNext,
-  dpadLeft: ACTIONS.shaderPrev,
-  dpadRight: ACTIONS.shaderNext,
-  dpadUp: ACTIONS.presetPrev,
-  dpadDown: ACTIONS.presetNext,
+  dpadLeft: ACTIONS.psycheLess,
+  dpadRight: ACTIONS.psycheMore,
+  dpadUp: ACTIONS.psycheUp,
+  dpadDown: ACTIONS.psycheDown,
   start: ACTIONS.toggleFullscreen,
   select: ACTIONS.toggleSettings,
   a: ACTIONS.chaosNewPreset,
-  b: ACTIONS.chaosRandomizeSliders,
-  x: ACTIONS.chaosJumpPreset,
+  b: ACTIONS.presetNext,
+  x: ACTIONS.chaosRandomizeSliders,
   y: ACTIONS.chaosFullShuffle,
 };
 
@@ -66,7 +80,7 @@ const MENU_INPUT_TO_ACTION = {
   select: ACTIONS.toggleSettings,
   a: ACTIONS.chaosNewPreset,
   b: ACTIONS.menuRandom,
-  x: ACTIONS.chaosJumpPreset,
+  x: ACTIONS.chaosRandomizeSliders,
   y: ACTIONS.chaosFullShuffle,
 };
 
@@ -230,7 +244,36 @@ function readFaceXY(gamepad) {
   return { x: false, y: false };
 }
 
-function readInputs(gamepad) {
+/**
+ * Standard Gamepad API labels: 8 = Select, 9 = Start.
+ * Most USB SNES clones wire the physical buttons the other way (Select → 9).
+ */
+function resolveSelectStartIndices(gamepad) {
+  const id = (gamepad.id || '').toLowerCase();
+  const usesStandardSelectStart =
+    /8bitdo|joy-con|nintendo|xbox|xinput|playstation|dualshock|wireless controller/i.test(id);
+
+  if (usesStandardSelectStart) {
+    return { select: FACE_BUTTONS.select, start: FACE_BUTTONS.start };
+  }
+  return { select: 9, start: 8 };
+}
+
+function readSelectStart(gamepad, indices = resolveSelectStartIndices(gamepad)) {
+  const selIdx = indices.select;
+  const staIdx = indices.start;
+  const selRaw = isButtonPressed(gamepad, selIdx);
+  const staRaw = isButtonPressed(gamepad, staIdx);
+
+  if (!selRaw && !staRaw) return { select: false, start: false };
+  if (selRaw && !staRaw) return { select: true, start: false };
+  if (!selRaw && staRaw) return { select: false, start: true };
+
+  // Both ghost-press: never treat as Start — Select should not toggle fullscreen.
+  return { select: true, start: false };
+}
+
+function readInputs(gamepad, selectStart = resolveSelectStartIndices(gamepad)) {
   const shoulders = readShoulders(gamepad);
   const dpad = readDpad(gamepad);
   const faceXY = readFaceXY(gamepad);
@@ -245,8 +288,7 @@ function readInputs(gamepad) {
     ...dpadWithoutShoulderBleed,
     ...shoulders,
     ...faceXY,
-    select: isButtonPressed(gamepad, FACE_BUTTONS.select),
-    start: isButtonPressed(gamepad, FACE_BUTTONS.start),
+    ...readSelectStart(gamepad, selectStart),
     a: isButtonPressed(gamepad, FACE_BUTTONS.a),
     b: isButtonPressed(gamepad, FACE_BUTTONS.b),
   };
@@ -263,9 +305,16 @@ export function createGamepadController(handlers = {}, { isMenuMode = () => fals
   let announced = false;
   let prevMenuMode = false;
   let menuAdjustHold = null;
+  let psycheAdjustHold = null;
+  let selectStartIndices = { select: FACE_BUTTONS.select, start: FACE_BUTTONS.start };
+  let suppressStartUntil = 0;
 
   function resetMenuAdjustHold() {
     menuAdjustHold = null;
+  }
+
+  function resetPsycheAdjustHold() {
+    psycheAdjustHold = null;
   }
 
   function menuAdjustIntervalMs(holdMs) {
@@ -316,13 +365,62 @@ export function createGamepadController(handlers = {}, { isMenuMode = () => fals
     menuAdjustHold.lastFireAt = now;
   }
 
+  function psycheAdjustIntervalMs(holdMs) {
+    if (holdMs < PSYCHE_ADJUST_HOLD.INITIAL_DELAY_MS) return null;
+    const rampT = Math.min(
+      1,
+      (holdMs - PSYCHE_ADJUST_HOLD.INITIAL_DELAY_MS) / PSYCHE_ADJUST_HOLD.RAMP_MS,
+    );
+    return (
+      PSYCHE_ADJUST_HOLD.START_INTERVAL_MS -
+      (PSYCHE_ADJUST_HOLD.START_INTERVAL_MS - PSYCHE_ADJUST_HOLD.MIN_INTERVAL_MS) * rampT
+    );
+  }
+
+  function firePsycheAdjust(action, repeating) {
+    handlers[action]?.(repeating);
+  }
+
+  function pollPsycheAdjustHold(inputs, now) {
+    const active = PSYCHE_DPAD_KEYS.filter((key) => inputs[key]);
+    if (active.length !== 1) {
+      resetPsycheAdjustHold();
+      return;
+    }
+
+    const inputKey = active[0];
+    const action = INPUT_TO_ACTION[inputKey];
+
+    if (!psycheAdjustHold || psycheAdjustHold.inputKey !== inputKey) {
+      psycheAdjustHold = { inputKey, action, startedAt: now, lastFireAt: now };
+      firePsycheAdjust(action, false);
+      return;
+    }
+
+    const holdMs = now - psycheAdjustHold.startedAt;
+    const interval = psycheAdjustIntervalMs(holdMs);
+    if (interval == null) return;
+
+    const elapsed = now - psycheAdjustHold.lastFireAt;
+    if (elapsed < interval) return;
+
+    const steps = Math.max(1, Math.floor(elapsed / interval));
+    for (let i = 0; i < steps; i += 1) {
+      firePsycheAdjust(action, true);
+    }
+    psycheAdjustHold.lastFireAt = now;
+  }
+
   function adoptGamepad(pad) {
     if (!pad?.connected) return false;
     if (connectedIndex !== pad.index) {
       connectedIndex = pad.index;
       announced = false;
+      selectStartIndices = resolveSelectStartIndices(pad);
+      suppressStartUntil = 0;
       Object.assign(prevPressed, createEmptyInputState());
       resetMenuAdjustHold();
+      resetPsycheAdjustHold();
     }
     return true;
   }
@@ -356,6 +454,7 @@ export function createGamepadController(handlers = {}, { isMenuMode = () => fals
       announced = false;
       Object.assign(prevPressed, createEmptyInputState());
       resetMenuAdjustHold();
+      resetPsycheAdjustHold();
       showGamepadToast('Gamepad disconnected');
     }
   }
@@ -380,24 +479,42 @@ export function createGamepadController(handlers = {}, { isMenuMode = () => fals
       showGamepadToast(`${label} connected`);
     }
 
-    const inputs = readInputs(gamepad);
+    const inputs = readInputs(gamepad, selectStartIndices);
     const now = performance.now();
     const menuMode = isMenuMode();
     if (menuMode !== prevMenuMode) {
       Object.assign(prevPressed, createEmptyInputState());
       resetMenuAdjustHold();
+      resetPsycheAdjustHold();
       prevMenuMode = menuMode;
     }
     const mapping = menuMode ? MENU_INPUT_TO_ACTION : INPUT_TO_ACTION;
 
     if (menuMode) {
       pollMenuAdjustHold(inputs, now);
+      resetPsycheAdjustHold();
     } else {
       resetMenuAdjustHold();
+      pollPsycheAdjustHold(inputs, now);
     }
 
+    const selectEdge = inputs.select && !prevPressed.select;
+    const startEdge = inputs.start && !prevPressed.start && now >= suppressStartUntil;
+    if (selectEdge) {
+      fireAction(ACTIONS.toggleSettings);
+      suppressStartUntil = now + 450;
+    } else if (startEdge) {
+      fireAction(ACTIONS.toggleFullscreen);
+    }
+    prevPressed.select = inputs.select;
+    prevPressed.start = inputs.start;
+
     for (const [inputKey, action] of Object.entries(mapping)) {
-      if (menuMode && (inputKey === 'dpadLeft' || inputKey === 'dpadRight')) {
+      if (inputKey === 'select' || inputKey === 'start') continue;
+      if (
+        (menuMode && (inputKey === 'dpadLeft' || inputKey === 'dpadRight')) ||
+        (!menuMode && PSYCHE_DPAD_KEYS.includes(inputKey))
+      ) {
         prevPressed[inputKey] = inputs[inputKey];
         continue;
       }
@@ -430,14 +547,13 @@ export function createGamepadController(handlers = {}, { isMenuMode = () => fals
 export const GAMEPAD_BUTTON_MAP = [
   { input: 'L shoulder', action: 'Previous shader' },
   { input: 'R shoulder', action: 'Next shader' },
-  { input: 'D-pad Left / Right', action: 'Previous / next shader' },
-  { input: 'D-pad Up', action: 'Previous preset' },
-  { input: 'D-pad Down', action: 'Next preset' },
+  { input: 'D-pad ▲ ▼', action: 'Zoom / warp + psychedelic motion (hold to slide)' },
+  { input: 'D-pad ◀ ▶', action: 'Spirograph: gear ratio · others: fewer / more elements (hold)' },
   { input: 'Start', action: 'Toggle fullscreen' },
   { input: 'Select', action: 'Toolbar → options → hidden (cycle)' },
   { input: 'A', action: 'Random motion (speed, bloom, trails…)' },
-  { input: 'B', action: 'Random colors (palette, tints, hues…)' },
-  { input: 'X', action: 'Random shapes (segments, morph, zoom…)' },
+  { input: 'B', action: 'Next preset (in order, same shader)' },
+  { input: 'X', action: 'Random colors (palette, tints, hues…)' },
   { input: 'Y', action: 'Random preset (same shader)' },
 ];
 

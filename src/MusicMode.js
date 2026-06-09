@@ -4,7 +4,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const SHADER_MODS = {
   spiro: ['uPulse', 'uTwist', 'uZoom'],
   flow: ['uFieldScale', 'uNoiseScale', 'uTrailAlpha'],
-  spocks: ['uZoom', 'uMyTime', 'uRotate'],
+  spocks: ['uColorSpeed', 'uWobble', 'uZoom'],
   kaleido: ['uWarp', 'uLineWidth', 'uShapeMorph', 'uCenterStrength'],
   metaballs: ['uEdgeGlow', 'uSoftness'],
   ribbons: ['uTwistAmount', 'uThickness'],

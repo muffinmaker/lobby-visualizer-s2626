@@ -19,6 +19,10 @@ varying vec2 vUv;
 void main() {
   vec4 prev = texture2D(uPrev, vUv);
   prev.rgb = mix(uFadeColor, prev.rgb, uDecay);
+  // Additive strokes can clip to white — ease bright buildup back toward the fade tint.
+  float lum = dot(prev.rgb, vec3(0.299, 0.587, 0.114));
+  float wash = smoothstep(0.32, 0.88, lum);
+  prev.rgb = mix(prev.rgb, mix(uFadeColor, prev.rgb, 0.42), wash * 0.82);
   gl_FragColor = vec4(prev.rgb, 1.0);
 }`;
 
@@ -46,15 +50,15 @@ function buildUniforms(shaderId, uiValues = {}) {
 }
 
 function isPointShader(id) {
-  return id === 'spiro' || id === 'flow';
+  return id === 'spiro' || id === 'flow' || id === 'spocks';
 }
 
 function usesFeedbackTrails(shaderId) {
-  return isPointShader(shaderId) || shaderId === 'spocks';
+  return isPointShader(shaderId);
 }
 
 function isTrailBlended(shaderId, points) {
-  return points || shaderId === 'spocks';
+  return points;
 }
 
 function wrapFragment(source) {
@@ -75,6 +79,7 @@ function createPointGeometry(count, extraAttributes = {}) {
 }
 
 const SPIRO_MAX_ORBITS = 10;
+const SPIROGRAPH_MAX_PENS = 10;
 
 function createSpiroGeometry(count = SPIRO_MAX_ORBITS) {
   const indices = new Float32Array(count);
@@ -91,43 +96,66 @@ function createSpiroGeometry(count = SPIRO_MAX_ORBITS) {
   return geometry;
 }
 
-const FLOW_DEFAULT_PARTICLES = 12000;
+function createSpirographGeometry(count = SPIROGRAPH_MAX_PENS) {
+  const indices = new Float32Array(count);
+  const phases = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    indices[i] = i;
+    phases[i] = (i / Math.max(count, 1)) * Math.PI * 2;
+  }
+  const geometry = createPointGeometry(count, {
+    aIndex: { array: indices, itemSize: 1 },
+    aPhase: { array: phases, itemSize: 1 },
+  });
+  geometry.userData.maxPens = count;
+  return geometry;
+}
 
-function createFlowGeometry(count = FLOW_DEFAULT_PARTICLES) {
+const FLOW_MAX_PARTICLES = 30000;
+const FLOW_MIN_PARTICLES = 500;
+
+function createFlowGeometry(count = FLOW_MAX_PARTICLES) {
   const seeds = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
     seeds[i * 3] = (Math.random() - 0.5) * 2;
     seeds[i * 3 + 1] = (Math.random() - 0.5) * 2;
     seeds[i * 3 + 2] = Math.random();
   }
-  return createPointGeometry(count, {
+  const geometry = createPointGeometry(count, {
     aSeed: { array: seeds, itemSize: 3 },
   });
+  geometry.userData.maxParticles = count;
+  return geometry;
 }
 
-function syncFlowParticleCount(geometry, count) {
-  const next = Math.max(500, Math.floor(count));
-  const current = geometry.attributes.position.count;
-  if (next === current) return geometry;
-  geometry.dispose();
-  return createFlowGeometry(next);
+function flowDrawCount(shaderParticleCount) {
+  return Math.max(
+    FLOW_MIN_PARTICLES,
+    Math.min(FLOW_MAX_PARTICLES, Math.floor(shaderParticleCount)),
+  );
+}
+
+function setFlowParticleDrawRange(geometry, shaderParticleCount) {
+  geometry.setDrawRange(0, flowDrawCount(shaderParticleCount));
+}
+
+function ensureFlowGeometryCapacity(geometry) {
+  const capacity = geometry?.attributes?.position?.count ?? 0;
+  if (capacity >= FLOW_MAX_PARTICLES) return geometry;
+  geometry?.dispose();
+  return createFlowGeometry(FLOW_MAX_PARTICLES);
 }
 
 function createFullscreenQuad() {
   return new THREE.PlaneGeometry(2, 2);
 }
 
-/** Spocks is the heaviest shader — cap DPR and trail buffer size for lobby GPUs. */
-export const SPOCKS_PIXEL_RATIO_CAP = 1;
-export const SPOCKS_TRAIL_FEEDBACK_SCALE = 0.5;
-
 function feedbackScale(shaderId, resolutionScale = 100) {
-  const base = shaderId === 'spocks' ? SPOCKS_TRAIL_FEEDBACK_SCALE : 0.7;
-  return base * (resolutionScale / 100);
+  return 0.7 * (resolutionScale / 100);
 }
 
 function shaderPixelRatioCap(shaderId) {
-  return shaderId === 'spocks' ? SPOCKS_PIXEL_RATIO_CAP : 1.5;
+  return 1.5;
 }
 
 export function defaultResolutionScale() {
@@ -189,9 +217,11 @@ export class Visualizer {
     this.materials = {};
     this.geometries = {
       spiro: createSpiroGeometry(),
+      spirograph: createSpirographGeometry(),
       flow: createFlowGeometry(),
     };
     this.geometries.spiro.setDrawRange(0, 6);
+    this.geometries.spirograph.setDrawRange(0, 5);
 
     this.initPasses();
     this.onResize = this.onResize.bind(this);
@@ -213,7 +243,9 @@ export class Visualizer {
     const geometry = points
       ? id === 'flow'
         ? this.geometries.flow
-        : this.geometries.spiro
+        : id === 'spocks'
+          ? this.geometries.spirograph
+          : this.geometries.spiro
       : createFullscreenQuad();
 
     const material = new THREE.ShaderMaterial({
@@ -299,12 +331,19 @@ export class Visualizer {
         );
         this.geometries.spiro.setDrawRange(0, pens);
       }
-      if (shaderId === 'flow' && shaderValues.uParticleCount !== undefined) {
-        this.geometries.flow = syncFlowParticleCount(
-          this.geometries.flow,
-          shaderValues.uParticleCount,
-        );
+      if (shaderId === 'flow') {
+        this.geometries.flow = ensureFlowGeometryCapacity(this.geometries.flow);
         this.meshes.flow.geometry = this.geometries.flow;
+        if (shaderValues.uParticleCount !== undefined) {
+          setFlowParticleDrawRange(this.geometries.flow, shaderValues.uParticleCount);
+        }
+      }
+      if (shaderId === 'spocks' && shaderValues.uPenCount !== undefined) {
+        const pens = Math.min(
+          SPIROGRAPH_MAX_PENS,
+          Math.max(1, Math.floor(shaderValues.uPenCount)),
+        );
+        this.geometries.spirograph.setDrawRange(0, pens);
       }
     }
 
@@ -356,13 +395,7 @@ export class Visualizer {
   }
 
   applyTrailDecay(values) {
-    const t = Math.max(0, Math.min(100, this.motionTrails)) / 100;
-    if (t <= 0) return;
-
-    if (this.trailsNeverDecay) {
-      this.trailMaterial.uniforms.uDecay.value = 1;
-      return;
-    }
+    if (!this.usesTrails(this.currentShaderId)) return;
 
     let baseDecay;
     if (values.uTrailDecay !== undefined) {
@@ -370,16 +403,23 @@ export class Visualizer {
     } else if (values.uTrailAlpha !== undefined) {
       baseDecay = 1 - values.uTrailAlpha;
     } else {
-      baseDecay = 0.92;
+      baseDecay = 0.9;
     }
 
-    const minDecay = 0.55;
-    this.trailMaterial.uniforms.uDecay.value = minDecay + (baseDecay - minDecay) * t;
+    const minDecay = 0.68;
+    let decay = minDecay + (baseDecay - minDecay);
+    if (this.trailsNeverDecay) {
+      decay = Math.min(decay, 0.93);
+    } else {
+      decay = Math.min(decay, 0.96);
+    }
+    this.trailMaterial.uniforms.uDecay.value = decay;
   }
 
   applyValues(uiValues, { syncSmooth = false, deferRebuild = false } = {}) {
     if (uiValues.motionTrails !== undefined) {
-      this.motionTrails = Math.max(0, Math.min(100, Math.round(uiValues.motionTrails)));
+      const trails = Math.max(0, Math.min(100, Math.round(uiValues.motionTrails)));
+      this.motionTrails = this.usesTrails(this.currentShaderId) ? 100 : trails;
     }
     if (uiValues.trailsNeverDecay !== undefined) {
       this.trailsNeverDecay = Boolean(uiValues.trailsNeverDecay);
@@ -394,20 +434,20 @@ export class Visualizer {
 
     if (deferRebuild) return;
 
-    if (uiValues.uParticleCount !== undefined) {
-      this.geometries.flow = syncFlowParticleCount(
-        this.geometries.flow,
-        shaderValues.uParticleCount,
-      );
-      this.meshes.flow.geometry = this.geometries.flow;
-    }
-
     if (this.currentShaderId === 'spiro' && shaderValues.uOrbitCount !== undefined) {
       const pens = Math.min(
         SPIRO_MAX_ORBITS,
         Math.max(1, Math.floor(shaderValues.uOrbitCount)),
       );
       this.geometries.spiro.setDrawRange(0, pens);
+    }
+
+    if (this.currentShaderId === 'spocks' && shaderValues.uPenCount !== undefined) {
+      const pens = Math.min(
+        SPIROGRAPH_MAX_PENS,
+        Math.max(1, Math.floor(shaderValues.uPenCount)),
+      );
+      this.geometries.spirograph.setDrawRange(0, pens);
     }
   }
 
@@ -448,13 +488,17 @@ export class Visualizer {
 
     const smoothed = this.uniformSmoother.update(dt);
     this.applySmoothedUniforms(material, smoothed);
+
+    if (shaderId === 'flow' && smoothed.uParticleCount !== undefined) {
+      setFlowParticleDrawRange(this.geometries.flow, smoothed.uParticleCount);
+    }
     const nextSpeed = Math.max(smoothed.uSpeed ?? 0.05, 0.001);
     const prevSpeed = this.lastAnimSpeed ?? nextSpeed;
     this.animPhase += dt * (prevSpeed + nextSpeed) * 0.5;
     this.lastAnimSpeed = nextSpeed;
     material.uniforms.uTime.value = this.animPhase;
 
-    const useTrails = this.motionTrails > 0 && this.usesTrails(shaderId);
+    const useTrails = this.usesTrails(shaderId);
 
     if (useTrails && this.trailTargets.length >= 2) {
       const [prev, next] = this.trailTargets;

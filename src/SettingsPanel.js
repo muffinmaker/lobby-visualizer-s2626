@@ -11,6 +11,8 @@ import { mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
 import { SHAPE_OPTIONS } from './shapeOptions.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
 
+const TRAIL_SHADERS = new Set(['spocks', 'spiro', 'flow']);
+
 function formatDisplayValue(value) {
   const rounded = Math.round(value * 10) / 10;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
@@ -307,6 +309,10 @@ export class SettingsPanel {
       .add(this.state, 'motionTrails', 0, 100, 1)
       .name('Motion Trails')
       .onChange((v) => {
+        if (TRAIL_SHADERS.has(this.state.shader)) {
+          this.state.motionTrails = 100;
+          this.motionTrailsCtrl.updateDisplay();
+        }
         this.updateTrailsNeverDecayCtrl();
         this.handleValueChange();
       });
@@ -369,6 +375,10 @@ export class SettingsPanel {
     const pm = this.presetManager;
     mergeShaderDefaults(this.state, shaderId);
     this.state.shader = shaderId;
+    if (TRAIL_SHADERS.has(shaderId)) {
+      this.state.motionTrails = 100;
+      this.motionTrailsCtrl?.updateDisplay();
+    }
     const values = this.getValues();
     pm.setActiveShader(shaderId);
     this.onChange?.({ shader: shaderId, values });
@@ -571,7 +581,14 @@ export class SettingsPanel {
       uShape4: 'Shape 4',
       uShapeMorph: 'Shape Morph',
       uHueShift: 'Hue Shift',
+      uColorSpeed: 'Color Speed',
       uColorSpread: 'Color Spread',
+      uPenCount: 'Pen Count',
+      uGearRatio: 'Gear Ratio',
+      uPenDistance: 'Pen Distance',
+      uWobble: 'Wobble',
+      uPenShape: 'Pen Shape',
+      uShapeVariety: 'Shape Variety',
       uTintRed: 'Tint Red',
       uTintGreen: 'Tint Green',
       uTintBlue: 'Tint Blue',
@@ -629,7 +646,8 @@ export class SettingsPanel {
   applyDisplaySettings(display) {
     if (!display) return;
     if (display.motionTrails !== undefined) {
-      this.state.motionTrails = Math.max(0, Math.min(100, Math.round(display.motionTrails)));
+      const trails = Math.max(0, Math.min(100, Math.round(display.motionTrails)));
+      this.state.motionTrails = TRAIL_SHADERS.has(this.state.shader) ? 100 : trails;
     }
     if (display.resolutionScale !== undefined) {
       this.state.resolutionScale = Math.max(25, Math.min(100, Math.round(display.resolutionScale)));
@@ -695,12 +713,16 @@ export class SettingsPanel {
     if (!this.visible) {
       this.setVisible(true);
       this.gui.close();
+      this.exitGamepadMenu();
       return;
     }
     if (this.gui._closed) {
       this.openPanel();
+      this.refreshNavigableItems();
+      this.setGamepadFocusIndex(0);
       return;
     }
+    this.exitGamepadMenu();
     this.gui.close();
     this.setVisible(false);
   }
@@ -710,7 +732,7 @@ export class SettingsPanel {
   }
 
   isGamepadMenuActive() {
-    return this.gamepadMenuActive;
+    return this.visible && !this.gui._closed;
   }
 
   isNavigableController(controller) {
@@ -768,7 +790,6 @@ export class SettingsPanel {
   }
 
   exitGamepadMenu() {
-    if (!this.gamepadMenuActive) return;
     this.navigableItems[this.gamepadFocusIndex]?.controller?.domElement?.classList.remove('gamepad-menu-focus');
     this.gamepadMenuActive = false;
   }
@@ -783,14 +804,14 @@ export class SettingsPanel {
   }
 
   gamepadNavigate(delta) {
-    if (!this.gamepadMenuActive) return;
+    if (!this.isGamepadMenuActive()) return;
     this.refreshNavigableItems();
     if (!this.navigableItems.length) return;
     this.setGamepadFocusIndex(this.gamepadFocusIndex + delta);
   }
 
   gamepadAdjust(delta, repeating = false) {
-    if (!this.gamepadMenuActive) return;
+    if (!this.isGamepadMenuActive()) return;
     const item = this.navigableItems[this.gamepadFocusIndex];
     if (!item) return;
 
@@ -831,7 +852,7 @@ export class SettingsPanel {
   }
 
   gamepadRandomizeFocused() {
-    if (!this.gamepadMenuActive) return;
+    if (!this.isGamepadMenuActive()) return;
     const item = this.navigableItems[this.gamepadFocusIndex];
     if (!item) return;
 
@@ -883,7 +904,7 @@ export class SettingsPanel {
   }
 
   refreshGamepadMenuAfterRebuild(focusKey) {
-    if (!this.gamepadMenuActive) return;
+    if (!this.isGamepadMenuActive()) return;
     this.refreshNavigableItems();
     if (!this.navigableItems.length) return;
     const idx = focusKey ? this.navigableItems.findIndex((item) => item.key === focusKey) : -1;

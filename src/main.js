@@ -8,6 +8,7 @@ import { createTutorial } from './Tutorial.js';
 import { mountTransportBar } from './TransportBar.js';
 import { createGamepadController, showGamepadToast } from './GamepadController.js';
 import { createGamepadChaos } from './gamepadChaos.js';
+import { createGamepadPsyche } from './gamepadPsyche.js';
 import { getShaderLabel } from './shaders/index.js';
 import {
   CUSTOM_LOGO_VALUE,
@@ -296,16 +297,13 @@ async function start() {
     onToast: showGamepadToast,
   });
 
+  const psyche = createGamepadPsyche({
+    settings,
+    onToast: showGamepadToast,
+  });
+
   const gamepad = createGamepadController(
     {
-      presetPrev: () => {
-        flashTransport('presetPrev');
-        onPresetPrev();
-      },
-      presetNext: () => {
-        flashTransport('presetNext');
-        onPresetNext();
-      },
       shaderPrev: () => {
         flashTransport('shaderPrev');
         onShaderPrev();
@@ -313,6 +311,15 @@ async function start() {
       shaderNext: () => {
         flashTransport('shaderNext');
         onShaderNext();
+      },
+      psycheUp: () => psyche.adjustVertical(1),
+      psycheDown: () => psyche.adjustVertical(-1),
+      psycheLess: () => psyche.adjustHorizontal(-1),
+      psycheMore: () => psyche.adjustHorizontal(1),
+      presetNext: () => {
+        flashTransport('presetNext');
+        onPresetNext();
+        showGamepadToast(`Next preset · ${presetManager.currentPreset.name}`);
       },
       toggleSettings: () => settings.toggleVisible(),
       toggleFullscreen,
@@ -515,22 +522,10 @@ async function start() {
     }
     if (e.code === 'KeyF') toggleFullscreen();
     if (e.code === 'KeyH') toggleUI();
-    if (e.code === 'ArrowRight') {
-      flashTransport('shaderNext');
-      onShaderNext();
-    }
-    if (e.code === 'ArrowLeft') {
-      flashTransport('shaderPrev');
-      onShaderPrev();
-    }
-    if (e.code === 'ArrowDown') {
-      flashTransport('presetNext');
-      onPresetNext();
-    }
-    if (e.code === 'ArrowUp') {
-      flashTransport('presetPrev');
-      onPresetPrev();
-    }
+    if (e.code === 'ArrowRight') psyche.adjustHorizontal(1);
+    if (e.code === 'ArrowLeft') psyche.adjustHorizontal(-1);
+    if (e.code === 'ArrowUp') psyche.adjustVertical(1);
+    if (e.code === 'ArrowDown') psyche.adjustVertical(-1);
     if (e.code === 'KeyZ') chaos.motion();
     if (e.code === 'KeyC') chaos.color();
     if (e.code === 'KeyX') chaos.structure();
@@ -549,7 +544,7 @@ async function start() {
     '%cLobby Visualizer',
     'font-weight:bold;font-size:14px',
     `\nShaders: ${SHADER_IDS.join(', ')}`,
-    '\nSpace: settings | ?: tutorial | F: fullscreen | H: hide UI | ←/→: shaders | ↑/↓: presets | Z/X/C/V: random motion/shapes/colors/preset | USB gamepad: see tutorial',
+    '\nSpace: settings | ?: tutorial | F: fullscreen | H: hide UI | ↑/↓: zoom & motion | ←/→: element counts | Z/X/C/V: random motion/shapes/colors/preset | USB gamepad: see tutorial',
   );
 }
 

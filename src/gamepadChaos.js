@@ -45,9 +45,9 @@ export function createGamepadChaos({
     applyMode,
     /** A / Z — speed, bloom, trails (same preset). */
     motion: () => applyMode('motion'),
-    /** B / C — palettes, tints, hues (same preset). */
+    /** X / C — palettes, tints, hues (same preset). */
     color: () => applyMode('color'),
-    /** X — segments, morph, zoom (same preset). */
+    /** Keyboard X — segments, morph, zoom (same preset). */
     structure: () => applyMode('structure'),
     /** Y / V / R — hop to another saved preset (same shader). */
     preset: () => applyMode('preset'),
