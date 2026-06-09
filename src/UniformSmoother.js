@@ -13,6 +13,18 @@ const DISCRETE_KEYS = new Set([
 
 const KEY_SMOOTH_TIMES = {
   uSpeed: 3.5,
+  uBgRed: 1.4,
+  uBgGreen: 1.4,
+  uBgBlue: 1.4,
+  uRotate: 2.2,
+  uMyTime: 2.0,
+  uScaleY: 2.0,
+  uScaleZ: 2.0,
+  uUp: 1.8,
+  uDown: 1.8,
+  uZoom: 2.5,
+  uWidth: 1.6,
+  uHeight: 1.6,
 };
 
 export class UniformSmoother {

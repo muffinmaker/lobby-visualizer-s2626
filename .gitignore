@@ -5,3 +5,6 @@ dist/
 
 # Reference OF project (binaries); keep logo PNGs in reference/
 reference/J04-spocks/
+
+# Local Netlify folder
+.netlify

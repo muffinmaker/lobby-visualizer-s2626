@@ -2,6 +2,19 @@ import { SHADERS, GLOBAL_UNIFORMS } from './shaders/index.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
+function uiToT(ui, spec) {
+  let t = (ui - spec.min) / (spec.max - spec.min || 1);
+  t = clamp(t, 0, 1);
+  if (spec.invert) t = 1 - t;
+  return t;
+}
+
+function tToUi(t, spec) {
+  t = clamp(t, 0, 1);
+  if (spec.invert) t = 1 - t;
+  return Math.round(spec.min + t * (spec.max - spec.min));
+}
+
 export function uiToShader(ui, spec) {
   if (spec.kind === 'rgb') return ui / 255;
   if (spec.kind === 'toggle') return ui > 0 ? 1 : 0;
@@ -9,17 +22,17 @@ export function uiToShader(ui, spec) {
     return Math.round(Number(ui));
   }
   if (spec.kind === 'zoom') {
-    const t = (ui - spec.min) / (spec.max - spec.min || 1);
-    const exp = spec.shaderMin + clamp(t, 0, 1) * (spec.shaderMax - spec.shaderMin);
+    const t = uiToT(ui, spec);
+    const exp = spec.shaderMin + t * (spec.shaderMax - spec.shaderMin);
     return Math.pow(2, exp);
   }
   if (spec.kind === 'particles') {
-    const t = ui / (spec.max - spec.min || 1);
-    const raw = spec.shaderMin + t * (spec.shaderMax - spec.shaderMin);
+    const t = (ui - spec.min) / (spec.max - spec.min || 1);
+    const raw = spec.shaderMin + clamp(t, 0, 1) * (spec.shaderMax - spec.shaderMin);
     return Math.round(raw / 1000) * 1000;
   }
 
-  const t = (ui - spec.min) / (spec.max - spec.min || 1);
+  const t = uiToT(ui, spec);
   if (spec.shaderMin !== undefined && spec.shaderMax !== undefined) {
     return spec.shaderMin + t * (spec.shaderMax - spec.shaderMin);
   }
@@ -30,18 +43,22 @@ export function uiToShader(ui, spec) {
 export function shaderToUi(shader, spec) {
   if (spec.kind === 'rgb') return Math.round(clamp(shader, 0, 1) * 255);
   if (spec.kind === 'toggle') return shader > 0.5 ? 1 : 0;
-  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'particles') {
+  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape') {
     return Math.round(clamp(shader, spec.min, spec.max));
+  }
+  if (spec.kind === 'particles') {
+    const t = (shader - spec.shaderMin) / (spec.shaderMax - spec.shaderMin || 1);
+    return Math.round(spec.min + clamp(t, 0, 1) * (spec.max - spec.min));
   }
   if (spec.kind === 'zoom') {
     const exp = Math.log2(Math.max(shader, 1e-6));
     const t = (exp - spec.shaderMin) / (spec.shaderMax - spec.shaderMin || 1);
-    return Math.round(spec.min + clamp(t, 0, 1) * (spec.max - spec.min));
+    return tToUi(t, spec);
   }
 
   if (spec.shaderMin !== undefined && spec.shaderMax !== undefined) {
     const t = (shader - spec.shaderMin) / (spec.shaderMax - spec.shaderMin || 1);
-    return Math.round(spec.min + clamp(t, 0, 1) * (spec.max - spec.min));
+    return tToUi(t, spec);
   }
 
   return Math.round(clamp(shader, 0, 1) * 100);

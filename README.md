@@ -20,3 +20,7 @@ npm run build
 ## Live site
 
 https://lobby-visualizer-s2626.netlify.app
+
+## Roadmap
+
+See [IMPROVEMENTS.md](./IMPROVEMENTS.md) for the prioritized backlog.

@@ -1,4 +1,4 @@
-import { GLOBAL_UNIFORMS, SHADER_UNIFORM_TEMPLATES } from '../uniformSpecs.js';
+import { BACKGROUND_UNIFORMS, GLOBAL_UNIFORMS, SHADER_UNIFORM_TEMPLATES } from '../uniformSpecs.js';
 
 export const SHADERS = {
   spocks: {
@@ -58,10 +58,15 @@ export const SHADERS = {
         return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
       }
 
-      float rectOutline(vec2 p, vec2 halfSize, float lw) {
+      float sdBox(vec2 p, vec2 halfSize) {
         vec2 q = abs(p) - halfSize;
-        float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
-        return 1.0 - smoothstep(0.0, lw, abs(d));
+        return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+      }
+
+      // Ring around the square edge only (avoids interior cross artifacts).
+      float rectOutline(vec2 p, vec2 halfSize, float lw) {
+        float d = abs(sdBox(p, halfSize));
+        return 1.0 - smoothstep(lw * 0.35, lw * 0.35 + lw, d);
       }
 
       void main() {
@@ -70,9 +75,8 @@ export const SHADERS = {
         uv *= exp(uZoom * 0.08);
 
         float minRes = min(uResolution.x, uResolution.y);
-        float lw = uLineWidth / minRes;
+        float lw = max(uLineWidth / minRes, 0.0015);
 
-        float nTime = t * 0.01;
         float w = uWidth;
         float h = uHeight;
         if (uWidthRand > 0.5) {
@@ -82,10 +86,15 @@ export const SHADERS = {
           h *= mix(0.55, 1.45, noise(vec2(t * 0.03, 42.0)));
         }
 
+        // Match J04: cumulative ofScale(mytime*z, mytime*y) per iteration.
         vec2 sx = vec2(uMyTime * uScaleZ, uMyTime * uScaleY);
-        sx = max(abs(sx), vec2(0.001)) * sign(sx + vec2(0.0001));
+        sx = vec2(
+          abs(sx.x) < 1e-4 ? sign(sx.x) * 1e-4 : sx.x,
+          abs(sx.y) < 1e-4 ? sign(sx.y) * 1e-4 : sx.y
+        );
 
-        float ang = radians(t * uRotate * 57.2958);
+        // ofRotateDeg(time * rotate) — rotate is in degrees per second per layer.
+        float ang = radians(t * uRotate);
         vec2 offset = vec2(uUp, uDown) * uScale;
         vec2 halfSize = vec2(w, h) * 0.5;
 
@@ -93,13 +102,12 @@ export const SHADERS = {
         for (float i = 0.0; i < 120.0; i++) {
           if (i >= uIterations) break;
 
-          vec2 scalePow = pow(sx, vec2(i));
+          vec2 scalePow = vec2(pow(sx.x, i), pow(sx.y, i));
           vec2 local = uv / scalePow;
           local = rot(-i * ang) * local;
           local -= offset;
 
           edge = max(edge, rectOutline(local, halfSize, lw));
-          if (edge > 0.98) break;
         }
 
         float percent = cos(t * 0.5) * 0.5 + 0.5;
@@ -111,7 +119,7 @@ export const SHADERS = {
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(gray), col, uSaturation);
 
-        gl_FragColor = vec4(col, edge);
+        gl_FragColor = vec4(col * edge, edge);
       }
     `,
   },
@@ -121,7 +129,6 @@ export const SHADERS = {
     uniforms: { ...SHADER_UNIFORM_TEMPLATES.spiro },
     vertex: /* glsl */ `
       uniform float uTime;
-      uniform float uSpeed;
       uniform float uScale;
       uniform float uComplexity;
       uniform float uOrbitCount;
@@ -140,8 +147,9 @@ export const SHADERS = {
       attribute float aIndex;
       attribute float aPhase;
 
-      varying float vGlow;
       varying vec3 vColor;
+      varying float vPenAngle;
+      varying float vPenAspect;
 
       vec3 palette(float t) {
         float p = floor(uPalette + 0.5);
@@ -162,35 +170,48 @@ export const SHADERS = {
       }
 
       void main() {
-        float n = aIndex;
-        float t = uTime + aPhase;
+        float orbit = aIndex;
         float orbitCount = max(uOrbitCount, 1.0);
-        float orbit = mod(n, orbitCount) + 1.0;
-        float layer = n / orbitCount;
+        if (orbit >= orbitCount) {
+          gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+          gl_PointSize = 0.0;
+          return;
+        }
 
-        float r1 = uScale * (0.25 + 0.75 * (layer / 80.0));
-        float r2 = r1 * (0.35 + 0.15 * orbit);
-        float r3 = r2 * (0.5 + 0.08 * uComplexity);
+        float t = uTime + aPhase * 0.15;
+        float lane = (orbit + 0.5) / orbitCount;
 
-        float a1 = t * (0.4 + orbit * 0.07) + layer * 0.12;
-        float a2 = -t * (0.9 + orbit * 0.11) * uTwist + n * 0.03;
-        float a3 = t * (1.3 + orbit * 0.05) + sin(t * 0.3 + layer) * uComplexity;
+        float R = uScale * 0.5 * (0.45 + 0.55 * lane);
+        float r = R * (0.14 + 0.1 * lane + uComplexity * 0.04);
+        float k = 1.15 + orbit * 0.28 + uComplexity * 0.18;
+        float twist = 1.0 + uTwist * 0.45;
 
-        vec2 pos;
-        pos.x = r1 * cos(a1) + r2 * cos(a2) + r3 * cos(a3);
-        pos.y = r1 * sin(a1) + r2 * sin(a2) + r3 * sin(a3);
+        float omega = 1.35 + orbit * 0.12;
+        float a = t * omega;
+        float b = -t * k * twist + orbit * 1.5707963;
 
-        float pulse = 1.0 + uPulse * sin(t * 2.0 + n * 0.08);
+        vec2 pos = vec2(
+          R * cos(a) + r * cos(b),
+          R * sin(a) + r * sin(b)
+        );
+
+        float pulse = 1.0 + uPulse * 0.08 * sin(t * 1.4 + orbit);
         pos *= pulse;
-        pos /= max(uZoom, 0.0001);
+        pos.x /= max(uAspect, 0.75);
+        pos /= max(pow(uZoom, 0.65), 0.35);
 
-        vGlow = 0.35 + 0.65 * sin(t * 1.5 + orbit + layer * 0.05);
-        vColor = palette(n * 0.004 + t * 0.05 + layer * 0.02);
+        vec2 vel = vec2(
+          -R * sin(a) * omega - r * sin(b) * (-k * twist),
+          R * cos(a) * omega + r * cos(b) * (-k * twist)
+        );
+        vPenAngle = atan(vel.y, vel.x);
+        vPenAspect = 0.55 + lane * 0.25;
+        vColor = palette(orbit / max(orbitCount - 1.0, 1.0));
 
         vec4 mvPosition = modelViewMatrix * vec4(pos, 0.0, 1.0);
         gl_Position = projectionMatrix * mvPosition;
-        float size = uPointSize * (120.0 / -mvPosition.z) * (0.5 + vGlow * 0.5);
-        gl_PointSize = min(size, 48.0);
+        float size = uPointSize * (220.0 / -mvPosition.z) * (0.85 + lane * 0.2);
+        gl_PointSize = clamp(size, 12.0, 120.0);
       }
     `,
     fragment: /* glsl */ `
@@ -198,22 +219,33 @@ export const SHADERS = {
       uniform float uSaturation;
       uniform float uBloom;
 
-      varying float vGlow;
       varying vec3 vColor;
+      varying float vPenAngle;
+      varying float vPenAspect;
 
       void main() {
         vec2 uv = gl_PointCoord - 0.5;
-        float d = length(uv);
-        float core = smoothstep(0.5, 0.0, d);
-        float halo = exp(-d * d * 8.0) * uBloom;
+        float c = cos(vPenAngle);
+        float s = sin(vPenAngle);
+        uv = mat2(c, -s, s, c) * uv;
+        uv.x *= vPenAspect;
 
-        vec3 col = vColor * (core + halo * 0.5);
+        vec2 halfSize = vec2(0.34, 0.2);
+        vec2 q = abs(uv) - halfSize;
+        float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+        float edge = 1.0 - smoothstep(0.0, 0.04, abs(d));
+        float fill = 1.0 - smoothstep(0.0, 0.02, d);
+        float stamp = max(edge, fill * 0.85);
+        float halo = exp(-d * d * 18.0) * uBloom * 0.35;
+
+        vec3 col = vColor * stamp;
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(gray), col, uSaturation);
-        col *= uBrightness * (0.35 + vGlow * 0.45);
+        col *= uBrightness * (0.75 + stamp * 0.35);
+        col += col * halo;
 
-        float alpha = min((core + halo * 0.35) * 0.55, 0.35);
-        if (alpha < 0.01) discard;
+        float alpha = clamp(stamp * 0.92 + halo * 0.2, 0.0, 0.95);
+        if (alpha < 0.02) discard;
         gl_FragColor = vec4(col, alpha);
       }
     `,
@@ -326,10 +358,10 @@ export const SHADERS = {
         shapeId = floor(shapeId + 0.5);
         if (shapeId < 0.5) return 0.0;
         float d = shapeDistance(cp, shapeId, size);
-        float lw = max(uLineWidth * 40.0, 0.008);
-        float outline = lw / max(abs(d), 0.001);
-        float fill = smoothstep(0.025, -0.02, d);
-        return outline + fill * 1.8;
+        float lw = max(uLineWidth * 35.0, 0.006);
+        float outline = 1.0 - smoothstep(0.0, lw, abs(d));
+        float fill = smoothstep(0.02, -0.025, d);
+        return max(outline, fill * 0.85);
       }
 
       float shapeBySlot(float slot, float shapeA, float shapeB, float shapeC, float shapeD) {
@@ -371,6 +403,8 @@ export const SHADERS = {
         float tp = t * anim;
         float detail = max(uComplexity, 0.15);
         float ringScale = max(uScale, 0.15);
+        float origin = length(p);
+        float originFade = smoothstep(0.0, 0.04 + uLineWidth * 1.5, origin);
 
         float rings = 0.0;
         for (float i = 0.0; i < 14.0; i++) {
@@ -378,7 +412,8 @@ export const SHADERS = {
           float fi = i + 1.0;
           float r = fi * 0.12 * ringScale;
           float wobble = sin(tp * (0.7 + fi * 0.1) + fi * 1.7) * uWarp * 0.05;
-          rings += uLineWidth / abs(length(p) - r - wobble);
+          float ringDist = max(abs(length(p) - r - wobble), 0.012);
+          rings += uLineWidth / ringDist;
         }
 
         float spokes = 0.0;
@@ -388,12 +423,13 @@ export const SHADERS = {
           float fj = j + 1.0;
           float ang = fj * (0.35 + 0.08 * detail) + tp * 0.45 * detail;
           vec2 dir = vec2(cos(ang), sin(ang));
-          spokes += uLineWidth * 0.5 / abs(dot(p, dir));
+          float spokeDist = max(abs(dot(p, dir)), 0.01);
+          spokes += uLineWidth * 0.5 / spokeDist;
         }
 
         float field = sin(p.x * (8.0 + detail * 14.0) + tp)
                     * sin(p.y * (8.0 + detail * 14.0) - tp * 0.7);
-        return rings + spokes + field * (0.05 + detail * 0.06);
+        return (rings + spokes) * originFade + field * (0.05 + detail * 0.06);
       }
 
       void main() {
@@ -405,19 +441,28 @@ export const SHADERS = {
         float anim = 1.0 + uSpeed * 2.0;
         float detail = max(uComplexity, 0.15);
 
-        float center = centerShapeField(uv, t * anim);
+        float centerField = centerShapeField(uv, t * anim);
+        float centerAmt = clamp(centerField / max(uCenterStrength, 0.35), 0.0, 1.0);
 
         vec2 p = kaleidoscope(uv, floor(uSegments + 0.5));
         p *= 1.0 + 0.1 * sin(t * anim + length(uv) * (3.0 + detail * 2.0)) * uWarp;
 
         float patternVal = pattern(p, t, anim);
-        float raw = patternVal + center;
-        float intensity = tanh(raw * 0.14);
+        float intensity = tanh(patternVal * 0.14);
 
-        vec3 col = palette(intensity * 4.0 + t * anim * 0.12 + length(uv) * 0.35 + center * 0.1);
+        float hue = intensity * 4.0 + t * anim * 0.12 + length(uv) * 0.35;
+        vec3 col = palette(hue);
         col *= intensity * uBrightness * 2.2;
-        col += col * uBloom * (0.5 + intensity);
-        col += palette(center * 0.25 + t * anim * 0.06) * center * 0.2 * uBloom * uBrightness;
+
+        float centerHue = t * anim * 0.18 + uCenterShape * 0.42 + centerAmt * 0.35;
+        vec3 centerCol = palette(centerHue);
+        centerCol = mix(centerCol, palette(centerHue + 0.55), smoothstep(0.15, 0.85, centerAmt));
+        float centerBright = (0.42 + centerAmt * 0.58) * uBrightness;
+        col = mix(col, centerCol * centerBright, centerAmt * 0.82);
+
+        vec3 bloomTint = palette(hue + 0.2);
+        col += bloomTint * uBloom * (0.22 + intensity * 0.28) * uBrightness * 0.35;
+        col += palette(centerHue + 0.35) * centerAmt * uBloom * uBrightness * 0.16;
 
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(gray), col, uSaturation);
@@ -438,12 +483,14 @@ export const SHADERS = {
       uniform float uFieldScale;
       uniform float uNoiseScale;
       uniform float uPointSize;
+      uniform float uParticleCount;
       uniform float uAspect;
 
       attribute vec3 aSeed;
 
       varying vec3 vColor;
       varying float vAlpha;
+      varying float vCover;
 
       vec3 palette(float t) {
         return 0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + t));
@@ -483,13 +530,19 @@ export const SHADERS = {
         }
 
         pos *= 1.0 + 0.1 * sin(t * 0.5 + life * 20.0);
+        pos.x /= max(uAspect, 0.75);
+
+        float density = sqrt(3200.0 / max(uParticleCount, 800.0));
+        vCover = clamp(density, 0.22, 1.35);
 
         vColor = palette(life * 3.0 + t * 0.06 + length(pos) * 0.2);
-        vAlpha = 0.4 + 0.6 * sin(t * 2.0 + life * 40.0);
+        vAlpha = (0.35 + 0.45 * sin(t * 2.0 + life * 40.0)) * vCover;
 
         vec4 mvPosition = modelViewMatrix * vec4(pos, 0.0, 1.0);
         gl_Position = projectionMatrix * mvPosition;
-        gl_PointSize = uPointSize * (180.0 / -mvPosition.z);
+
+        float size = uPointSize * (140.0 / -mvPosition.z) * (0.55 + vCover * 0.25);
+        gl_PointSize = clamp(size, 1.5, 14.0);
       }
     `,
     fragment: /* glsl */ `
@@ -499,18 +552,25 @@ export const SHADERS = {
 
       varying vec3 vColor;
       varying float vAlpha;
+      varying float vCover;
 
       void main() {
         vec2 uv = gl_PointCoord - 0.5;
         float d = length(uv);
-        float alpha = exp(-d * d * 10.0) * vAlpha;
-        if (alpha < 0.01) discard;
+        float stamp = exp(-d * d * 14.0);
+        float alpha = stamp * vAlpha;
+        if (alpha < 0.008) discard;
 
-        vec3 col = vColor * uBrightness;
+        vec3 col = vColor * stamp;
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(gray), col, uSaturation);
-        col += col * uBloom * exp(-d * 4.0);
+        col *= uBrightness * (0.55 + stamp * 0.35) * vCover;
 
+        float halo = exp(-d * d * 8.0) * uBloom * 0.18 * vCover;
+        col += col * halo;
+
+        alpha = clamp(alpha * 0.72, 0.0, 0.55);
+        if (alpha < 0.01) discard;
         gl_FragColor = vec4(col, alpha);
       }
     `,
@@ -579,17 +639,21 @@ export const SHADERS = {
 
 export const SHADER_IDS = Object.keys(SHADERS);
 
+export function getShaderLabel(shaderId) {
+  if (!shaderId) return 'Shader';
+  const shader = SHADERS[shaderId];
+  return shader?.label ?? shaderId.charAt(0).toUpperCase() + shaderId.slice(1);
+}
+
 export function getShaderChoices() {
   const choices = {};
   for (const id of SHADER_IDS) {
-    const shader = SHADERS[id];
-    const label = shader?.label ?? id.charAt(0).toUpperCase() + id.slice(1);
-    choices[label] = id;
+    choices[getShaderLabel(id)] = id;
   }
   return choices;
 }
 
-export { GLOBAL_UNIFORMS };
+export { BACKGROUND_UNIFORMS, GLOBAL_UNIFORMS };
 
 export const COMMON_VERTEX = /* glsl */ `
   uniform float uTime;

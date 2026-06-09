@@ -16,23 +16,49 @@ const SECTIONS = [
   {
     title: 'Auto Cycle',
     body: `
-      <p>When <strong>Auto Cycle → Enabled</strong> is on, the app automatically moves through presets on a timer.</p>
-      <p>It is <strong>off by default</strong> — presets only change when you pick one, or use <kbd>←</kbd> <kbd>→</kbd> / <strong>Next Preset</strong>.</p>
+      <p>When <strong>⟳ Auto-cycle</strong> (transport bar) or <strong>Auto Cycle → Enabled</strong> is on, the app automatically moves through presets on a timer.</p>
+      <p>It is <strong>off by default</strong> — presets only change when you pick one or use the transport bar’s <strong>▲ ▼</strong> buttons beside the preset number.</p>
       <p>Turn it on if you want unattended lobby playback. Adjust <strong>Interval</strong> and <strong>Transition</strong> for cross-fade timing. <strong>Randomize Presets</strong> randomizes values each time it cycles.</p>
+      <p><strong>∿ Smooth transitions</strong> (transport bar, before ⟳) or <strong>Auto Cycle → Smooth transitions</strong> cross-fades slider values when changing presets. Turn it off for instant preset switches.</p>
     `,
   },
   {
     title: 'Keyboard shortcuts',
     body: `
       <ul class="tutorial-keys">
-        <li><kbd>Space</kbd> Settings panel</li>
+        <li><kbd>Space</kbd> Toolbar → options → hide (cycles)</li>
         <li><kbd>F</kbd> Fullscreen</li>
         <li><kbd>H</kbd> Hide settings UI</li>
-        <li><kbd>←</kbd> <kbd>→</kbd> Previous / next preset</li>
-        <li><kbd>R</kbd> Random preset</li>
+        <li><strong>◀ ▶</strong> (transport bar, around shader name) or <kbd>←</kbd> <kbd>→</kbd> Previous / next shader — changes which slider set is shown</li>
+        <li><strong>▲ ▼</strong> (transport bar, beside preset number) or <kbd>↑</kbd> <kbd>↓</kbd> Previous / next preset for the current shader</li>
+        <li><strong>∿ Smooth transitions</strong> (transport bar) Toggle preset cross-fade vs instant</li>
+        <li><strong>⟳ Auto-cycle</strong> (transport bar, end) Toggle auto-cycling presets</li>
+        <li><kbd>Z</kbd> Random <em>motion</em> on current preset (speed, bloom, trails…)</li>
+        <li><kbd>C</kbd> Random <em>colors</em> on current preset (palette, tints, hues…)</li>
+        <li><kbd>X</kbd> Random <em>shapes</em> on current preset (segments, morph, zoom…)</li>
+        <li><kbd>V</kbd> or <kbd>Y</kbd> or <kbd>R</kbd> Random <em>preset</em> — another saved look, same shader</li>
         <li><kbd>?</kbd> This tutorial</li>
         <li><kbd>Esc</kbd> Close tutorial</li>
       </ul>
+    `,
+  },
+  {
+    title: 'USB gamepad (SNES-style)',
+    body: `
+      <p>Plug in a USB SNES-style controller (D-pad, Start, Select, A/B/X/Y). Press any button once after the page has focus so the browser can detect the pad. A brief toast appears when a controller connects.</p>
+      <p>Inputs are edge-triggered (one action per press, ~250&nbsp;ms debounce). Face buttons each randomize a <strong>different slice</strong> of the current preset (motion, color, or shape) so repeated presses feel consistent. A brief label at the top left shows the mode and preset name.</p>
+      <ul class="tutorial-keys">
+        <li><strong>L / R</strong> (shoulder buttons) Previous / next shader</li>
+        <li><strong>D-pad ◀ ▶</strong> Previous / next shader</li>
+        <li><strong>D-pad ▲ ▼</strong> Previous / next preset</li>
+        <li><strong>Start</strong> Toggle fullscreen (same as <kbd>F</kbd>)</li>
+        <li><strong>Select</strong> Toolbar → options → hide (same as <kbd>Space</kbd>)</li>
+        <li><strong>A</strong> Random <em>motion</em> — speed, bloom, trails (same preset)</li>
+        <li><strong>B</strong> Random <em>colors</em> — palette, tints, hues (same preset)</li>
+        <li><strong>X</strong> Random <em>shapes</em> — segments, morph, zoom (same preset)</li>
+        <li><strong>Y</strong> Random <em>preset</em> — jump to another saved look (same shader)</li>
+      </ul>
+      <p><kbd>Space</kbd> or <strong>Select</strong> cycles: <strong>toolbar only</strong> → <strong>full options</strong> → <strong>hidden</strong> → toolbar… <kbd>H</kbd> also toggles UI visibility.</p>
     `,
   },
   {
@@ -46,9 +72,13 @@ const SECTIONS = [
   {
     title: 'Display & performance',
     body: `
-      <p><strong>Resolution %</strong> lowers render quality to save GPU power — try 50–75% on slower machines. Motion trails and high particle counts also use more resources; turn trails off if needed.</p>
-      <p><strong>Motion Trails</strong> leaves fading trails on shaders that support it (Spocks, Spiro, Flow).</p>
-      <p><strong>Background</strong> sets the clear color behind the visuals.</p>
+      <p><strong>Resolution %</strong> lowers render quality to save GPU power — try 50–75% on slower machines. Motion trails and high particle counts also use more resources; set Motion Trails to 0 if needed.</p>
+      <p><strong>Motion Trails</strong> (0–100) controls trail strength on shaders that support it (Spocks, Spiro, Flow). Per-shader trail decay sliders in each shader folder fine-tune persistence at full strength. Enable <strong>Trails never decay</strong> to keep trails permanently (no fade between frames).</p>
+      <p>For weak lobby GPUs running <strong>Spocks</strong>, pick the built-in <strong>Lobby Safe</strong> preset: it lowers iteration count, turns motion trails off, sets Resolution % to 75, and uses conservative speed and brightness. Spocks also caps device pixel ratio and renders trail buffers at half resolution automatically.</p>
+      <p><strong>Kaleidoscope</strong> presets such as <strong>Jade Carousel</strong>, <strong>Ember Fold</strong>, and <strong>Crystal Swap</strong> showcase multi-shape morph (Shape Count 2–4 + Shape Morph). Saturation and Bloom vary the color theme per preset.</p>
+      <p>The transport bar has <strong>◀ ▶</strong> around the shader name to switch visual styles (and which sliders appear), and <strong>▲ ▼</strong> beside the <strong>preset number</strong> (e.g. <strong>3/11</strong>) to step through saved combinations for that shader. <strong>∿</strong> toggles smooth preset cross-fades; <strong>⟳</strong> toggles auto-cycle. <strong>↺ Reset preset</strong> in the settings panel restores built-in defaults for the current preset name.</p>
+      <p><strong>Background Red / Green / Blue</strong> (Display) sets the canvas and trail fade color — independent of square, tint, or palette colors in each shader.</p>
+      <p><strong>Logo</strong> overlays a built-in mark at the center of the screen. Choose <strong>None</strong> to hide it. <strong>Add logo</strong> uploads your own PNG or JPG (saved in this browser). <strong>Logo Scale %</strong> resizes the overlay; <strong>Logo Opacity %</strong> controls transparency (0–100).</p>
     `,
   },
 ];

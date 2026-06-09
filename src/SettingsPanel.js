@@ -1,8 +1,38 @@
 import GUI from 'lil-gui';
 import { defaultResolutionScale } from './Visualizer.js';
-import { SHADERS, GLOBAL_UNIFORMS, getShaderChoices } from './shaders/index.js';
+import {
+  SHADERS,
+  BACKGROUND_UNIFORMS,
+  GLOBAL_UNIFORMS,
+  SHADER_IDS,
+  getShaderChoices,
+} from './shaders/index.js';
 import { mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
 import { SHAPE_OPTIONS } from './shapeOptions.js';
+import { randomBetween, randomizeUniform } from './randomize.js';
+
+function formatDisplayValue(value) {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function configureNumberController(controller) {
+  if (!controller?.domElement?.classList?.contains('number') || controller._displayFormatted) {
+    return controller;
+  }
+
+  const original = controller.updateDisplay.bind(controller);
+  controller.updateDisplay = function updateDisplayWithFormat() {
+    original();
+    if (this.$input && !this._inputFocused) {
+      this.$input.value = formatDisplayValue(this.getValue());
+    }
+    return this;
+  };
+  controller._displayFormatted = true;
+  controller.updateDisplay();
+  return controller;
+}
 
 export class SettingsPanel {
   constructor({
@@ -13,7 +43,12 @@ export class SettingsPanel {
     onChange,
     logoOptions = [{ label: 'None', value: 'none' }],
     initialLogo = 'none',
+    initialLogoScale = 100,
+    initialLogoOpacity = 100,
     onLogoChange,
+    onLogoScaleChange,
+    onLogoOpacityChange,
+    onAddLogoRequest,
   }) {
     this.presetManager = presetManager;
     this.visualizer = visualizer;
@@ -22,7 +57,13 @@ export class SettingsPanel {
     this.onChange = onChange;
     this.logoOptions = logoOptions;
     this.onLogoChange = onLogoChange;
+    this.onLogoScaleChange = onLogoScaleChange;
+    this.onLogoOpacityChange = onLogoOpacityChange;
+    this.onAddLogoRequest = onAddLogoRequest;
     this.visible = true;
+    this.gamepadMenuActive = false;
+    this.navigableItems = [];
+    this.gamepadFocusIndex = 0;
     this.shaderFolder = null;
     this.uniformControllers = new Map();
     this.driftToggles = new Map();
@@ -32,15 +73,19 @@ export class SettingsPanel {
       shader: presetManager.currentPreset.shader,
       preset: presetManager.currentPreset.name,
       logoOverlay: initialLogo,
+      logoScale: initialLogoScale,
+      logoOpacity: initialLogoOpacity,
       autoCycle: presetManager.autoCycle,
       cycleInterval: presetManager.cycleInterval,
       transitionDuration: presetManager.transitionDuration,
+      smoothTransitions: presetManager.smoothTransitions,
       randomizeOnCycle: presetManager.randomizeOnCycle,
       driftInterval: driftManager.interval,
       driftDuration: driftManager.duration,
       driftSpeed: driftManager.speed,
       driftSpeedAuto: driftManager.speedAuto,
-      trailsEnabled: true,
+      motionTrails: 100,
+      trailsNeverDecay: false,
       resolutionScale: visualizer.resolutionScale ?? defaultResolutionScale(),
       menuOpacity: 80,
       musicEnabled: false,
@@ -49,15 +94,18 @@ export class SettingsPanel {
       musicResponse: 55,
       musicLevel: 0,
       musicStatus: 'Off',
-      background: '#020208',
       ...this.flattenValues(presetManager.currentPreset),
     };
+    mergeShaderDefaults(this.state, this.state.shader);
 
     this.gui = new GUI({ title: '', width: 360 });
     this.presetController = null;
     this.build();
 
     this.presetManager.subscribe((event, detail) => {
+      if (event === 'activeShaderChanged') {
+        this.refreshPresetDropdown();
+      }
       if (event === 'presetsChanged') {
         this.refreshPresetDropdown();
         if (detail?.preset?.name) {
@@ -73,6 +121,28 @@ export class SettingsPanel {
         this.state.preset = detail.preset.name;
         this.presetController?.updateDisplay();
       }
+      if (event === 'transitionStart' && detail?.to?.name) {
+        this.state.preset = detail.to.name;
+        this.presetController?.updateDisplay();
+      }
+      if (event === 'autoCycleChanged') {
+        this.state.autoCycle = detail.enabled;
+        this.autoCycleCtrl?.updateDisplay();
+      }
+      if (event === 'smoothTransitionsChanged') {
+        this.state.smoothTransitions = detail.enabled;
+        this.smoothTransitionsCtrl?.updateDisplay();
+      }
+      if (
+        event === 'preset' ||
+        event === 'presetsChanged' ||
+        event === 'presetSaved' ||
+        event === 'transitionStart' ||
+        event === 'transitionEnd' ||
+        event === 'activeShaderChanged'
+      ) {
+        this.refreshResetPresetButton();
+      }
     });
   }
 
@@ -81,39 +151,54 @@ export class SettingsPanel {
   }
 
   build() {
+    mergeShaderDefaults(this.state, this.state.shader);
+
     const pm = this.presetManager;
     const dm = this.driftManager;
 
     this.gui.add(this.state, 'shader', getShaderChoices()).name('Shader').onChange((id) => {
-      mergeShaderDefaults(this.state, id);
-      const values = this.getValues();
-      this.onChange?.({ shader: id, values });
-      this.visualizer.setShader(id, values);
-      this.rebuildShaderFolder(id);
-      this.syncValuesToVisualizer();
-      if (this.musicMode?.enabled) {
-        this.musicMode.currentShader = id;
-        this.musicMode.captureBaseline(this.getValues());
-      }
+      this.setShader(id);
     });
 
     this.presetController = this.gui
-      .add(this.state, 'preset', pm.getPresetNames())
+      .add(this.state, 'preset', pm.getPresetNames(this.state.shader))
       .name('Preset')
       .onChange((name) => {
-        pm.goToByName(name, { immediate: false, randomize: false });
+        pm.setActiveShader(this.state.shader);
+        pm.syncCurrentIndexForShader(name);
+        pm.goToByName(name, { randomize: false, shader: this.state.shader });
       });
 
-    const logoChoices = this.logoOptions.reduce((acc, option) => {
-      acc[option.label] = option.value;
-      return acc;
-    }, {});
+    const resetActions = {
+      resetPreset: () => pm.resetToOriginals(),
+    };
+    this.resetPresetCtrl = this.gui.add(resetActions, 'resetPreset').name('↺ Reset preset');
+    this.refreshResetPresetButton();
 
-    this.gui
-      .add(this.state, 'logoOverlay', logoChoices)
+    this.logoController = this.gui
+      .add(this.state, 'logoOverlay', this.buildLogoChoices())
       .name('Logo')
       .onChange((value) => {
         this.onLogoChange?.(value);
+      });
+
+    const logoActions = {
+      addLogo: () => this.onAddLogoRequest?.(),
+    };
+    this.gui.add(logoActions, 'addLogo').name('Add logo');
+
+    this.gui
+      .add(this.state, 'logoScale', 10, 200, 1)
+      .name('Logo Scale %')
+      .onChange((value) => {
+        this.onLogoScaleChange?.(value);
+      });
+
+    this.gui
+      .add(this.state, 'logoOpacity', 0, 100, 1)
+      .name('Logo Opacity %')
+      .onChange((value) => {
+        this.onLogoOpacityChange?.(value);
       });
 
     if (this.musicMode) {
@@ -165,12 +250,18 @@ export class SettingsPanel {
     }
 
     const cycle = this.gui.addFolder('Auto Cycle');
-    cycle.add(this.state, 'autoCycle').name('Enabled').onChange((v) => {
-      pm.autoCycle = v;
+    this.autoCycleCtrl = cycle.add(this.state, 'autoCycle').name('Enabled').onChange((v) => {
+      pm.setAutoCycle(v);
     });
     cycle.add(this.state, 'cycleInterval', 10, 180, 1).name('Interval (s)').onChange((v) => {
       pm.cycleInterval = v;
     });
+    this.smoothTransitionsCtrl = cycle
+      .add(this.state, 'smoothTransitions')
+      .name('Smooth transitions')
+      .onChange((v) => {
+        pm.setSmoothTransitions(v);
+      });
     cycle.add(this.state, 'transitionDuration', 2, 20, 0.5).name('Transition (s)').onChange((v) => {
       pm.transitionDuration = v;
     });
@@ -212,19 +303,34 @@ export class SettingsPanel {
       .onChange((v) => {
         this.visualizer.setResolutionScale(v);
       });
-    display.add(this.state, 'trailsEnabled').name('Motion Trails').onChange((v) => {
-      this.visualizer.setTrailsEnabled(v);
-    });
-    display.addColor(this.state, 'background').name('Background').onChange((v) => {
-      this.visualizer.setBackgroundColor(v);
-    });
+    this.motionTrailsCtrl = display
+      .add(this.state, 'motionTrails', 0, 100, 1)
+      .name('Motion Trails')
+      .onChange((v) => {
+        this.updateTrailsNeverDecayCtrl();
+        this.handleValueChange();
+      });
+    this.trailsNeverDecayCtrl = display
+      .add(this.state, 'trailsNeverDecay')
+      .name('Trails never decay')
+      .onChange(() => this.handleValueChange());
+    this.updateTrailsNeverDecayCtrl();
+    this.addUniformControls(display, BACKGROUND_UNIFORMS);
 
+    this.globalSpecs = Object.fromEntries(
+      Object.entries(GLOBAL_UNIFORMS).filter(([key]) => !(key in BACKGROUND_UNIFORMS)),
+    );
     this.globalFolder = this.gui.addFolder('Global');
-    this.addUniformControls(this.globalFolder, GLOBAL_UNIFORMS);
+    this.addUniformControls(this.globalFolder, this.globalSpecs);
 
     this.rebuildShaderFolder(this.state.shader);
     this.applyMenuOpacity(this.state.menuOpacity);
+    this.patchNumberControllers();
     this.gui.close();
+  }
+
+  patchNumberControllers() {
+    this.gui.controllersRecursive().forEach((controller) => configureNumberController(controller));
   }
 
   applyMenuOpacity(percent) {
@@ -232,10 +338,75 @@ export class SettingsPanel {
     document.documentElement.style.setProperty('--menu-bg-alpha', String(alpha));
   }
 
+  updateTrailsNeverDecayCtrl() {
+    if (!this.trailsNeverDecayCtrl) return;
+    if (this.state.motionTrails > 0) this.trailsNeverDecayCtrl.enable();
+    else this.trailsNeverDecayCtrl.disable();
+  }
+
+  buildLogoChoices() {
+    return this.logoOptions.reduce((acc, option) => {
+      acc[option.label] = option.value;
+      return acc;
+    }, {});
+  }
+
+  refreshLogoDropdown() {
+    if (!this.logoController) return;
+    this.logoController.options(this.buildLogoChoices());
+    this.logoController.updateDisplay();
+  }
+
+  setLogoSelection(value) {
+    this.state.logoOverlay = value;
+    this.logoController?.updateDisplay();
+    this.onLogoChange?.(value);
+  }
+
+  setShader(shaderId) {
+    if (!shaderId || shaderId === this.state.shader) return shaderId;
+
+    const pm = this.presetManager;
+    mergeShaderDefaults(this.state, shaderId);
+    this.state.shader = shaderId;
+    const values = this.getValues();
+    pm.setActiveShader(shaderId);
+    this.onChange?.({ shader: shaderId, values });
+    this.visualizer.setShader(shaderId, values);
+    this.rebuildShaderFolder(shaderId);
+    this.syncValuesToVisualizer();
+    this.refreshPresetDropdown();
+    pm.syncCurrentIndexForShader(this.state.preset);
+    this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
+    if (this.musicMode?.enabled) {
+      this.musicMode.currentShader = shaderId;
+      this.musicMode.captureBaseline(this.getValues());
+    }
+    return shaderId;
+  }
+
+  cycleShader(delta) {
+    const idx = SHADER_IDS.indexOf(this.state.shader);
+    if (idx < 0) return null;
+    const nextIdx = (idx + delta + SHADER_IDS.length) % SHADER_IDS.length;
+    return this.setShader(SHADER_IDS[nextIdx]);
+  }
+
   refreshPresetDropdown() {
     if (!this.presetController) return;
-    this.presetController.options(this.presetManager.getPresetNames());
+    const names = this.presetManager.getPresetNames(this.state.shader);
+    this.presetController.options(names);
+    if (names.length && !names.includes(this.state.preset)) {
+      this.state.preset = names[0];
+    }
     this.presetController.updateDisplay();
+  }
+
+  refreshResetPresetButton() {
+    if (!this.resetPresetCtrl) return;
+    const canReset = this.presetManager.canResetToOriginals();
+    if (canReset) this.resetPresetCtrl.enable();
+    else this.resetPresetCtrl.disable();
   }
 
   addUniformControls(folder, specs) {
@@ -262,6 +433,9 @@ export class SettingsPanel {
 
   addUniformRow(folder, key, spec) {
     const label = this.labelFor(key, spec);
+    if (this.state[key] === undefined) {
+      this.state[key] = spec.value;
+    }
     this.driftManager.register(key, spec, this.state[key]);
 
     let controller;
@@ -312,6 +486,7 @@ export class SettingsPanel {
     }
 
     this.uniformControllers.set(key, controller);
+    configureNumberController(controller);
 
     if (!spec.rebuild && spec.kind !== 'palette' && spec.kind !== 'shape') {
       this.attachDriftToggle(controller, key, spec);
@@ -372,7 +547,7 @@ export class SettingsPanel {
       }
       this.shaderFolder.destroy();
       this.folderDriftActions = this.folderDriftActions.filter(
-        (entry) => entry.specs === GLOBAL_UNIFORMS,
+        (entry) => entry.specs === this.globalSpecs || entry.specs === BACKGROUND_UNIFORMS,
       );
     }
 
@@ -380,6 +555,8 @@ export class SettingsPanel {
     mergeShaderDefaults(this.state, shaderId);
     this.shaderFolder = this.gui.addFolder(shader.label);
     this.addUniformControls(this.shaderFolder, shader.uniforms);
+    const focusKey = this.navigableItems[this.gamepadFocusIndex]?.key;
+    this.refreshGamepadMenuAfterRebuild(focusKey);
   }
 
   labelFor(key, spec) {
@@ -398,6 +575,12 @@ export class SettingsPanel {
       uTintRed: 'Tint Red',
       uTintGreen: 'Tint Green',
       uTintBlue: 'Tint Blue',
+      uBgRed: 'Background Red',
+      uBgGreen: 'Background Green',
+      uBgBlue: 'Background Blue',
+      uRed: 'Square Red',
+      uGreen: 'Square Green',
+      uBlue: 'Square Blue',
       uZoom: 'Zoom',
     };
     if (names[key]) return names[key];
@@ -405,11 +588,22 @@ export class SettingsPanel {
   }
 
   getValues() {
-    const values = {};
+    const values = {
+      motionTrails: this.state.motionTrails,
+      trailsNeverDecay: this.state.trailsNeverDecay,
+    };
     for (const key of Object.keys(this.state)) {
       if (key.startsWith('u')) values[key] = this.state[key];
     }
     return values;
+  }
+
+  syncGuiValues(values) {
+    if (!values) return;
+    for (const [key, value] of Object.entries(values)) {
+      if (key.startsWith('u')) this.state[key] = value;
+    }
+    this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
   }
 
   applyDrift(driftValues) {
@@ -418,10 +612,7 @@ export class SettingsPanel {
       { ...this.state, ...driftValues },
       this.state.shader,
     );
-    for (const [key, value] of Object.entries(normalized)) {
-      if (key.startsWith('u')) this.state[key] = value;
-    }
-    this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
+    this.syncGuiValues(normalized);
     this.handleValueChange();
   }
 
@@ -435,17 +626,33 @@ export class SettingsPanel {
     this.visualizer.applyValues(this.getValues());
   }
 
-  applyExternalState({ shader, values, presetName }) {
+  applyDisplaySettings(display) {
+    if (!display) return;
+    if (display.motionTrails !== undefined) {
+      this.state.motionTrails = Math.max(0, Math.min(100, Math.round(display.motionTrails)));
+    }
+    if (display.resolutionScale !== undefined) {
+      this.state.resolutionScale = Math.max(25, Math.min(100, Math.round(display.resolutionScale)));
+      this.visualizer.setResolutionScale(this.state.resolutionScale);
+    }
+    this.updateTrailsNeverDecayCtrl();
+    this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
+    this.syncValuesToVisualizer();
+  }
+
+  applyExternalState({ shader, values, presetName, display }) {
     if (shader && shader !== this.state.shader) {
       this.state.shader = shader;
       mergeShaderDefaults(this.state, shader);
       this.visualizer.setShader(shader, this.getValues());
       this.rebuildShaderFolder(shader);
+      this.refreshPresetDropdown();
       this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
     }
 
     if (presetName) {
       this.state.preset = presetName;
+      this.presetController?.updateDisplay();
     }
 
     if (values) {
@@ -453,7 +660,11 @@ export class SettingsPanel {
       this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
     }
 
-    this.syncValuesToVisualizer();
+    if (display) {
+      this.applyDisplaySettings(display);
+    } else {
+      this.syncValuesToVisualizer();
+    }
     if (this.musicMode?.enabled) {
       this.musicMode.currentShader = this.state.shader;
       this.musicMode.captureBaseline(this.getValues());
@@ -471,10 +682,212 @@ export class SettingsPanel {
   setVisible(visible) {
     this.visible = visible;
     this.gui.domElement.style.display = visible ? '' : 'none';
+    if (!visible) this.exitGamepadMenu();
+  }
+
+  openPanel() {
+    this.gui.open();
+    this.gui.foldersRecursive().forEach((folder) => folder.open());
+  }
+
+  /** Hidden → toolbar → full options → hidden. */
+  toggleSettingsPanel() {
+    if (!this.visible) {
+      this.setVisible(true);
+      this.gui.close();
+      return;
+    }
+    if (this.gui._closed) {
+      this.openPanel();
+      return;
+    }
+    this.gui.close();
+    this.setVisible(false);
   }
 
   toggleVisible() {
-    this.setVisible(!this.visible);
+    this.toggleSettingsPanel();
+  }
+
+  isGamepadMenuActive() {
+    return this.gamepadMenuActive;
+  }
+
+  isNavigableController(controller) {
+    if (!controller?.domElement || controller._disabled) return false;
+    const el = controller.domElement;
+    if (el.classList.contains('function') || el.classList.contains('string')) return false;
+    return el.classList.contains('number') || el.classList.contains('boolean') || el.classList.contains('option');
+  }
+
+  getSpecForKey(key) {
+    if (GLOBAL_UNIFORMS[key]) return GLOBAL_UNIFORMS[key];
+    if (BACKGROUND_UNIFORMS[key]) return BACKGROUND_UNIFORMS[key];
+    const shader = SHADERS[this.state.shader];
+    if (shader?.uniforms[key]) return shader.uniforms[key];
+    return null;
+  }
+
+  refreshNavigableItems() {
+    this.navigableItems = this.gui.controllersRecursive().flatMap((controller) => {
+      if (!this.isNavigableController(controller)) return [];
+      const key = controller.property;
+      return [{ controller, key, spec: this.getSpecForKey(key) }];
+    });
+    if (this.gamepadFocusIndex >= this.navigableItems.length) {
+      this.gamepadFocusIndex = Math.max(0, this.navigableItems.length - 1);
+    }
+  }
+
+  setGamepadFocusIndex(index) {
+    const prev = this.navigableItems[this.gamepadFocusIndex]?.controller;
+    prev?.domElement?.classList.remove('gamepad-menu-focus');
+
+    if (!this.navigableItems.length) {
+      this.gamepadFocusIndex = 0;
+      return;
+    }
+
+    this.gamepadFocusIndex = ((index % this.navigableItems.length) + this.navigableItems.length) % this.navigableItems.length;
+    const { controller } = this.navigableItems[this.gamepadFocusIndex];
+    controller.domElement.classList.add('gamepad-menu-focus');
+    controller.domElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  openGuiForGamepadMenu() {
+    this.gui.open();
+    this.gui.foldersRecursive().forEach((folder) => folder.open());
+  }
+
+  enterGamepadMenu() {
+    this.setVisible(true);
+    this.openGuiForGamepadMenu();
+    this.gamepadMenuActive = true;
+    this.refreshNavigableItems();
+    this.setGamepadFocusIndex(0);
+  }
+
+  exitGamepadMenu() {
+    if (!this.gamepadMenuActive) return;
+    this.navigableItems[this.gamepadFocusIndex]?.controller?.domElement?.classList.remove('gamepad-menu-focus');
+    this.gamepadMenuActive = false;
+  }
+
+  toggleGamepadMenu() {
+    if (this.gamepadMenuActive) {
+      this.exitGamepadMenu();
+      return false;
+    }
+    this.enterGamepadMenu();
+    return true;
+  }
+
+  gamepadNavigate(delta) {
+    if (!this.gamepadMenuActive) return;
+    this.refreshNavigableItems();
+    if (!this.navigableItems.length) return;
+    this.setGamepadFocusIndex(this.gamepadFocusIndex + delta);
+  }
+
+  gamepadAdjust(delta, repeating = false) {
+    if (!this.gamepadMenuActive) return;
+    const item = this.navigableItems[this.gamepadFocusIndex];
+    if (!item) return;
+
+    const { controller, key, spec } = item;
+    const el = controller.domElement;
+
+    if (el.classList.contains('boolean')) {
+      if (repeating) return;
+      controller.setValue(!controller.getValue());
+      return;
+    }
+
+    if (el.classList.contains('option')) {
+      const values = controller._values ?? [];
+      if (!values.length) return;
+      const idx = values.indexOf(controller.getValue());
+      const next = (idx + delta + values.length) % values.length;
+      controller.setValue(values[next]);
+      return;
+    }
+
+    if (!el.classList.contains('number')) return;
+
+    const step = controller._step ?? 1;
+    const min = controller._hasMin ? controller._min : -Infinity;
+    const max = controller._hasMax ? controller._max : Infinity;
+    let value = controller.getValue() + delta * step;
+    value = Math.max(min, Math.min(max, value));
+    if (controller._hasMin || controller._hasMax) {
+      controller._snapClampSetValue(value);
+    } else {
+      controller.setValue(value);
+    }
+
+    if (spec?.rebuild) {
+      this.handleValueChange(true);
+    }
+  }
+
+  gamepadRandomizeFocused() {
+    if (!this.gamepadMenuActive) return;
+    const item = this.navigableItems[this.gamepadFocusIndex];
+    if (!item) return;
+
+    const { controller, key, spec } = item;
+    const el = controller.domElement;
+
+    if (el.classList.contains('boolean')) {
+      controller.setValue(Math.random() > 0.5);
+      return;
+    }
+
+    if (el.classList.contains('option')) {
+      const values = controller._values ?? [];
+      if (!values.length) return;
+      if (key === 'preset') {
+        this.presetManager.randomPreset();
+        return;
+      }
+      if (key === 'shader') {
+        const idx = Math.floor(Math.random() * SHADER_IDS.length);
+        this.setShader(SHADER_IDS[idx]);
+        this.refreshNavigableItems();
+        this.setGamepadFocusIndex(this.gamepadFocusIndex);
+        return;
+      }
+      const idx = Math.floor(Math.random() * values.length);
+      controller.setValue(values[idx]);
+      return;
+    }
+
+    if (!el.classList.contains('number')) return;
+
+    let value;
+    if (spec) {
+      value = randomizeUniform(key, spec);
+      if (value === null) return;
+      if (this.driftManager.isEnabled(key)) {
+        this.driftManager.resetFrom(key, value);
+      }
+      controller.setValue(value);
+      this.handleValueChange(Boolean(spec.rebuild));
+      return;
+    }
+
+    const min = controller._hasMin ? controller._min : 0;
+    const max = controller._hasMax ? controller._max : 100;
+    value = Math.round(randomBetween(min, max));
+    controller.setValue(value);
+  }
+
+  refreshGamepadMenuAfterRebuild(focusKey) {
+    if (!this.gamepadMenuActive) return;
+    this.refreshNavigableItems();
+    if (!this.navigableItems.length) return;
+    const idx = focusKey ? this.navigableItems.findIndex((item) => item.key === focusKey) : -1;
+    this.setGamepadFocusIndex(idx >= 0 ? idx : this.gamepadFocusIndex);
   }
 
   destroy() {

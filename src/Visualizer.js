@@ -74,20 +74,26 @@ function createPointGeometry(count, extraAttributes = {}) {
   return geometry;
 }
 
-function createSpiroGeometry(count = 2500) {
+const SPIRO_MAX_ORBITS = 10;
+
+function createSpiroGeometry(count = SPIRO_MAX_ORBITS) {
   const indices = new Float32Array(count);
   const phases = new Float32Array(count);
   for (let i = 0; i < count; i++) {
     indices[i] = i;
-    phases[i] = Math.random() * Math.PI * 2;
+    phases[i] = (i / Math.max(count, 1)) * Math.PI * 2;
   }
-  return createPointGeometry(count, {
+  const geometry = createPointGeometry(count, {
     aIndex: { array: indices, itemSize: 1 },
     aPhase: { array: phases, itemSize: 1 },
   });
+  geometry.userData.maxOrbits = count;
+  return geometry;
 }
 
-function createFlowGeometry(count = 8000) {
+const FLOW_DEFAULT_PARTICLES = 12000;
+
+function createFlowGeometry(count = FLOW_DEFAULT_PARTICLES) {
   const seeds = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
     seeds[i * 3] = (Math.random() - 0.5) * 2;
@@ -99,17 +105,29 @@ function createFlowGeometry(count = 8000) {
   });
 }
 
+function syncFlowParticleCount(geometry, count) {
+  const next = Math.max(500, Math.floor(count));
+  const current = geometry.attributes.position.count;
+  if (next === current) return geometry;
+  geometry.dispose();
+  return createFlowGeometry(next);
+}
+
 function createFullscreenQuad() {
   return new THREE.PlaneGeometry(2, 2);
 }
 
+/** Spocks is the heaviest shader — cap DPR and trail buffer size for lobby GPUs. */
+export const SPOCKS_PIXEL_RATIO_CAP = 1;
+export const SPOCKS_TRAIL_FEEDBACK_SCALE = 0.5;
+
 function feedbackScale(shaderId, resolutionScale = 100) {
-  const base = shaderId === 'spocks' ? 0.55 : 0.7;
+  const base = shaderId === 'spocks' ? SPOCKS_TRAIL_FEEDBACK_SCALE : 0.7;
   return base * (resolutionScale / 100);
 }
 
 function shaderPixelRatioCap(shaderId) {
-  return shaderId === 'spocks' ? 1 : 1.5;
+  return shaderId === 'spocks' ? SPOCKS_PIXEL_RATIO_CAP : 1.5;
 }
 
 export function defaultResolutionScale() {
@@ -124,7 +142,8 @@ export class Visualizer {
     this.clock = new THREE.Clock();
     this.currentShaderId = 'spocks';
     this.values = {};
-    this.trailsEnabled = true;
+    this.motionTrails = 100;
+    this.trailsNeverDecay = false;
     this.resolutionScale = defaultResolutionScale();
     this.backgroundColor = new THREE.Color(0x020208);
     this.uniformSmoother = new UniformSmoother(1.4);
@@ -172,6 +191,7 @@ export class Visualizer {
       spiro: createSpiroGeometry(),
       flow: createFlowGeometry(),
     };
+    this.geometries.spiro.setDrawRange(0, 6);
 
     this.initPasses();
     this.onResize = this.onResize.bind(this);
@@ -272,6 +292,20 @@ export class Visualizer {
       this.uniformSmoother.snap(shaderValues);
       this.lastAnimSpeed = null;
       this.clearTrailBuffers();
+      if (shaderId === 'spiro' && shaderValues.uOrbitCount !== undefined) {
+        const pens = Math.min(
+          SPIRO_MAX_ORBITS,
+          Math.max(1, Math.floor(shaderValues.uOrbitCount)),
+        );
+        this.geometries.spiro.setDrawRange(0, pens);
+      }
+      if (shaderId === 'flow' && shaderValues.uParticleCount !== undefined) {
+        this.geometries.flow = syncFlowParticleCount(
+          this.geometries.flow,
+          shaderValues.uParticleCount,
+        );
+        this.meshes.flow.geometry = this.geometries.flow;
+      }
     }
 
     const dpr = this.effectivePixelRatio();
@@ -298,11 +332,16 @@ export class Visualizer {
       }
     }
 
-    if (values.uTrailDecay !== undefined) {
-      this.trailMaterial.uniforms.uDecay.value = values.uTrailDecay;
-    }
-    if (values.uTrailAlpha !== undefined) {
-      this.trailMaterial.uniforms.uDecay.value = 1 - values.uTrailAlpha;
+    this.applyTrailDecay(values);
+
+    if (values.uBgRed !== undefined) {
+      this.backgroundColor.setRGB(
+        values.uBgRed,
+        values.uBgGreen ?? this.backgroundColor.g,
+        values.uBgBlue ?? this.backgroundColor.b,
+      );
+      this.renderer.setClearColor(this.backgroundColor, 1);
+      this.trailMaterial.uniforms.uFadeColor.value.copy(this.backgroundColor);
     }
   }
 
@@ -316,7 +355,35 @@ export class Visualizer {
     }
   }
 
-  applyValues(uiValues, { syncSmooth = false } = {}) {
+  applyTrailDecay(values) {
+    const t = Math.max(0, Math.min(100, this.motionTrails)) / 100;
+    if (t <= 0) return;
+
+    if (this.trailsNeverDecay) {
+      this.trailMaterial.uniforms.uDecay.value = 1;
+      return;
+    }
+
+    let baseDecay;
+    if (values.uTrailDecay !== undefined) {
+      baseDecay = values.uTrailDecay;
+    } else if (values.uTrailAlpha !== undefined) {
+      baseDecay = 1 - values.uTrailAlpha;
+    } else {
+      baseDecay = 0.92;
+    }
+
+    const minDecay = 0.55;
+    this.trailMaterial.uniforms.uDecay.value = minDecay + (baseDecay - minDecay) * t;
+  }
+
+  applyValues(uiValues, { syncSmooth = false, deferRebuild = false } = {}) {
+    if (uiValues.motionTrails !== undefined) {
+      this.motionTrails = Math.max(0, Math.min(100, Math.round(uiValues.motionTrails)));
+    }
+    if (uiValues.trailsNeverDecay !== undefined) {
+      this.trailsNeverDecay = Boolean(uiValues.trailsNeverDecay);
+    }
     this.values = { ...uiValues };
     const shaderValues = toShaderValues(uiValues, this.currentShaderId);
     this.ensureMaterialUniforms(this.currentShaderId, shaderValues);
@@ -325,25 +392,23 @@ export class Visualizer {
       this.uniformSmoother.syncCurrent(shaderValues);
     }
 
+    if (deferRebuild) return;
+
     if (uiValues.uParticleCount !== undefined) {
-      const count = Math.floor(shaderValues.uParticleCount);
-      const current = this.geometries.flow.attributes.position.count;
-      if (count !== current) {
-        this.geometries.flow.dispose();
-        this.geometries.flow = createFlowGeometry(count);
-        this.meshes.flow.geometry = this.geometries.flow;
-      }
+      this.geometries.flow = syncFlowParticleCount(
+        this.geometries.flow,
+        shaderValues.uParticleCount,
+      );
+      this.meshes.flow.geometry = this.geometries.flow;
     }
-  }
 
-  setTrailsEnabled(enabled) {
-    this.trailsEnabled = enabled;
-  }
-
-  setBackgroundColor(hex) {
-    this.backgroundColor.set(hex);
-    this.renderer.setClearColor(this.backgroundColor, 1);
-    this.trailMaterial.uniforms.uFadeColor.value.copy(this.backgroundColor);
+    if (this.currentShaderId === 'spiro' && shaderValues.uOrbitCount !== undefined) {
+      const pens = Math.min(
+        SPIRO_MAX_ORBITS,
+        Math.max(1, Math.floor(shaderValues.uOrbitCount)),
+      );
+      this.geometries.spiro.setDrawRange(0, pens);
+    }
   }
 
   onResize() {
@@ -389,7 +454,7 @@ export class Visualizer {
     this.lastAnimSpeed = nextSpeed;
     material.uniforms.uTime.value = this.animPhase;
 
-    const useTrails = this.trailsEnabled && this.usesTrails(shaderId);
+    const useTrails = this.motionTrails > 0 && this.usesTrails(shaderId);
 
     if (useTrails && this.trailTargets.length >= 2) {
       const [prev, next] = this.trailTargets;

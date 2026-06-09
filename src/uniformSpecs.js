@@ -22,8 +22,15 @@ const rgb = (value) => ({ value, min: 0, max: 255, step: 1, kind: 'rgb' });
 const toggle = (value = 0) => ({ value, min: 0, max: 1, step: 1, kind: 'toggle' });
 const count = (value, min, max) => ({ value, min, max, step: 1, kind: 'count' });
 
+export const BACKGROUND_UNIFORMS = {
+  uBgRed: rgb(2),
+  uBgGreen: rgb(2),
+  uBgBlue: rgb(8),
+};
+
 export const GLOBAL_UNIFORMS = {
-  uSpeed: pct(8, 0, 1.2),
+  ...BACKGROUND_UNIFORMS,
+  uSpeed: pct(10, 0, 1.2),
   uScale: pct(45, 0.3, 2.5),
   uComplexity: pct(40, 0.2, 3),
   uBrightness: pct(50, 0.2, 2.5),
@@ -41,7 +48,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uHeight: pct(41, 0.05, 1.2),
     uRotate: center(62, -4, 4),
     uMyTime: pct(48, 0.1, 2),
-    uZoom: center(50, -5, 5),
+    uZoom: { ...center(50, -5, 5), invert: true },
     uRed: rgb(0),
     uGreen: rgb(0),
     uBlue: rgb(155),
@@ -52,12 +59,12 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uHeightRand: toggle(0),
   },
   spiro: {
-    uPointSize: pct(28, 0.35, 3.5),
-    uTrailDecay: pct(72, 0.55, 0.92),
-    uOrbitCount: count(5, 2, 12),
-    uTwist: pct(35, 0, 4),
-    uPulse: pct(23, 0, 1.5),
-    uZoom: { value: 25, min: 0, max: 100, step: 1, kind: 'zoom', shaderMin: -2.5, shaderMax: 12 },
+    uPointSize: pct(58, 2, 14),
+    uTrailDecay: pct(90, 0.82, 0.985),
+    uOrbitCount: count(6, 2, 10),
+    uTwist: pct(28, 0, 3),
+    uPulse: pct(12, 0, 0.8),
+    uZoom: { value: 64, min: 0, max: 100, step: 1, kind: 'zoom', shaderMin: -1.5, shaderMax: 3, invert: true },
     uPalette: { value: 0, min: 0, max: 7, step: 1, kind: 'palette' },
     uHueShift: pct(50, 0, 1),
     uColorSpread: pct(65, 0.2, 1.5),
@@ -68,7 +75,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
   kaleido: {
     uSegments: count(8, 3, 32),
     uRingCount: count(6, 2, 14),
-    uWarp: pct(30, 0, 2),
+    uWarp: pct(30, 0.05, 2),
     uLineWidth: pct(33, 0.002, 0.05),
     uCenterShape: { value: 1, min: 0, max: 7, step: 1, kind: 'shape' },
     uCenterSize: pct(42, 0.1, 0.75),

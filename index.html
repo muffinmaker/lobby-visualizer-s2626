@@ -34,6 +34,9 @@
         inset: 0;
         pointer-events: none;
         z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
       #hint {
@@ -62,12 +65,68 @@
         --title-background-color: rgb(17 17 17 / var(--menu-bg-alpha));
         --name-width: 36%;
         --spacing: 2px;
-        --widget-padding: 0 0 0 1.5px;
+        --widget-padding: 0 1px 0 1.5px;
+        --slider-input-width: 2.65rem;
+        --slider-input-min-width: 2.65rem;
+        max-width: 100%;
+        overflow-x: hidden;
       }
 
       .lil-gui.root {
         -webkit-backdrop-filter: blur(10px);
         backdrop-filter: blur(10px);
+        overflow-x: hidden;
+        max-width: var(--width, 360px);
+      }
+
+      .lil-gui.root > .children,
+      .lil-gui .children {
+        overflow-x: hidden;
+        max-width: 100%;
+      }
+
+      .lil-gui .controller {
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+      }
+
+      .lil-gui .controller.gamepad-menu-focus {
+        outline: 2px solid rgba(120, 200, 255, 0.9);
+        outline-offset: 1px;
+        background: rgba(120, 200, 255, 0.1);
+      }
+
+      .lil-gui .controller > .name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+      }
+
+      .lil-gui .controller .widget {
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .lil-gui .controller.number.hasSlider input {
+        width: 2.65rem;
+        min-width: 2.65rem;
+        max-width: 2.65rem;
+        flex: 0 0 2.65rem;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        overflow: hidden;
+        text-overflow: clip;
+      }
+
+      .lil-gui .controller.number.hasSlider .slider {
+        min-width: 0;
+        flex: 1 1 0;
+      }
+
+      .lil-gui .controller.number input {
+        font-variant-numeric: tabular-nums;
       }
 
       .lil-gui .controller.param-row {
@@ -123,29 +182,24 @@
       }
 
       #hero-logo {
-        position: fixed;
-        bottom: 1rem;
-        left: 1rem;
-        z-index: 10;
         display: flex;
-        align-items: flex-end;
-        justify-content: flex-start;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
         pointer-events: none;
       }
 
       .hero-logo-mark {
-        height: 1.35rem;
-        width: min(5.5rem, 28vw);
-        background: rgba(255, 255, 255, 0.42);
-        opacity: 0.55;
-        -webkit-mask-image: var(--hero-logo-url);
-        mask-image: var(--hero-logo-url);
-        -webkit-mask-size: contain;
-        mask-size: contain;
-        -webkit-mask-repeat: no-repeat;
-        mask-repeat: no-repeat;
-        -webkit-mask-position: left center;
-        mask-position: left center;
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        object-fit: contain;
+        object-position: center center;
+        opacity: var(--logo-opacity, 1);
+        mix-blend-mode: screen;
+        transform: scale(var(--logo-scale, 1));
+        transform-origin: center center;
       }
 
       .hero-logo-mark.is-hidden {
@@ -155,47 +209,233 @@
       .lil-gui .title.gui-title-row {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 0.35rem;
-        min-height: 1.5rem;
+        min-height: 2.1rem;
+        flex-wrap: nowrap;
+        overflow: hidden;
         padding: 0.2rem 0.35rem 0.15rem;
         cursor: pointer;
       }
 
-      .transport-cluster,
+      .transport-cluster {
+        display: flex;
+        align-items: center;
+        gap: 0.15rem;
+        width: 100%;
+        min-width: 0;
+        flex-wrap: nowrap;
+        cursor: default;
+      }
+
       .title-actions {
         display: flex;
         align-items: center;
         gap: 0.2rem;
+        flex: 0 0 auto;
+        flex-wrap: nowrap;
+        margin-left: auto;
         cursor: default;
       }
 
-      .transport-btn {
+      .transport-group {
+        display: flex;
+        align-items: center;
+        gap: 0.12rem;
         flex-shrink: 0;
-        width: 1.35rem;
-        height: 1.25rem;
+        flex-wrap: nowrap;
+        padding: 0.05rem 0.2rem 0.05rem 0.12rem;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 0.3rem;
+        background: rgba(8, 8, 14, 0.45);
+      }
+
+      .transport-group--primary {
+        gap: 0.18rem;
+        height: 1.7rem;
+        min-height: 1.7rem;
+        padding: 0.1rem 0.28rem 0.1rem 0.18rem;
+        border-color: rgba(255, 255, 255, 0.14);
+        background: rgba(10, 10, 18, 0.58);
+      }
+
+      .transport-group--secondary {
+        gap: 0.08rem;
+        padding: 0.04rem 0.14rem 0.04rem 0.1rem;
+      }
+
+      .transport-group--vertical {
+        gap: 0.1rem;
+        padding: 0.06rem 0.14rem 0.06rem 0.1rem;
+      }
+
+      .transport-nav-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 0.04rem;
+        flex-shrink: 0;
+      }
+
+      .transport-group + .transport-group {
+        margin-left: 0.1rem;
+      }
+
+      .transport-group-label {
+        flex-shrink: 0;
+        font-size: 0.48rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.42);
+        padding: 0 0.1rem 0 0.05rem;
+        user-select: none;
+      }
+
+      .transport-group--secondary .transport-group-label {
+        font-size: 0.44rem;
+        padding: 0 0.06rem 0 0.04rem;
+      }
+
+      .transport-shader-label {
+        flex: 0 0 6rem;
+        width: 6rem;
+        min-width: 6rem;
+        max-width: 6rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-transform: none;
+        letter-spacing: 0.02em;
+        font-size: 0.58rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.78);
+        padding: 0 0.12rem;
+        text-align: center;
+      }
+
+      .transport-preset-label {
+        flex: 0 0 2.35rem;
+        width: 2.35rem;
+        min-width: 2.35rem;
+        max-width: 2.35rem;
+        text-transform: none;
+        letter-spacing: 0.02em;
+        font-size: 0.56rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: rgba(255, 255, 255, 0.72);
+        padding: 0 0.08rem;
+        text-align: center;
+      }
+
+      /* Override lil-gui `.lil-gui button { width: 100%; border: none }` inside the title row */
+      .lil-gui .title.gui-title-row .transport-btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
         padding: 0;
         border: 1px solid rgba(255, 255, 255, 0.14);
         border-radius: 0.25rem;
         background: rgba(12, 12, 18, 0.72);
         color: rgba(255, 255, 255, 0.72);
-        font-size: 0.58rem;
         line-height: 1;
         cursor: pointer;
+        overflow: hidden;
         -webkit-backdrop-filter: blur(8px);
         backdrop-filter: blur(8px);
         transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
       }
 
-      .transport-btn:hover,
-      .transport-btn:focus-visible {
+      .lil-gui .title.gui-title-row .transport-btn::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: radial-gradient(
+          circle at 50% 50%,
+          rgba(170, 215, 255, 0.72),
+          rgba(110, 170, 255, 0.28)
+        );
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .lil-gui .title.gui-title-row .transport-btn.is-flash::after {
+        animation: transport-btn-glow 1s ease-out;
+      }
+
+      .lil-gui .title.gui-title-row .transport-btn.is-flash:not(.is-active) {
+        animation: transport-btn-pulse 1s ease-out;
+      }
+
+      .lil-gui .title.gui-title-row .transport-btn.is-flash.is-active {
+        animation: transport-btn-pulse-active 1s ease-out;
+      }
+
+      @keyframes transport-btn-glow {
+        0% {
+          opacity: 1;
+        }
+        18% {
+          opacity: 0.92;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+
+      @keyframes transport-btn-pulse {
+        0% {
+          border-color: rgba(180, 220, 255, 0.95);
+          color: #fff;
+          filter: brightness(1.4);
+          transform: scale(1.07);
+        }
+        100% {
+          border-color: rgba(255, 255, 255, 0.14);
+          color: rgba(255, 255, 255, 0.72);
+          filter: brightness(1);
+          transform: scale(1);
+        }
+      }
+
+      @keyframes transport-btn-pulse-active {
+        0% {
+          filter: brightness(1.45);
+          transform: scale(1.07);
+        }
+        100% {
+          filter: brightness(1);
+          transform: scale(1);
+        }
+      }
+
+      .lil-gui .title.gui-title-row .transport-btn--primary {
+        width: 1.65rem;
+        height: 1.5rem;
+        font-size: 1.35rem;
+        border-radius: 0.3rem;
+        border-color: rgba(255, 255, 255, 0.2);
+        color: rgba(255, 255, 255, 0.88);
+      }
+
+      .lil-gui .title.gui-title-row .transport-btn--secondary {
+        width: 1.1rem;
+        height: 1rem;
+        font-size: 0.78rem;
+        border-radius: 0.2rem;
+        color: rgba(255, 255, 255, 0.58);
+      }
+
+      .lil-gui .title.gui-title-row .transport-btn:hover,
+      .lil-gui .title.gui-title-row .transport-btn:focus-visible {
         color: #fff;
         border-color: rgba(255, 255, 255, 0.32);
         background: rgba(24, 24, 36, 0.9);
         outline: none;
       }
 
-      .transport-btn.info-btn {
+      .lil-gui .title.gui-title-row .transport-btn.info-btn {
         width: 1.25rem;
         height: 1.25rem;
         border-radius: 50%;
@@ -205,7 +445,28 @@
         font-family: Georgia, 'Times New Roman', serif;
       }
 
-      .transport-btn.save-btn {
+      .lil-gui .title.gui-title-row .transport-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+
+      .lil-gui .title.gui-title-row .transport-btn.is-active {
+        color: #fff;
+        border-color: rgba(120, 180, 255, 0.55);
+        background: rgba(80, 130, 210, 0.35);
+      }
+
+      .lil-gui .title.gui-title-row .transport-btn.autocycle-btn,
+      .lil-gui .title.gui-title-row .transport-btn.smooth-btn {
+        width: 1.35rem;
+        height: 1.25rem;
+        font-size: 0.72rem;
+      }
+
+      .lil-gui .title.gui-title-row .transport-btn.save-btn {
+        width: 1.35rem;
+        height: 1.25rem;
         font-size: 0.68rem;
       }
 
@@ -352,7 +613,13 @@
   <body>
     <div id="overlay" aria-hidden="true">
       <div id="hero-logo">
-        <div class="hero-logo-mark is-hidden" role="img" aria-label="Logo"></div>
+        <img
+          class="hero-logo-mark is-hidden"
+          alt=""
+          decoding="async"
+          width="520"
+          height="478"
+        />
       </div>
     </div>
     <div id="hint">Space · settings &nbsp;|&nbsp; ? · tutorial &nbsp;|&nbsp; F · fullscreen &nbsp;|&nbsp; H · hide UI</div>
