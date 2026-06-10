@@ -1292,9 +1292,10 @@ export class PresetManager {
 
     const specs = getSpecMap(this.activeShader);
     const live = this.getLiveValues?.() ?? {};
-    const values = randomizeSpecs(specs, live, keys);
+    const allowRebuild = modeId === 'party';
+    const values = randomizeSpecs(specs, live, keys, { allowRebuild });
 
-    if (modeId === 'motion') {
+    if (modeId === 'motion' || modeId === 'party') {
       values.motionTrails = Math.round(randomBetween(0, 100));
     }
 

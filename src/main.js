@@ -21,6 +21,7 @@ import {
   saveCustomLogoToStorage,
   saveLogoSelection,
 } from './logoOverlay.js';
+import { LITE_MODE_KEY } from './liteMode.js';
 
 const hint = document.getElementById('hint');
 
@@ -319,7 +320,6 @@ async function start() {
       presetNext: () => {
         flashTransport('presetNext');
         onPresetNext();
-        showGamepadToast(`Next preset · ${presetManager.currentPreset.name}`);
       },
       toggleSettings: () => settings.toggleVisible(),
       toggleFullscreen,
@@ -331,6 +331,7 @@ async function start() {
       chaosNewPreset: () => chaos.motion(),
       chaosFullShuffle: () => chaos.preset(),
       chaosJumpPreset: () => chaos.structure(),
+      chaosPartyBurst: () => chaos.party(),
       chaosRandomizeSliders: () => chaos.color(),
     },
     { isMenuMode: () => settings.isGamepadMenuActive() },
@@ -399,6 +400,15 @@ async function start() {
     { changeShader: true },
   );
   presetManager.setActiveShader(settings.state.shader);
+
+  if (settings.state.liteMode) {
+    settings.setLiteMode(true, { silent: true, skipSave: true, init: true });
+  }
+
+  window.addEventListener('storage', (event) => {
+    if (event.key !== LITE_MODE_KEY || event.newValue == null) return;
+    settings.setLiteMode(event.newValue === 'true', { silent: true, skipSave: true });
+  });
 
   presetManager.subscribe((event, detail) => {
     if (event === 'transitionEnd') {
@@ -529,6 +539,7 @@ async function start() {
     if (e.code === 'KeyZ') chaos.motion();
     if (e.code === 'KeyC') chaos.color();
     if (e.code === 'KeyX') chaos.structure();
+    if (e.code === 'KeyB') chaos.party();
     if (e.code === 'KeyV' || e.code === 'KeyY') chaos.preset();
     if (e.code === 'KeyR') chaos.preset();
   });
@@ -544,7 +555,7 @@ async function start() {
     '%cLobby Visualizer',
     'font-weight:bold;font-size:14px',
     `\nShaders: ${SHADER_IDS.join(', ')}`,
-    '\nSpace: settings | ?: tutorial | F: fullscreen | H: hide UI | ↑/↓: zoom & motion | ←/→: element counts | Z/X/C/V: random motion/shapes/colors/preset | USB gamepad: see tutorial',
+    '\nSpace: settings | ?: tutorial | F: fullscreen | H: hide UI | ↑/↓: zoom & motion | ←/→: element counts | Z/C/X/B/V: motion/colors/shapes/party/preset | USB gamepad: see tutorial',
   );
 }
 

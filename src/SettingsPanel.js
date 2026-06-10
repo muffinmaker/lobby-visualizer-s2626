@@ -10,6 +10,13 @@ import {
 import { mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
 import { SHAPE_OPTIONS } from './shapeOptions.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
+import {
+  applyLiteLimits,
+  loadLiteMode,
+  saveLiteMode,
+  snapshotLiteRestoreFields,
+} from './liteMode.js';
+import { showGamepadToast } from './GamepadController.js';
 
 const TRAIL_SHADERS = new Set(['spocks', 'spiro', 'flow']);
 
@@ -70,6 +77,7 @@ export class SettingsPanel {
     this.uniformControllers = new Map();
     this.driftToggles = new Map();
     this.folderDriftActions = [];
+    this.liteRestore = null;
 
     this.state = {
       shader: presetManager.currentPreset.shader,
@@ -89,6 +97,7 @@ export class SettingsPanel {
       motionTrails: 100,
       trailsNeverDecay: false,
       resolutionScale: visualizer.resolutionScale ?? defaultResolutionScale(),
+      liteMode: loadLiteMode(),
       menuOpacity: 80,
       musicEnabled: false,
       musicSource: 'mic',
@@ -293,6 +302,12 @@ export class SettingsPanel {
     this.driftSpeedCtrl.disable(this.state.driftSpeedAuto);
 
     const display = this.gui.addFolder('Display');
+    this.liteModeCtrl = display
+      .add(this.state, 'liteMode')
+      .name('Lite mode (multi-screen)')
+      .onChange((enabled) => {
+        this.setLiteMode(enabled);
+      });
     display
       .add(this.state, 'menuOpacity', 30, 100, 1)
       .name('Menu Opacity')
@@ -303,13 +318,18 @@ export class SettingsPanel {
       .add(this.state, 'resolutionScale', 25, 100, 1)
       .name('Resolution %')
       .onChange((v) => {
+        if (this.state.liteMode) {
+          v = Math.min(v, 50);
+          this.state.resolutionScale = v;
+          this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
+        }
         this.visualizer.setResolutionScale(v);
       });
     this.motionTrailsCtrl = display
       .add(this.state, 'motionTrails', 0, 100, 1)
       .name('Motion Trails')
       .onChange((v) => {
-        if (TRAIL_SHADERS.has(this.state.shader)) {
+        if (!this.state.liteMode && TRAIL_SHADERS.has(this.state.shader)) {
           this.state.motionTrails = 100;
           this.motionTrailsCtrl.updateDisplay();
         }
@@ -346,8 +366,64 @@ export class SettingsPanel {
 
   updateTrailsNeverDecayCtrl() {
     if (!this.trailsNeverDecayCtrl) return;
+    if (this.state.liteMode) {
+      this.trailsNeverDecayCtrl.disable();
+      return;
+    }
     if (this.state.motionTrails > 0) this.trailsNeverDecayCtrl.enable();
     else this.trailsNeverDecayCtrl.disable();
+  }
+
+  updateLiteControls() {
+    if (this.motionTrailsCtrl) {
+      if (this.state.liteMode) this.motionTrailsCtrl.disable();
+      else this.motionTrailsCtrl.enable();
+    }
+    this.updateTrailsNeverDecayCtrl();
+  }
+
+  valuesForLiteClamp() {
+    return {
+      ...this.getValues(),
+      resolutionScale: this.state.resolutionScale,
+    };
+  }
+
+  setLiteMode(enabled, { silent = false, skipSave = false, init = false } = {}) {
+    const next = Boolean(enabled);
+    if (next === this.state.liteMode) return;
+
+    if (next && !this.liteRestore && !init) {
+      this.liteRestore = snapshotLiteRestoreFields(this.valuesForLiteClamp());
+    }
+
+    this.state.liteMode = next;
+    if (!skipSave) saveLiteMode(next);
+    this.visualizer.setLiteMode(next);
+
+    if (next) {
+      const clamped = applyLiteLimits(this.state.shader, this.valuesForLiteClamp());
+      Object.assign(this.state, clamped);
+      this.visualizer.setResolutionScale(clamped.resolutionScale);
+    } else if (this.liteRestore) {
+      Object.assign(this.state, this.liteRestore);
+      this.liteRestore = null;
+      this.visualizer.setResolutionScale(this.state.resolutionScale);
+    }
+
+    this.updateLiteControls();
+    this.liteModeCtrl?.updateDisplay();
+    this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
+    this.syncValuesToVisualizer();
+    this.handleValueChange(true);
+
+    if (!silent) {
+      showGamepadToast(
+        next
+          ? 'Lite mode on — lower res, no trails, fewer elements'
+          : 'Lite mode off — restored display settings',
+      );
+    }
   }
 
   buildLogoChoices() {
@@ -375,7 +451,7 @@ export class SettingsPanel {
     const pm = this.presetManager;
     mergeShaderDefaults(this.state, shaderId);
     this.state.shader = shaderId;
-    if (TRAIL_SHADERS.has(shaderId)) {
+    if (!this.state.liteMode && TRAIL_SHADERS.has(shaderId)) {
       this.state.motionTrails = 100;
       this.motionTrailsCtrl?.updateDisplay();
     }
@@ -384,7 +460,7 @@ export class SettingsPanel {
     this.onChange?.({ shader: shaderId, values });
     this.visualizer.setShader(shaderId, values);
     this.rebuildShaderFolder(shaderId);
-    this.syncValuesToVisualizer();
+    this.applyLiteIfEnabled();
     this.refreshPresetDropdown();
     pm.syncCurrentIndexForShader(this.state.preset);
     this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
@@ -604,6 +680,15 @@ export class SettingsPanel {
     return key.replace(/^u/, '').replace(/([A-Z])/g, ' $1').trim();
   }
 
+  applyLiteIfEnabled() {
+    if (!this.state.liteMode) return;
+    const clamped = applyLiteLimits(this.state.shader, this.valuesForLiteClamp());
+    Object.assign(this.state, clamped);
+    this.visualizer.setResolutionScale(clamped.resolutionScale);
+    this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
+    this.syncValuesToVisualizer();
+  }
+
   getValues() {
     const values = {
       motionTrails: this.state.motionTrails,
@@ -647,7 +732,8 @@ export class SettingsPanel {
     if (!display) return;
     if (display.motionTrails !== undefined) {
       const trails = Math.max(0, Math.min(100, Math.round(display.motionTrails)));
-      this.state.motionTrails = TRAIL_SHADERS.has(this.state.shader) ? 100 : trails;
+      this.state.motionTrails =
+        !this.state.liteMode && TRAIL_SHADERS.has(this.state.shader) ? 100 : trails;
     }
     if (display.resolutionScale !== undefined) {
       this.state.resolutionScale = Math.max(25, Math.min(100, Math.round(display.resolutionScale)));
@@ -683,6 +769,7 @@ export class SettingsPanel {
     } else {
       this.syncValuesToVisualizer();
     }
+    this.applyLiteIfEnabled();
     if (this.musicMode?.enabled) {
       this.musicMode.currentShader = this.state.shader;
       this.musicMode.captureBaseline(this.getValues());
@@ -750,20 +837,66 @@ export class SettingsPanel {
     return null;
   }
 
+  collectNavigableItems(gui = this.gui) {
+    const items = [];
+    for (const child of gui.children) {
+      if (gui.folders.includes(child)) {
+        items.push({
+          kind: 'folder',
+          folder: child,
+          key: `folder:${child._title}`,
+        });
+        if (!child._closed) {
+          items.push(...this.collectNavigableItems(child));
+        }
+        continue;
+      }
+      if (gui.controllers.includes(child) && this.isNavigableController(child)) {
+        const key = child.property;
+        items.push({
+          kind: 'controller',
+          controller: child,
+          key,
+          spec: this.getSpecForKey(key),
+        });
+      }
+    }
+    return items;
+  }
+
+  clearGamepadFocusItem(item) {
+    if (!item) return;
+    if (item.kind === 'folder') {
+      item.folder.$title.classList.remove('gamepad-menu-focus');
+      return;
+    }
+    item.controller?.domElement?.classList.remove('gamepad-menu-focus');
+  }
+
   refreshNavigableItems() {
-    this.navigableItems = this.gui.controllersRecursive().flatMap((controller) => {
-      if (!this.isNavigableController(controller)) return [];
-      const key = controller.property;
-      return [{ controller, key, spec: this.getSpecForKey(key) }];
-    });
+    this.navigableItems = this.collectNavigableItems();
     if (this.gamepadFocusIndex >= this.navigableItems.length) {
       this.gamepadFocusIndex = Math.max(0, this.navigableItems.length - 1);
     }
   }
 
+  toggleGamepadFolder(folder, { refresh = true } = {}) {
+    if (!folder) return;
+    const focusKey = `folder:${folder._title}`;
+    if (folder._closed) {
+      folder.open();
+    } else {
+      folder.close();
+    }
+    if (!refresh) return focusKey;
+    this.refreshNavigableItems();
+    const idx = this.navigableItems.findIndex((item) => item.key === focusKey);
+    this.setGamepadFocusIndex(idx >= 0 ? idx : this.gamepadFocusIndex);
+    return focusKey;
+  }
+
   setGamepadFocusIndex(index) {
-    const prev = this.navigableItems[this.gamepadFocusIndex]?.controller;
-    prev?.domElement?.classList.remove('gamepad-menu-focus');
+    this.clearGamepadFocusItem(this.navigableItems[this.gamepadFocusIndex]);
 
     if (!this.navigableItems.length) {
       this.gamepadFocusIndex = 0;
@@ -771,9 +904,14 @@ export class SettingsPanel {
     }
 
     this.gamepadFocusIndex = ((index % this.navigableItems.length) + this.navigableItems.length) % this.navigableItems.length;
-    const { controller } = this.navigableItems[this.gamepadFocusIndex];
-    controller.domElement.classList.add('gamepad-menu-focus');
-    controller.domElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const item = this.navigableItems[this.gamepadFocusIndex];
+    if (item.kind === 'folder') {
+      item.folder.$title.classList.add('gamepad-menu-focus');
+      item.folder.$title.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      return;
+    }
+    item.controller.domElement.classList.add('gamepad-menu-focus');
+    item.controller.domElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
   openGuiForGamepadMenu() {
@@ -790,7 +928,7 @@ export class SettingsPanel {
   }
 
   exitGamepadMenu() {
-    this.navigableItems[this.gamepadFocusIndex]?.controller?.domElement?.classList.remove('gamepad-menu-focus');
+    this.clearGamepadFocusItem(this.navigableItems[this.gamepadFocusIndex]);
     this.gamepadMenuActive = false;
   }
 
@@ -814,6 +952,12 @@ export class SettingsPanel {
     if (!this.isGamepadMenuActive()) return;
     const item = this.navigableItems[this.gamepadFocusIndex];
     if (!item) return;
+
+    if (item.kind === 'folder') {
+      if (repeating) return;
+      this.toggleGamepadFolder(item.folder);
+      return;
+    }
 
     const { controller, key, spec } = item;
     const el = controller.domElement;
@@ -855,6 +999,11 @@ export class SettingsPanel {
     if (!this.isGamepadMenuActive()) return;
     const item = this.navigableItems[this.gamepadFocusIndex];
     if (!item) return;
+
+    if (item.kind === 'folder') {
+      this.toggleGamepadFolder(item.folder);
+      return;
+    }
 
     const { controller, key, spec } = item;
     const el = controller.domElement;

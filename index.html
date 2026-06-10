@@ -97,6 +97,24 @@
         background: rgba(120, 200, 255, 0.1);
       }
 
+      .lil-gui:not(.root) > .title.gamepad-menu-focus {
+        outline: 2px solid rgba(120, 200, 255, 0.9);
+        outline-offset: 1px;
+        background: rgba(120, 200, 255, 0.14);
+      }
+
+      .lil-gui:not(.root).closed > .title.gamepad-menu-focus::after {
+        content: ' ◂';
+        opacity: 0.65;
+        font-size: 0.85em;
+      }
+
+      .lil-gui:not(.root):not(.closed) > .title.gamepad-menu-focus::after {
+        content: ' ▾';
+        opacity: 0.65;
+        font-size: 0.85em;
+      }
+
       .lil-gui .controller > .name {
         overflow: hidden;
         text-overflow: ellipsis;

@@ -112,7 +112,12 @@ function createSpirographGeometry(count = SPIROGRAPH_MAX_PENS) {
 }
 
 const FLOW_MAX_PARTICLES = 30000;
+const FLOW_LITE_MAX_PARTICLES = 6000;
 const FLOW_MIN_PARTICLES = 500;
+
+function flowMaxParticles(liteMode = false) {
+  return liteMode ? FLOW_LITE_MAX_PARTICLES : FLOW_MAX_PARTICLES;
+}
 
 function createFlowGeometry(count = FLOW_MAX_PARTICLES) {
   const seeds = new Float32Array(count * 3);
@@ -128,34 +133,36 @@ function createFlowGeometry(count = FLOW_MAX_PARTICLES) {
   return geometry;
 }
 
-function flowDrawCount(shaderParticleCount) {
+function flowDrawCount(shaderParticleCount, maxParticles = FLOW_MAX_PARTICLES) {
   return Math.max(
     FLOW_MIN_PARTICLES,
-    Math.min(FLOW_MAX_PARTICLES, Math.floor(shaderParticleCount)),
+    Math.min(maxParticles, Math.floor(shaderParticleCount)),
   );
 }
 
-function setFlowParticleDrawRange(geometry, shaderParticleCount) {
-  geometry.setDrawRange(0, flowDrawCount(shaderParticleCount));
+function setFlowParticleDrawRange(geometry, shaderParticleCount, maxParticles = FLOW_MAX_PARTICLES) {
+  geometry.setDrawRange(0, flowDrawCount(shaderParticleCount, maxParticles));
 }
 
-function ensureFlowGeometryCapacity(geometry) {
+function ensureFlowGeometryCapacity(geometry, liteMode = false) {
+  const max = flowMaxParticles(liteMode);
   const capacity = geometry?.attributes?.position?.count ?? 0;
-  if (capacity >= FLOW_MAX_PARTICLES) return geometry;
+  if (capacity >= max) return geometry;
   geometry?.dispose();
-  return createFlowGeometry(FLOW_MAX_PARTICLES);
+  return createFlowGeometry(max);
 }
 
 function createFullscreenQuad() {
   return new THREE.PlaneGeometry(2, 2);
 }
 
-function feedbackScale(shaderId, resolutionScale = 100) {
-  return 0.7 * (resolutionScale / 100);
+function feedbackScale(shaderId, resolutionScale = 100, liteMode = false) {
+  const base = liteMode ? 0.42 : 0.7;
+  return base * (resolutionScale / 100);
 }
 
-function shaderPixelRatioCap(shaderId) {
-  return 1.5;
+function shaderPixelRatioCap(shaderId, liteMode = false) {
+  return liteMode ? 1 : 1.5;
 }
 
 export function defaultResolutionScale() {
@@ -173,6 +180,7 @@ export class Visualizer {
     this.motionTrails = 100;
     this.trailsNeverDecay = false;
     this.resolutionScale = defaultResolutionScale();
+    this.liteMode = false;
     this.backgroundColor = new THREE.Color(0x020208);
     this.uniformSmoother = new UniformSmoother(1.4);
     this.animPhase = 0;
@@ -274,12 +282,12 @@ export class Visualizer {
   }
 
   effectivePixelRatio() {
-    const cap = shaderPixelRatioCap(this.currentShaderId);
+    const cap = shaderPixelRatioCap(this.currentShaderId, this.liteMode);
     return Math.min(window.devicePixelRatio, cap) * (this.resolutionScale / 100);
   }
 
   recreateTrailBuffers() {
-    const scale = feedbackScale(this.currentShaderId, this.resolutionScale);
+    const scale = feedbackScale(this.currentShaderId, this.resolutionScale, this.liteMode);
     const w = Math.max(1, Math.floor(this.renderer.domElement.width * scale));
     const h = Math.max(1, Math.floor(this.renderer.domElement.height * scale));
     this.trailTargets.forEach((rt) => rt.dispose());
@@ -297,7 +305,28 @@ export class Visualizer {
   }
 
   usesTrails(shaderId) {
+    if (this.liteMode || this.motionTrails <= 0) return false;
     return usesFeedbackTrails(shaderId);
+  }
+
+  setLiteMode(enabled) {
+    const next = Boolean(enabled);
+    if (next === this.liteMode) return;
+    this.liteMode = next;
+
+    if (next && this.geometries.flow) {
+      const cap = flowMaxParticles(true);
+      const current = this.geometries.flow.attributes?.position?.count ?? 0;
+      if (current > cap) {
+        this.geometries.flow.dispose();
+        this.geometries.flow = createFlowGeometry(cap);
+        if (this.meshes.flow) this.meshes.flow.geometry = this.geometries.flow;
+      }
+    }
+
+    this.clearTrailBuffers();
+    this.renderer.setPixelRatio(this.effectivePixelRatio());
+    this.onResize();
   }
 
   clearTrailBuffers() {
@@ -332,10 +361,14 @@ export class Visualizer {
         this.geometries.spiro.setDrawRange(0, pens);
       }
       if (shaderId === 'flow') {
-        this.geometries.flow = ensureFlowGeometryCapacity(this.geometries.flow);
+        this.geometries.flow = ensureFlowGeometryCapacity(this.geometries.flow, this.liteMode);
         this.meshes.flow.geometry = this.geometries.flow;
         if (shaderValues.uParticleCount !== undefined) {
-          setFlowParticleDrawRange(this.geometries.flow, shaderValues.uParticleCount);
+          setFlowParticleDrawRange(
+            this.geometries.flow,
+            shaderValues.uParticleCount,
+            flowMaxParticles(this.liteMode),
+          );
         }
       }
       if (shaderId === 'spocks' && shaderValues.uPenCount !== undefined) {
@@ -351,7 +384,10 @@ export class Visualizer {
     if (prev !== shaderId || this.renderer.getPixelRatio() !== dpr) {
       this.renderer.setPixelRatio(dpr);
       this.onResize();
-    } else if (feedbackScale(prev, this.resolutionScale) !== feedbackScale(shaderId, this.resolutionScale)) {
+    } else if (
+      feedbackScale(prev, this.resolutionScale, this.liteMode)
+      !== feedbackScale(shaderId, this.resolutionScale, this.liteMode)
+    ) {
       this.recreateTrailBuffers();
     }
   }
@@ -419,7 +455,7 @@ export class Visualizer {
   applyValues(uiValues, { syncSmooth = false, deferRebuild = false } = {}) {
     if (uiValues.motionTrails !== undefined) {
       const trails = Math.max(0, Math.min(100, Math.round(uiValues.motionTrails)));
-      this.motionTrails = this.usesTrails(this.currentShaderId) ? 100 : trails;
+      this.motionTrails = this.liteMode ? 0 : trails;
     }
     if (uiValues.trailsNeverDecay !== undefined) {
       this.trailsNeverDecay = Boolean(uiValues.trailsNeverDecay);
@@ -448,6 +484,13 @@ export class Visualizer {
         Math.max(1, Math.floor(shaderValues.uPenCount)),
       );
       this.geometries.spirograph.setDrawRange(0, pens);
+    }
+
+    if (this.currentShaderId === 'flow' && shaderValues.uParticleCount !== undefined) {
+      const flowMax = flowMaxParticles(this.liteMode);
+      this.geometries.flow = ensureFlowGeometryCapacity(this.geometries.flow, this.liteMode);
+      if (this.meshes.flow) this.meshes.flow.geometry = this.geometries.flow;
+      setFlowParticleDrawRange(this.geometries.flow, shaderValues.uParticleCount, flowMax);
     }
   }
 
@@ -490,7 +533,11 @@ export class Visualizer {
     this.applySmoothedUniforms(material, smoothed);
 
     if (shaderId === 'flow' && smoothed.uParticleCount !== undefined) {
-      setFlowParticleDrawRange(this.geometries.flow, smoothed.uParticleCount);
+      setFlowParticleDrawRange(
+        this.geometries.flow,
+        smoothed.uParticleCount,
+        flowMaxParticles(this.liteMode),
+      );
     }
     const nextSpeed = Math.max(smoothed.uSpeed ?? 0.05, 0.001);
     const prevSpeed = this.lastAnimSpeed ?? nextSpeed;

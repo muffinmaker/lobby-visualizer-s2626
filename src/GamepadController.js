@@ -49,6 +49,7 @@ const ACTIONS = {
   chaosNewPreset: 'chaosNewPreset',
   chaosFullShuffle: 'chaosFullShuffle',
   chaosJumpPreset: 'chaosJumpPreset',
+  chaosPartyBurst: 'chaosPartyBurst',
   chaosRandomizeSliders: 'chaosRandomizeSliders',
   psycheUp: 'psycheUp',
   psycheDown: 'psycheDown',
@@ -66,7 +67,7 @@ const INPUT_TO_ACTION = {
   start: ACTIONS.toggleFullscreen,
   select: ACTIONS.toggleSettings,
   a: ACTIONS.chaosNewPreset,
-  b: ACTIONS.presetNext,
+  b: ACTIONS.chaosPartyBurst,
   x: ACTIONS.chaosRandomizeSliders,
   y: ACTIONS.chaosFullShuffle,
 };
@@ -552,14 +553,14 @@ export const GAMEPAD_BUTTON_MAP = [
   { input: 'Start', action: 'Toggle fullscreen' },
   { input: 'Select', action: 'Toolbar → options → hidden (cycle)' },
   { input: 'A', action: 'Random motion (speed, bloom, trails…)' },
-  { input: 'B', action: 'Next preset (in order, same shader)' },
+  { input: 'B', action: 'Party burst — random motion, colors, and shapes' },
   { input: 'X', action: 'Random colors (palette, tints, hues…)' },
   { input: 'Y', action: 'Random preset (same shader)' },
 ];
 
 export const GAMEPAD_MENU_BUTTON_MAP = [
   { input: 'D-pad Up / Down', action: 'Move highlight between settings' },
-  { input: 'D-pad Left / Right', action: 'Adjust highlighted setting (hold to slide faster)' },
+  { input: 'D-pad Left / Right', action: 'Adjust setting, or expand/collapse section heading' },
   { input: 'B', action: 'Random value for highlighted setting' },
   { input: 'Select', action: 'Toolbar → options → hidden (cycle)' },
   { input: 'A / X / Y', action: 'Same random actions as normal mode' },

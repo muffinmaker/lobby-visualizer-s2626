@@ -49,6 +49,8 @@ export function createGamepadChaos({
     color: () => applyMode('color'),
     /** Keyboard X — segments, morph, zoom (same preset). */
     structure: () => applyMode('structure'),
+    /** B — motion + colors + shapes in one hit (same preset). */
+    party: () => applyMode('party'),
     /** Y / V / R — hop to another saved preset (same shader). */
     preset: () => applyMode('preset'),
   };

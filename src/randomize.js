@@ -8,22 +8,22 @@ export function randomValue(spec) {
   return Math.round(randomBetween(spec.min, spec.max));
 }
 
-export function randomizeUniform(key, spec) {
-  if (spec.rebuild) return null;
+export function randomizeUniform(key, spec, { allowRebuild = false } = {}) {
+  if (spec.rebuild && !allowRebuild) return null;
   if (spec.kind === 'toggle') {
     return Math.random() > 0.5 ? 1 : 0;
   }
   return randomValue(spec);
 }
 
-export function randomizeSpecs(specs, target = {}, keys = null) {
+export function randomizeSpecs(specs, target = {}, keys = null, { allowRebuild = false } = {}) {
   const result = { ...target };
   const entries = keys
     ? keys.filter((key) => specs[key]).map((key) => [key, specs[key]])
     : Object.entries(specs);
 
   for (const [key, spec] of entries) {
-    const value = randomizeUniform(key, spec);
+    const value = randomizeUniform(key, spec, { allowRebuild });
     if (value !== null) result[key] = value;
   }
 

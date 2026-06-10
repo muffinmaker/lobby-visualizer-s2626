@@ -1,4 +1,5 @@
 import { SHADERS, GLOBAL_UNIFORMS } from './shaders/index.js';
+import { SHADER_UNIFORM_TEMPLATES } from './uniformSpecs.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
@@ -67,7 +68,7 @@ export function shaderToUi(shader, spec) {
 export function getSpecMap(shaderId) {
   return {
     ...GLOBAL_UNIFORMS,
-    ...(SHADERS[shaderId]?.uniforms ?? {}),
+    ...(SHADERS[shaderId]?.uniforms ?? SHADER_UNIFORM_TEMPLATES[shaderId] ?? {}),
   };
 }
 
