@@ -47,6 +47,15 @@ const PSYCHE_PROFILES = {
     ],
     horizontal: { key: 'uBallCount', label: 'Blobs' },
   },
+  wormhole: {
+    vertical: [
+      { key: 'uZoom', label: 'Zoom' },
+      { key: 'uSwirl', label: 'Twist', stepScale: 0.5 },
+      { key: 'uHorizonGlow', label: 'Light', stepScale: 0.45 },
+      { key: 'uSpeed', label: 'Speed', stepScale: 0.25, global: true },
+    ],
+    horizontal: { key: 'uChevrons', label: 'Ribs' },
+  },
   ribbons: {
     vertical: [
       { key: 'uTwistAmount', label: 'Twist' },

@@ -749,6 +749,323 @@ export const SHADERS = {
       }
     `,
   },
+
+  wormhole: {
+    label: 'Wormhole',
+    uniforms: { ...SHADER_UNIFORM_TEMPLATES.wormhole },
+    vertex: /* glsl */ `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position, 1.0);
+      }
+    `,
+    fragment: /* glsl */ `
+      uniform float uTime;
+      uniform float uSpeed;
+      uniform float uScale;
+      uniform float uComplexity;
+      uniform float uBrightness;
+      uniform float uSaturation;
+      uniform float uBloom;
+      uniform float uChevrons;
+      uniform float uRingSize;
+      uniform float uRingWidth;
+      uniform float uTunnelDepth;
+      uniform float uSwirl;
+      uniform float uHorizonGlow;
+      uniform float uChevronGlow;
+      uniform float uTrailShape;
+      uniform float uZoom;
+      uniform float uPalette;
+      uniform float uHueShift;
+      uniform float uColorSpeed;
+      uniform float uColorSpread;
+      uniform float uTintRed;
+      uniform float uTintGreen;
+      uniform float uTintBlue;
+      uniform vec2 uResolution;
+      uniform float uAspect;
+
+      varying vec2 vUv;
+
+      mat2 rot(float a) {
+        float c = cos(a), s = sin(a);
+        return mat2(c, -s, s, c);
+      }
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+      }
+
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      }
+
+      float fbm(vec2 p) {
+        float v = 0.0;
+        float amp = 0.55;
+        for (int i = 0; i < 4; i++) {
+          v += amp * noise(p);
+          p = rot(0.55) * p * 2.05 + 1.7;
+          amp *= 0.5;
+        }
+        return v;
+      }
+
+      vec3 paletteBase(float t) {
+        float p = floor(uPalette + 0.5);
+        vec3 offset;
+        if (p < 0.5) offset = vec3(0.55, 0.12, 0.72);
+        else if (p < 1.5) offset = vec3(0.0, 0.42, 0.78);
+        else if (p < 2.5) offset = vec3(0.12, 0.55, 0.82);
+        else if (p < 3.5) offset = vec3(0.0, 0.33, 0.67);
+        else if (p < 4.5) offset = vec3(0.82, 0.35, 0.08);
+        else if (p < 5.5) offset = vec3(0.18, 0.62, 0.88);
+        else if (p < 6.5) offset = vec3(0.68, 0.08, 0.55);
+        else offset = vec3(0.05, 0.15, 0.35);
+        vec3 base = 0.5 + 0.5 * cos(6.28318 * (offset + t));
+        vec3 floorCol = vec3(0.06, 0.07, 0.12);
+        return mix(floorCol, base, uColorSpread);
+      }
+
+      vec3 palette(float t) {
+        vec3 tint = vec3(uTintRed, uTintGreen, uTintBlue);
+        return clamp(paletteBase(t) * (tint / 0.58), 0.0, 2.2);
+      }
+
+      float cellRand(vec2 id) {
+        return hash(id * 17.3 + vec2(3.7, 9.1));
+      }
+
+      float sdCircle(vec2 p, float r) {
+        return length(p) - r;
+      }
+
+      float sdBox(vec2 p, vec2 b) {
+        vec2 q = abs(p) - b;
+        return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+      }
+
+      float sdTri(vec2 p, float r) {
+        p.y += r * 0.32;
+        return max(abs(p.x) * 0.866025 + p.y * 0.5, -p.y * 1.05) - r;
+      }
+
+      float sdHex(vec2 p, float r) {
+        vec2 q = abs(p);
+        return max(q.x * 0.866025 + q.y * 0.5, q.y) - r;
+      }
+
+      float sdDiamond(vec2 p, float r) {
+        return sdBox(rot(0.785398) * p, vec2(r * 0.82));
+      }
+
+      float sdCross(vec2 p, float r) {
+        p = abs(p);
+        return min(sdBox(p, vec2(r * 0.18, r * 0.82)), sdBox(p, vec2(r * 0.82, r * 0.18)));
+      }
+
+      float sdStar(vec2 p, float r) {
+        float a = atan(p.y, p.x);
+        float s = r * (0.52 + 0.48 * cos(a * 5.0));
+        return length(p) - s;
+      }
+
+      float softStamp(float d, float edge, float soft) {
+        return smoothstep(edge, -soft, d);
+      }
+
+      float shapeStamp(vec2 p, float sid, float rnd) {
+        p = rot(rnd * 6.28318) * p;
+        float sz = 0.1 + rnd * 0.11;
+
+        if (sid < 0.5) {
+          float d = sdCircle(p, sz);
+          d = min(d, sdCircle(p - vec2(sz * 0.55, 0.0), sz * 0.62));
+          d = min(d, sdCircle(p + vec2(sz * 0.3, sz * 0.35), sz * 0.5));
+          return softStamp(d, 0.1, 0.08);
+        }
+        if (sid < 1.5) {
+          return softStamp(sdCircle(p, sz * 0.95), 0.05, 0.04);
+        }
+        if (sid < 2.5) {
+          float d = sdCircle(p, sz * 0.35);
+          d = min(d, sdTri(p, sz * 0.9));
+          d = min(d, sdCircle(p + vec2(sz * 0.45, -sz * 0.2), sz * 0.22));
+          return softStamp(d, 0.06, 0.04);
+        }
+        if (sid < 3.5) {
+          return softStamp(sdTri(p, sz * 1.05), 0.05, 0.03);
+        }
+        if (sid < 4.5) {
+          return softStamp(sdHex(p, sz * 0.88), 0.05, 0.03);
+        }
+        if (sid < 5.5) {
+          float spiral = sin(atan(p.y, p.x) * 3.0 + length(p) * 14.0);
+          float d = sdCircle(p, sz * 0.55 + spiral * sz * 0.08);
+          d = min(d, sdCircle(p, sz * 0.2));
+          return softStamp(d, 0.05, 0.035);
+        }
+        if (sid < 6.5) {
+          vec2 q = floor(p / (sz * 0.42)) * (sz * 0.42);
+          vec2 lp = p - q - sz * 0.21;
+          return softStamp(sdBox(lp, vec2(sz * 0.2)), 0.02, 0.01);
+        }
+        if (sid < 7.5) {
+          vec2 q = p;
+          q.x += step(0.0, sin(p.y * 40.0 + rnd * 12.0)) * sz * 0.15;
+          float d = sdBox(q, vec2(sz * 0.75, sz * 0.22));
+          d = min(d, sdBox(rot(1.1) * q, vec2(sz * 0.35, sz * 0.12)));
+          return softStamp(d, 0.03, 0.015);
+        }
+        if (sid < 8.5) {
+          float d = min(sdBox(p, vec2(sz * 1.1, sz * 0.07)), sdBox(p, vec2(sz * 0.07, sz * 1.1)));
+          d = min(d, sdCircle(p, sz * 0.16));
+          return softStamp(d, 0.025, 0.012);
+        }
+        if (sid < 9.5) {
+          return softStamp(sdDiamond(p, sz * 0.95), 0.04, 0.02);
+        }
+        if (sid < 10.5) {
+          return softStamp(sdStar(p, sz * 0.92), 0.04, 0.025);
+        }
+        float smear = sdCircle(p, sz * 0.75);
+        smear = min(smear, sdCircle(p - vec2(sz * 0.5, 0.0), sz * 0.45));
+        return softStamp(smear, 0.12, 0.09);
+      }
+
+      float organicField(vec2 tdir, float z) {
+        vec2 gv = vec2(tdir.x * 3.4 + tdir.y * 2.0, z * 0.38) * 1.35;
+        vec2 id = floor(gv);
+        vec2 f = fract(gv);
+        float md = 1.0;
+        for (int j = -1; j <= 1; j++) {
+          for (int i = -1; i <= 1; i++) {
+            vec2 g = vec2(float(i), float(j));
+            vec2 o = vec2(cellRand(id + g), cellRand(id + g + 2.7));
+            float d = length(g + o - f);
+            md = min(md, d);
+          }
+        }
+        float web = smoothstep(0.38, 0.06, md);
+        float mist = pow(fbm(vec2(tdir.x * 2.2 + z * 0.15, z * 0.55)), 1.6);
+        return max(web * 0.55, mist * 0.45);
+      }
+
+      float stampField(vec2 tdir, float z, float sid, float density) {
+        vec2 gv = vec2(tdir.x * 4.0 + tdir.y * 2.5, z * density);
+        float m = 0.0;
+        for (int j = -1; j <= 1; j++) {
+          for (int i = -1; i <= 1; i++) {
+            vec2 g = vec2(float(i), float(j));
+            vec2 id = floor(gv) + g;
+            vec2 f = gv - id - 0.5;
+            vec2 off = vec2(cellRand(id), cellRand(id + 3.3)) - 0.5;
+            vec2 p = (f - off * 0.34) * 2.1;
+            float rnd = cellRand(id + 9.9);
+            m = max(m, shapeStamp(p, sid, rnd));
+          }
+        }
+        return m;
+      }
+
+      float trailMask(vec2 tdir, float depth, float travel, float shapeId) {
+        float sid = floor(shapeId + 0.5);
+        float z = depth * 9.0 - travel * 1.5;
+        float density = 0.34 + uRingWidth * 0.1;
+
+        if (sid < 0.5) {
+          return organicField(tdir, z);
+        }
+        if (sid < 1.5) {
+          float mist = fbm(vec2(tdir.x * 2.8 + z * 0.2, z * 0.62));
+          mist += fbm(vec2(tdir.y * 3.2 - z * 0.18, z * 0.48)) * 0.65;
+          return pow(mist, 1.35) * 0.85;
+        }
+        return stampField(tdir, z, sid, density);
+      }
+
+      void main() {
+        vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0 / max(uZoom, 0.2);
+        float t = uTime * (0.3 + uSpeed * 0.65);
+        float travel = t * (0.55 + uTunnelDepth * 0.45);
+        float wander = 0.16 + uHorizonGlow * 0.14 + uSwirl * 0.04;
+
+        vec2 starPos = vec2(
+          sin(t * 0.62) * wander + sin(t * 1.43 + 1.1) * wander * 0.5,
+          cos(t * 0.53) * wander * 0.9 + cos(t * 1.17 + 0.6) * wander * 0.45
+        );
+
+        float roll = t * 0.22 + sin(t * 0.71) * 0.55 * uSwirl;
+        float bend = sin(t * 0.41) * 0.22 * uSwirl + cos(t * 0.88) * 0.12 * uSwirl;
+
+        vec2 rel = uv - starPos;
+        rel = rot(roll) * rel;
+        rel.x += rel.y * bend;
+        rel.y += rel.y * rel.y * sin(t * 0.57) * 0.1 * uSwirl;
+
+        float r = length(rel) + 0.001;
+        vec2 dir = rel / r;
+        float depth = travel - log(r + 0.06) * (0.85 + uRingSize * uScale * 0.55);
+
+        float twistPhase = depth * uSwirl * 0.28 + t * uSwirl * 0.12;
+        vec2 tdir = rot(twistPhase) * dir;
+        float ribs = clamp(floor(uChevrons + 0.5), 4.0, 16.0);
+        float ribWave = 0.5 + 0.5 * cos(ribs * (tdir.x * 3.05 + tdir.y * 1.85));
+        float rib = smoothstep(0.52 - uRingWidth * 0.12, 0.98, ribWave);
+
+        float flow = sin(depth * (4.5 + uComplexity * 1.8) + tdir.x * ribs * 0.35);
+        flow = pow(flow * 0.5 + 0.5, 1.2 + uRingWidth * 0.35);
+
+        float rings = (sin(depth * (2.8 + ribs * 0.15) - t * 0.4) * 0.5 + 0.5) * 0.1 * uRingWidth;
+
+        vec2 np = vec2(tdir.x * (1.8 + uComplexity * 0.35), depth * (1.6 + uRingWidth * 0.4));
+        float surface = fbm(np);
+        float structure = mix(surface, rib, clamp(uChevronGlow * 0.6, 0.0, 1.0));
+        structure = structure * flow + rings;
+
+        float wallShade = 0.22 + smoothstep(0.03, 1.25, r) * 0.78;
+        float distStar = length(uv - starPos);
+        float centerGlow = exp(-distStar * (2.0 - uHorizonGlow * 0.32));
+        float endLight = exp(-distStar * 10.0) * uHorizonGlow;
+
+        float colorDrift = travel * 0.08 * (0.35 + uColorSpeed)
+          + sin(t * (0.55 + uColorSpeed * 1.4) + tdir.x * 2.4 + tdir.y * 1.6) * 0.14 * uColorSpread;
+        float colorPhase = depth * 0.24 + structure * 0.72 + r * 0.38 + colorDrift + uHueShift;
+
+        vec3 col = palette(colorPhase);
+        col *= 0.2 + structure * 1.45 * wallShade;
+        col = mix(col, palette(colorPhase + 0.38 + rib * 0.15), rib * uChevronGlow * 0.62 * flow);
+
+        vec3 starCol = palette(travel * 0.1 + uHueShift + sin(t * 0.48) * 0.1);
+        col += starCol * centerGlow * uHorizonGlow * 0.72;
+        col += starCol * 1.25 * endLight * 0.55;
+
+        float streak = trailMask(tdir, depth, travel, uTrailShape);
+        vec3 trailCol = palette(colorPhase + 0.22 + streak * 0.18);
+        col += trailCol * streak * centerGlow * uBloom * 0.58;
+        col += palette(colorPhase + 0.42) * pow(streak, 2.2) * centerGlow * uBloom * 0.28;
+
+        float vignette = smoothstep(1.45, 0.25, r);
+        col *= 0.32 + vignette * 0.68;
+
+        float gray = dot(col, vec3(0.299, 0.587, 0.114));
+        col = mix(vec3(gray), col, uSaturation);
+        col *= uBrightness;
+        col += palette(colorPhase + 0.5) * structure * uBloom * 0.14;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+  },
 };
 
 export const SHADER_IDS = Object.keys(SHADERS);

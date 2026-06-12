@@ -8,7 +8,7 @@ import {
   getShaderChoices,
 } from './shaders/index.js';
 import { mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
-import { SHAPE_OPTIONS } from './shapeOptions.js';
+import { SHAPE_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
 import {
   applyLiteLimits,
@@ -554,6 +554,16 @@ export class SettingsPanel {
           }
           this.handleValueChange();
         });
+    } else if (spec.kind === 'trailShape') {
+      controller = folder
+        .add(this.state, key, { ...TRAIL_SHAPE_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
     } else if (spec.rebuild) {
       controller = folder
         .add(this.state, key, spec.min, spec.max, spec.step)
@@ -574,7 +584,7 @@ export class SettingsPanel {
     this.uniformControllers.set(key, controller);
     configureNumberController(controller);
 
-    if (!spec.rebuild && spec.kind !== 'palette' && spec.kind !== 'shape') {
+    if (!spec.rebuild && spec.kind !== 'palette' && spec.kind !== 'shape' && spec.kind !== 'trailShape') {
       this.attachDriftToggle(controller, key, spec);
     }
   }
@@ -594,6 +604,7 @@ export class SettingsPanel {
       wrap.classList.toggle('is-active', enabled);
       this.driftManager.setEnabled(key, spec, enabled, this.state[key]);
       this.syncFolderDriftToggles(spec);
+      this.notifyDriftStateChange();
     });
 
     const icon = document.createElement('span');
@@ -608,6 +619,63 @@ export class SettingsPanel {
 
   setFolderDrift(specs, enabled) {
     this.driftManager.setEnabledMany(Object.entries(specs), enabled, this.getValues());
+    this.notifyDriftStateChange();
+  }
+
+  getDriftableEntries() {
+    const specs = {
+      ...BACKGROUND_UNIFORMS,
+      ...this.globalSpecs,
+      ...(SHADERS[this.state.shader]?.uniforms ?? {}),
+    };
+    return Object.entries(specs).filter(
+      ([, spec]) => !spec.rebuild && spec.kind !== 'palette' && spec.kind !== 'shape' && spec.kind !== 'trailShape',
+    );
+  }
+
+  isDriftAllEnabled() {
+    const entries = this.getDriftableEntries();
+    if (!entries.length) return false;
+    return entries.every(([key]) => this.driftManager.isEnabled(key));
+  }
+
+  toggleDriftAll() {
+    const next = !this.isDriftAllEnabled();
+    this.setDriftAll(next);
+    return next;
+  }
+
+  setDriftAll(enabled) {
+    const entries = this.getDriftableEntries();
+    this.driftManager.setEnabledMany(entries, enabled, this.getValues());
+
+    for (const [key] of entries) {
+      const toggle = this.driftToggles.get(key);
+      if (!toggle) continue;
+      toggle.checked = enabled;
+      toggle.parentElement?.classList.toggle('is-active', enabled);
+    }
+
+    for (const { ctrl, specs, stateKey, state } of this.folderDriftActions) {
+      const keys = Object.keys(specs).filter(
+        (key) =>
+          !specs[key].rebuild &&
+          specs[key].kind !== 'palette' &&
+          specs[key].kind !== 'shape' &&
+          specs[key].kind !== 'trailShape',
+      );
+      const allOn = enabled && keys.length > 0;
+      const anyOn = enabled && keys.length > 0;
+      state[stateKey] = allOn;
+      ctrl.updateDisplay();
+      ctrl.domElement.classList.toggle('partial-drift', anyOn && !allOn);
+    }
+
+    this.notifyDriftStateChange();
+  }
+
+  notifyDriftStateChange() {
+    this.onDriftStateChange?.();
   }
 
   syncFolderDriftToggles(specs) {
@@ -620,6 +688,7 @@ export class SettingsPanel {
       ctrl.updateDisplay();
       ctrl.domElement.classList.toggle('partial-drift', anyOn && !allOn);
     }
+    this.notifyDriftStateChange();
   }
 
   rebuildShaderFolder(shaderId) {
@@ -643,6 +712,7 @@ export class SettingsPanel {
     this.addUniformControls(this.shaderFolder, shader.uniforms);
     const focusKey = this.navigableItems[this.gamepadFocusIndex]?.key;
     this.refreshGamepadMenuAfterRebuild(focusKey);
+    this.notifyDriftStateChange();
   }
 
   labelFor(key, spec) {
@@ -675,6 +745,15 @@ export class SettingsPanel {
       uGreen: 'Square Green',
       uBlue: 'Square Blue',
       uZoom: 'Zoom',
+      uChevrons: 'Wall Ribs',
+      uRingSize: 'Tunnel Stretch',
+      uRingWidth: 'Wall Detail',
+      uTunnelDepth: 'Travel Speed',
+      uSwirl: 'Twist',
+      uHorizonGlow: 'Vanishing Light',
+      uChevronGlow: 'Rib Glow',
+      uTrailShape: 'Trail Shape',
+      uColorSpeed: 'Color Drift',
     };
     if (names[key]) return names[key];
     return key.replace(/^u/, '').replace(/([A-Z])/g, ' $1').trim();

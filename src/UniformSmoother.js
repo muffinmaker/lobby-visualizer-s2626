@@ -10,6 +10,7 @@ const DISCRETE_KEYS = new Set([
   'uShape4',
   'uPalette',
   'uPenShape',
+  'uTrailShape',
 ]);
 
 const KEY_SMOOTH_TIMES = {

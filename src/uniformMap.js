@@ -19,7 +19,7 @@ function tToUi(t, spec) {
 export function uiToShader(ui, spec) {
   if (spec.kind === 'rgb') return ui / 255;
   if (spec.kind === 'toggle') return ui > 0 ? 1 : 0;
-  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape') {
+  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'trailShape') {
     return Math.round(Number(ui));
   }
   if (spec.kind === 'zoom') {
@@ -44,7 +44,7 @@ export function uiToShader(ui, spec) {
 export function shaderToUi(shader, spec) {
   if (spec.kind === 'rgb') return Math.round(clamp(shader, 0, 1) * 255);
   if (spec.kind === 'toggle') return shader > 0.5 ? 1 : 0;
-  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape') {
+  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'trailShape') {
     return Math.round(clamp(shader, spec.min, spec.max));
   }
   if (spec.kind === 'particles') {

@@ -269,6 +269,11 @@ async function start() {
       const { current, total } = presetManager.getPresetPosition(settings.state.shader);
       return total > 0 ? `${current}/${total}` : '—';
     },
+    getDriftAll: () => settings.isDriftAllEnabled(),
+    onDriftAllToggle: () => {
+      const enabled = settings.toggleDriftAll();
+      transport?.setDriftAllActive?.(enabled);
+    },
     getAutoCycle: () => presetManager.autoCycle,
     onAutoCycleToggle: () => presetManager.setAutoCycle(!presetManager.autoCycle),
     getSmoothTransitions: () => presetManager.smoothTransitions,
@@ -281,6 +286,10 @@ async function start() {
     onSave: onSavePreset,
     onInfo: () => tutorial.toggle(),
   });
+
+  settings.onDriftStateChange = () => {
+    transport?.setDriftAllActive?.(settings.isDriftAllEnabled());
+  };
 
   function flashTransport(id) {
     transport?.flashControl?.(id);

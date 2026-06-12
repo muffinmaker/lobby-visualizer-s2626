@@ -33,6 +33,7 @@ const SECTIONS = [
         <li><strong>▲ ▼</strong> (transport bar, beside preset number) Previous / next preset for the current shader</li>
         <li><kbd>↑</kbd> <kbd>↓</kbd> Zoom / warp plus psychedelic motion (rotate, twist, pulse, speed… — varies by shader)</li>
         <li><kbd>←</kbd> <kbd>→</kbd> Spirograph: gear ratio · others: fewer / more elements (orbits, mirrors, particles…)</li>
+        <li><strong>↻ Drift all</strong> (transport bar) Toggle slow random drift on every slider (global + shader)</li>
         <li><strong>∿ Smooth transitions</strong> (transport bar) Toggle preset cross-fade vs instant</li>
         <li><strong>⟳ Auto-cycle</strong> (transport bar, end) Toggle auto-cycling presets</li>
         <li><kbd>Z</kbd> Random <em>motion</em> on current preset (speed, bloom, trails…)</li>
@@ -80,7 +81,7 @@ const SECTIONS = [
       <p><strong>Motion Trails</strong> (0–100) controls trail strength on shaders that support it (Spirograph, Spiro, Flow). Per-shader trail decay sliders in each shader folder fine-tune persistence at full strength. Enable <strong>Trails never decay</strong> to keep trails permanently (no fade between frames).</p>
       <p>For weak lobby GPUs running <strong>Spirograph</strong>, pick the built-in <strong>Lobby Safe</strong> preset: it uses fewer pens, turns motion trails off, sets Resolution % to 75, and uses conservative speed and brightness.</p>
       <p><strong>Kaleidoscope</strong> presets such as <strong>Jade Carousel</strong>, <strong>Ember Fold</strong>, and <strong>Crystal Swap</strong> showcase multi-shape morph (Shape Count 2–4 + Shape Morph). Saturation and Bloom vary the color theme per preset.</p>
-      <p>The transport bar has <strong>◀ ▶</strong> around the shader name to switch visual styles (and which sliders appear), and <strong>▲ ▼</strong> beside the <strong>preset number</strong> (e.g. <strong>3/11</strong>) to step through saved combinations for that shader. <strong>∿</strong> toggles smooth preset cross-fades; <strong>⟳</strong> toggles auto-cycle. <strong>↺ Reset preset</strong> in the settings panel restores built-in defaults for the current preset name.</p>
+      <p>The transport bar has <strong>◀ ▶</strong> around the shader name to switch visual styles (and which sliders appear), and <strong>▲ ▼</strong> beside the <strong>preset number</strong> (e.g. <strong>3/11</strong>) to step through saved combinations for that shader. <strong>↻</strong> toggles drift on every slider (global + shader); <strong>∿</strong> toggles smooth preset cross-fades; <strong>⟳</strong> toggles auto-cycle. <strong>↺ Reset preset</strong> in the settings panel restores built-in defaults for the current preset name.</p>
       <p><strong>Background Red / Green / Blue</strong> (Display) sets the canvas and trail fade color — independent of square, tint, or palette colors in each shader.</p>
       <p><strong>Logo</strong> overlays a built-in mark at the center of the screen. Choose <strong>None</strong> to hide it. <strong>Add logo</strong> uploads your own PNG or JPG (saved in this browser). <strong>Logo Scale %</strong> resizes the overlay; <strong>Logo Opacity %</strong> controls transparency (0–100).</p>
     `,

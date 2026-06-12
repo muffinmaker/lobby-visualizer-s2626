@@ -14,12 +14,14 @@ const PARTY_MODES = ['motion', 'color', 'structure'];
 function isColorKey(key, spec) {
   if (spec.kind === 'palette') return true;
   if (spec.kind === 'rgb') return true;
-  if (key === 'uHueShift' || key === 'uColorSpread' || key === 'uSaturation') return true;
+  if (key === 'uHueShift' || key === 'uColorSpread' || key === 'uColorSpeed' || key === 'uSaturation') {
+    return true;
+  }
   return false;
 }
 
 function isStructureKey(key, spec) {
-  if (spec.kind === 'shape') return true;
+  if (spec.kind === 'shape' || spec.kind === 'trailShape') return true;
   if (
     key === 'uZoom' ||
     key === 'uSegments' ||
@@ -28,13 +30,15 @@ function isStructureKey(key, spec) {
     key === 'uShapeVariety' ||
     key === 'uGearRatio' ||
     key === 'uPenDistance' ||
-    key === 'uParticleCount'
+    key === 'uParticleCount' ||
+    key === 'uRingSize' ||
+    key === 'uRingWidth'
   ) {
     return true;
   }
   if (/^uCenter/.test(key)) return true;
   if (/^uShape/.test(key)) return true;
-  if (spec.kind === 'count' && /Segment|Shape|Ring|Ball|Ribbon|Orbit|Mirror|Pen/i.test(key)) {
+  if (spec.kind === 'count' && /Segment|Shape|Ring|Ball|Ribbon|Orbit|Mirror|Pen|Chevron/i.test(key)) {
     return true;
   }
   return false;
@@ -47,7 +51,7 @@ function isMotionKey(key, spec) {
   if (isColorKey(key, spec) || isStructureKey(key, spec)) return false;
   if (key === 'uWarp' || key === 'uTwistAmount' || key === 'uThickness') return true;
   if (MOTION_GLOBAL_KEYS.has(key)) return true;
-  if (/Speed|Scale|Bright|Bloom|Complex|Trail|Point|Pulse|Twist|Rotate|Time|Field|Noise|Width|Height|Decay|Alpha|Softness|Glow|Thickness|Iteration|Orbit|Ribbon|Ball|Particle|Rand/i.test(key)) {
+  if (/Speed|Scale|Bright|Bloom|Complex|Trail|Point|Pulse|Twist|Rotate|Time|Field|Noise|Width|Height|Decay|Alpha|Softness|Glow|Thickness|Iteration|Orbit|Ribbon|Ball|Particle|Rand|Tunnel|Swirl|Horizon|Chevron/i.test(key)) {
     return true;
   }
   return false;

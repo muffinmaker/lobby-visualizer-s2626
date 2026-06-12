@@ -107,6 +107,14 @@ export function mountTransportBar(guiElement, handlers) {
     orientation: 'vertical',
   });
 
+  const driftAll = createBtn(
+    '↻',
+    'Drift all parameters — toggle slow random blends',
+    'transport-btn drift-all-btn',
+  );
+  driftAll.setAttribute('aria-pressed', 'false');
+  bindBtn(driftAll, handlers.onDriftAllToggle);
+
   const smoothTransitions = createBtn(
     '∿',
     'Smooth preset transitions — toggle cross-fade',
@@ -130,7 +138,7 @@ export function mountTransportBar(guiElement, handlers) {
   bindBtn(info, handlers.onInfo);
 
   actions.append(save, info);
-  transport.append(shaderNav.group, presetNav.group, smoothTransitions, autocycle, actions);
+  transport.append(shaderNav.group, presetNav.group, driftAll, smoothTransitions, autocycle, actions);
   transport.addEventListener('click', (e) => e.stopPropagation());
   transport.addEventListener('pointerdown', (e) => e.stopPropagation());
   actions.addEventListener('click', (e) => e.stopPropagation());
@@ -147,8 +155,14 @@ export function mountTransportBar(guiElement, handlers) {
     smoothTransitions.setAttribute('aria-pressed', String(active));
   }
 
+  function setDriftAllActive(active) {
+    driftAll.classList.toggle('is-active', active);
+    driftAll.setAttribute('aria-pressed', String(active));
+  }
+
   setAutocycleActive(Boolean(handlers.getAutoCycle?.()));
   setSmoothTransitionsActive(handlers.getSmoothTransitions?.() !== false);
+  setDriftAllActive(Boolean(handlers.getDriftAll?.()));
 
   function setShaderLabel(name) {
     const text = name || 'Shader';
@@ -168,6 +182,7 @@ export function mountTransportBar(guiElement, handlers) {
     shaderNext: shaderNav.next,
     presetPrev: presetNav.prev,
     presetNext: presetNav.next,
+    driftAll,
     smoothTransitions,
     autocycle,
     save,
@@ -183,6 +198,7 @@ export function mountTransportBar(guiElement, handlers) {
     flashControl,
     setAutocycleActive,
     setSmoothTransitionsActive,
+    setDriftAllActive,
     setShaderLabel,
     setPresetLabel,
   };

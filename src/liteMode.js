@@ -62,7 +62,7 @@ export function applyLiteLimits(shaderId, values) {
   }
 
   const specs = getSpecMap(shaderId);
-  for (const key of ['uSegments', 'uRingCount', 'uBallCount', 'uRibbonCount']) {
+  for (const key of ['uSegments', 'uRingCount', 'uBallCount', 'uRibbonCount', 'uChevrons']) {
     if (next[key] === undefined || !specs[key]) continue;
     const max = Math.min(specs[key].max, specs[key].max <= 6 ? specs[key].max : 6);
     next[key] = clamp(next[key], max, specs[key].min ?? 2);

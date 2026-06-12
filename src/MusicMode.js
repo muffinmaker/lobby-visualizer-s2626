@@ -7,6 +7,7 @@ const SHADER_MODS = {
   spocks: ['uColorSpeed', 'uWobble', 'uZoom'],
   kaleido: ['uWarp', 'uLineWidth', 'uShapeMorph', 'uCenterStrength'],
   metaballs: ['uEdgeGlow', 'uSoftness'],
+  wormhole: ['uTunnelDepth', 'uSwirl', 'uHorizonGlow', 'uColorSpeed'],
   ribbons: ['uTwistAmount', 'uThickness'],
 };
 
