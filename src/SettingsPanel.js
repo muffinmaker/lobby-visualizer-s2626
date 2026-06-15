@@ -167,6 +167,11 @@ export class SettingsPanel {
     const pm = this.presetManager;
     const dm = this.driftManager;
 
+    this.buildDisplaySection();
+    this.buildDriftSection(dm);
+    this.buildGlobalSection();
+    this.rebuildShaderFolder(this.state.shader);
+
     this.gui.add(this.state, 'shader', getShaderChoices()).name('Shader').onChange((id) => {
       this.setShader(id);
     });
@@ -282,26 +287,14 @@ export class SettingsPanel {
     cycle.add({ next: () => pm.next() }, 'next').name('Next Preset');
     cycle.add({ random: () => pm.randomPreset() }, 'random').name('Random Preset');
 
-    const drift = this.gui.addFolder('Drift Timing');
-    drift.add(this.state, 'driftInterval', 15, 240, 1).name('Pause (s)').onChange((v) => {
-      dm.interval = v;
-    });
-    drift.add(this.state, 'driftDuration', 10, 180, 1).name('Blend (s)').onChange((v) => {
-      dm.duration = v;
-    });
-    drift.add(this.state, 'driftSpeedAuto').name('Speed Auto').onChange((v) => {
-      dm.speedAuto = v;
-      this.driftSpeedCtrl.disable(v);
-    });
-    this.driftSpeedCtrl = drift
-      .add(this.state, 'driftSpeed', 1, 100, 1)
-      .name('Drift Speed')
-      .onChange((v) => {
-        dm.speed = v;
-      });
-    this.driftSpeedCtrl.disable(this.state.driftSpeedAuto);
+    this.applyMenuOpacity(this.state.menuOpacity);
+    this.patchNumberControllers();
+    this.gui.close();
+  }
 
+  buildDisplaySection() {
     const display = this.gui.addFolder('Display');
+    this.displayFolder = display;
     this.liteModeCtrl = display
       .add(this.state, 'liteMode')
       .name('Lite mode (multi-screen)')
@@ -342,17 +335,43 @@ export class SettingsPanel {
       .onChange(() => this.handleValueChange());
     this.updateTrailsNeverDecayCtrl();
     this.addUniformControls(display, BACKGROUND_UNIFORMS);
+  }
 
+  buildDriftSection(dm) {
+    const drift = this.gui.addFolder('Drift Timing');
+    this.driftFolder = drift;
+    drift.add(this.state, 'driftInterval', 15, 240, 1).name('Pause (s)').onChange((v) => {
+      dm.interval = v;
+    });
+    drift.add(this.state, 'driftDuration', 10, 180, 1).name('Blend (s)').onChange((v) => {
+      dm.duration = v;
+    });
+    drift.add(this.state, 'driftSpeedAuto').name('Speed Auto').onChange((v) => {
+      dm.speedAuto = v;
+      this.driftSpeedCtrl.disable(v);
+    });
+    this.driftSpeedCtrl = drift
+      .add(this.state, 'driftSpeed', 1, 100, 1)
+      .name('Drift Speed')
+      .onChange((v) => {
+        dm.speed = v;
+      });
+    this.driftSpeedCtrl.disable(this.state.driftSpeedAuto);
+  }
+
+  buildGlobalSection() {
     this.globalSpecs = Object.fromEntries(
       Object.entries(GLOBAL_UNIFORMS).filter(([key]) => !(key in BACKGROUND_UNIFORMS)),
     );
     this.globalFolder = this.gui.addFolder('Global');
     this.addUniformControls(this.globalFolder, this.globalSpecs);
+  }
 
-    this.rebuildShaderFolder(this.state.shader);
-    this.applyMenuOpacity(this.state.menuOpacity);
-    this.patchNumberControllers();
-    this.gui.close();
+  placeShaderFolderAfterGlobal() {
+    if (!this.globalFolder?.domElement || !this.shaderFolder?.domElement) return;
+    const parent = this.globalFolder.domElement.parentElement;
+    if (!parent) return;
+    parent.insertBefore(this.shaderFolder.domElement, this.globalFolder.domElement.nextSibling);
   }
 
   patchNumberControllers() {
@@ -710,6 +729,7 @@ export class SettingsPanel {
     mergeShaderDefaults(this.state, shaderId);
     this.shaderFolder = this.gui.addFolder(shader.label);
     this.addUniformControls(this.shaderFolder, shader.uniforms);
+    this.placeShaderFolderAfterGlobal();
     const focusKey = this.navigableItems[this.gamepadFocusIndex]?.key;
     this.refreshGamepadMenuAfterRebuild(focusKey);
     this.notifyDriftStateChange();
