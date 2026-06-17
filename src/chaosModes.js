@@ -24,11 +24,12 @@ function isStructureKey(key, spec) {
   if (spec.kind === 'shape' || spec.kind === 'trailShape') return true;
   if (
     key === 'uZoom' ||
+    key === 'uIterations' ||
+    key === 'uRotate' ||
+    key === 'uWidthRand' ||
+    key === 'uHeightRand' ||
     key === 'uSegments' ||
     key === 'uShapeMorph' ||
-    key === 'uPenShape' ||
-    key === 'uShapeVariety' ||
-    key === 'uGearRatio' ||
     key === 'uPenDistance' ||
     key === 'uParticleCount' ||
     key === 'uRingSize' ||

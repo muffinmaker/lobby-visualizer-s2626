@@ -77,6 +77,239 @@
         backdrop-filter: blur(10px);
         overflow-x: hidden;
         max-width: var(--width, 360px);
+        position: fixed;
+        z-index: 30;
+        margin: 0;
+        max-height: calc(100vh - 1.5rem);
+        overflow-y: auto;
+        pointer-events: auto;
+      }
+
+      .lil-gui.root.menu-big-mode,
+      .lil-gui.root.menu-big-mode .lil-gui {
+        --menu-scale: 3;
+        --font-size: calc(11px * var(--menu-scale));
+        --input-font-size: calc(11px * var(--menu-scale));
+        --widget-height: calc(20px * var(--menu-scale));
+        --spacing: calc(2px * var(--menu-scale));
+        --padding: calc(4px * var(--menu-scale));
+        --widget-padding: 0 0 0 calc(4.5px * var(--menu-scale));
+        --title-height: calc(var(--widget-height) + var(--spacing) * 1.25);
+        --name-width: 42%;
+        --slider-input-width: calc(2.65rem * var(--menu-scale));
+        --slider-input-min-width: calc(2.65rem * var(--menu-scale));
+        --slider-knob-width: calc(2px * var(--menu-scale));
+        --scrollbar-width: calc(5px * var(--menu-scale));
+        --folder-indent: calc(7px * var(--menu-scale));
+        --checkbox-size: calc(0.75 * var(--widget-height));
+        --widget-border-radius: calc(2px * var(--menu-scale));
+        font-size: var(--font-size);
+      }
+
+      .lil-gui.root.menu-big-mode {
+        width: 60vw;
+        max-width: 60vw;
+      }
+
+      .lil-gui.root.menu-big-mode .controller {
+        margin: var(--spacing) 0;
+        padding: 0 var(--padding);
+        min-height: var(--widget-height);
+      }
+
+      .lil-gui.root.menu-big-mode .controller > .name {
+        font-size: var(--font-size);
+        line-height: var(--widget-height);
+      }
+
+      .lil-gui.root.menu-big-mode .controller .widget {
+        min-height: var(--widget-height);
+      }
+
+      .lil-gui.root.menu-big-mode .controller.number .slider {
+        height: var(--widget-height);
+        min-height: var(--widget-height);
+        padding-right: var(--slider-knob-width);
+      }
+
+      .lil-gui.root.menu-big-mode .controller.number input {
+        height: var(--widget-height);
+        min-height: var(--widget-height);
+        font-size: var(--input-font-size);
+        line-height: var(--widget-height);
+      }
+
+      .lil-gui.root.menu-big-mode .controller.option .display {
+        height: var(--widget-height);
+        min-height: var(--widget-height);
+        font-size: var(--font-size);
+        line-height: var(--widget-height);
+      }
+
+      .lil-gui.root.menu-big-mode .controller.boolean .widget {
+        font-size: var(--checkbox-size);
+        line-height: var(--checkbox-size);
+      }
+
+      .lil-gui.root.menu-big-mode .title:not(.gui-title-row) {
+        height: var(--title-height);
+        min-height: var(--title-height);
+        font-size: var(--font-size);
+        line-height: var(--title-height);
+      }
+
+      .lil-gui.root.menu-big-mode .controller.number.hasSlider input {
+        width: var(--slider-input-min-width);
+        min-width: var(--slider-input-min-width);
+        max-width: var(--slider-input-min-width);
+        flex: 0 0 var(--slider-input-min-width);
+      }
+
+      .lil-gui.root.menu-big-mode .drift-toggle {
+        width: 4.05rem;
+        height: 4.05rem;
+        margin-left: 0.75rem;
+        border-radius: 0.75rem;
+      }
+
+      .lil-gui.root.menu-big-mode .drift-toggle-icon {
+        font-size: 2.16rem;
+      }
+
+      .lil-gui.root.menu-big-mode .title.gui-title-row {
+        min-height: auto;
+        padding: 0.6rem 1.05rem 0.45rem;
+      }
+
+      .lil-gui.root.menu-big-mode .transport-cluster {
+        gap: 0.45rem;
+      }
+
+      .lil-gui.root.menu-big-mode .title-actions {
+        gap: 0.6rem;
+      }
+
+      .lil-gui.root.menu-big-mode .transport-group {
+        gap: 0.36rem;
+        padding: 0.15rem 0.6rem 0.15rem 0.36rem;
+        border-radius: 0.9rem;
+      }
+
+      .lil-gui.root.menu-big-mode .transport-group--primary {
+        gap: 0.54rem;
+        height: 5.1rem;
+        min-height: 5.1rem;
+        padding: 0.3rem 0.84rem 0.3rem 0.54rem;
+        border-radius: 0.9rem;
+      }
+
+      .lil-gui.root.menu-big-mode .transport-group--secondary {
+        gap: 0.24rem;
+        padding: 0.12rem 0.42rem 0.12rem 0.3rem;
+      }
+
+      .lil-gui.root.menu-big-mode .transport-group--vertical {
+        gap: 0.3rem;
+        padding: 0.18rem 0.42rem 0.18rem 0.3rem;
+      }
+
+      .lil-gui.root.menu-big-mode .transport-nav-stack {
+        gap: 0.12rem;
+      }
+
+      .lil-gui.root.menu-big-mode .transport-group + .transport-group {
+        margin-left: 0.3rem;
+      }
+
+      .lil-gui.root.menu-big-mode .transport-group-label {
+        font-size: 1.44rem;
+        padding: 0 0.3rem 0 0.15rem;
+      }
+
+      .lil-gui.root.menu-big-mode .transport-group--secondary .transport-group-label {
+        font-size: 1.32rem;
+        padding: 0 0.18rem 0 0.12rem;
+      }
+
+      .lil-gui.root.menu-big-mode .transport-shader-label {
+        flex: 0 0 18rem;
+        width: 18rem;
+        min-width: 18rem;
+        max-width: 18rem;
+        font-size: 1.74rem;
+        padding: 0 0.36rem;
+      }
+
+      .lil-gui.root.menu-big-mode .transport-preset-label {
+        flex: 0 0 7.05rem;
+        width: 7.05rem;
+        min-width: 7.05rem;
+        max-width: 7.05rem;
+        font-size: 1.68rem;
+        padding: 0 0.24rem;
+      }
+
+      .lil-gui.root.menu-big-mode .title.gui-title-row .transport-btn--primary {
+        width: 4.95rem;
+        height: 4.5rem;
+        font-size: 4.05rem;
+        border-radius: 0.9rem;
+      }
+
+      .lil-gui.root.menu-big-mode .title.gui-title-row .transport-btn--secondary {
+        width: 3.3rem;
+        height: 3rem;
+        font-size: 2.34rem;
+        border-radius: 0.6rem;
+      }
+
+      .lil-gui.root.menu-big-mode .title.gui-title-row .transport-btn.info-btn {
+        width: 3.75rem;
+        height: 3.75rem;
+        font-size: 1.86rem;
+      }
+
+      .lil-gui.root.menu-big-mode .title.gui-title-row .transport-btn.autocycle-btn,
+      .lil-gui.root.menu-big-mode .title.gui-title-row .transport-btn.smooth-btn,
+      .lil-gui.root.menu-big-mode .title.gui-title-row .transport-btn.drift-all-btn,
+      .lil-gui.root.menu-big-mode .title.gui-title-row .transport-btn.save-btn {
+        width: 4.05rem;
+        height: 3.75rem;
+        font-size: 2.16rem;
+      }
+
+      .lil-gui.root.menu-big-mode .controller.gamepad-menu-focus,
+      .lil-gui.root.menu-big-mode .lil-gui:not(.root) > .title.gamepad-menu-focus {
+        outline-width: 6px;
+        outline-offset: 3px;
+      }
+
+      .lil-gui.root.menu-pos-top-right {
+        top: 0.75rem;
+        right: 0.75rem;
+        bottom: auto;
+        left: auto;
+      }
+
+      .lil-gui.root.menu-pos-top-left {
+        top: 0.75rem;
+        left: 0.75rem;
+        bottom: auto;
+        right: auto;
+      }
+
+      .lil-gui.root.menu-pos-bottom-right {
+        bottom: 0.75rem;
+        right: 0.75rem;
+        top: auto;
+        left: auto;
+      }
+
+      .lil-gui.root.menu-pos-bottom-left {
+        bottom: 0.75rem;
+        left: 0.75rem;
+        top: auto;
+        right: auto;
       }
 
       .lil-gui.root > .children,
@@ -226,12 +459,19 @@
 
       .lil-gui .title.gui-title-row {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         min-height: 2.1rem;
         flex-wrap: nowrap;
-        overflow: hidden;
+        overflow: visible;
         padding: 0.2rem 0.35rem 0.15rem;
         cursor: pointer;
+      }
+
+      .transport-fit {
+        width: 100%;
+        min-width: 0;
+        flex: 1 1 auto;
+        overflow: hidden;
       }
 
       .transport-cluster {

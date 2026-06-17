@@ -14,14 +14,18 @@ const DISCRETE_KEYS = new Set([
 ]);
 
 const KEY_SMOOTH_TIMES = {
-  uSpeed: 3.5,
+  uSpeed: 8,
+  uComplexity: 7,
+  uWarp: 7,
+  uTwist: 7,
+  uTwistAmount: 7,
+  uSwirl: 6,
   uBgRed: 1.4,
   uBgGreen: 1.4,
   uBgBlue: 1.4,
-  uColorSpeed: 2.0,
-  uGearRatio: 1.8,
-  uPenDistance: 1.8,
-  uWobble: 1.6,
+  uRotate: 1.8,
+  uMyTime: 1.8,
+  uIterations: 1.8,
   uScaleY: 2.0,
   uScaleZ: 2.0,
   uUp: 1.8,

@@ -17,6 +17,15 @@ import {
   snapshotLiteRestoreFields,
 } from './liteMode.js';
 import { showGamepadToast } from './GamepadController.js';
+import {
+  applyMenuPosition as setMenuPositionOnElement,
+  loadMenuPosition,
+  MENU_POSITION_LABELS,
+  MENU_POSITIONS,
+  nextMenuPosition,
+  saveMenuPosition,
+} from './menuPosition.js';
+import { applyMenuBigMode, loadMenuBigMode, saveMenuBigMode } from './menuBigMode.js';
 
 const TRAIL_SHADERS = new Set(['spocks', 'spiro', 'flow']);
 
@@ -99,6 +108,8 @@ export class SettingsPanel {
       resolutionScale: visualizer.resolutionScale ?? defaultResolutionScale(),
       liteMode: loadLiteMode(),
       menuOpacity: 80,
+      menuPosition: loadMenuPosition(),
+      menuBigMode: loadMenuBigMode(),
       musicEnabled: false,
       musicSource: 'mic',
       musicSensitivity: 65,
@@ -288,6 +299,8 @@ export class SettingsPanel {
     cycle.add({ random: () => pm.randomPreset() }, 'random').name('Random Preset');
 
     this.applyMenuOpacity(this.state.menuOpacity);
+    this.applyMenuPosition(this.state.menuPosition);
+    this.applyMenuBigMode(this.state.menuBigMode);
     this.patchNumberControllers();
     this.gui.close();
   }
@@ -300,6 +313,18 @@ export class SettingsPanel {
       .name('Lite mode (multi-screen)')
       .onChange((enabled) => {
         this.setLiteMode(enabled);
+      });
+    this.menuPositionCtrl = display
+      .add(this.state, 'menuPosition', MENU_POSITION_LABELS)
+      .name('Menu position')
+      .onChange((position) => {
+        this.setMenuPosition(position);
+      });
+    display
+      .add(this.state, 'menuBigMode')
+      .name('Big menu (distance view)')
+      .onChange((enabled) => {
+        this.setMenuBigMode(enabled);
       });
     display
       .add(this.state, 'menuOpacity', 30, 100, 1)
@@ -381,6 +406,33 @@ export class SettingsPanel {
   applyMenuOpacity(percent) {
     const alpha = Math.max(0, Math.min(100, percent)) / 100;
     document.documentElement.style.setProperty('--menu-bg-alpha', String(alpha));
+  }
+
+  applyMenuPosition(position) {
+    setMenuPositionOnElement(this.gui.domElement, position);
+  }
+
+  setMenuPosition(position) {
+    if (!MENU_POSITIONS.includes(position)) return null;
+    this.state.menuPosition = position;
+    this.applyMenuPosition(position);
+    saveMenuPosition(position);
+    this.menuPositionCtrl?.setValue(position);
+    return MENU_POSITION_LABELS[position];
+  }
+
+  cycleMenuPosition() {
+    return this.setMenuPosition(nextMenuPosition(this.state.menuPosition));
+  }
+
+  applyMenuBigMode(enabled) {
+    applyMenuBigMode(this.gui.domElement, enabled);
+  }
+
+  setMenuBigMode(enabled) {
+    this.state.menuBigMode = Boolean(enabled);
+    this.applyMenuBigMode(this.state.menuBigMode);
+    saveMenuBigMode(this.state.menuBigMode);
   }
 
   updateTrailsNeverDecayCtrl() {
@@ -749,12 +801,18 @@ export class SettingsPanel {
       uHueShift: 'Hue Shift',
       uColorSpeed: 'Color Speed',
       uColorSpread: 'Color Spread',
-      uPenCount: 'Pen Count',
-      uGearRatio: 'Gear Ratio',
-      uPenDistance: 'Pen Distance',
-      uWobble: 'Wobble',
-      uPenShape: 'Pen Shape',
-      uShapeVariety: 'Shape Variety',
+      uUp: 'Offset X',
+      uDown: 'Offset Y',
+      uScaleY: 'Scale Y',
+      uScaleZ: 'Scale Z',
+      uWidth: 'Square Width',
+      uHeight: 'Square Height',
+      uRotate: 'Rotate',
+      uMyTime: 'Time Scale',
+      uLineWidth: 'Line Width',
+      uIterations: 'Iterations',
+      uWidthRand: 'Width Random',
+      uHeightRand: 'Height Random',
       uTintRed: 'Tint Red',
       uTintGreen: 'Tint Green',
       uTintBlue: 'Tint Blue',

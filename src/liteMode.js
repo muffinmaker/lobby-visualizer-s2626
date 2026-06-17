@@ -39,8 +39,8 @@ export function applyLiteLimits(shaderId, values) {
   next.motionTrails = 0;
   next.trailsNeverDecay = false;
 
-  if (next.uPenCount !== undefined) {
-    next.uPenCount = clamp(next.uPenCount, LITE_LIMITS.penCountMax, 2);
+  if (next.uIterations !== undefined) {
+    next.uIterations = clamp(next.uIterations, 45, 20);
   }
   if (next.uOrbitCount !== undefined) {
     next.uOrbitCount = clamp(next.uOrbitCount, LITE_LIMITS.orbitCountMax, 2);

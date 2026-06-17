@@ -9,6 +9,20 @@ import { loadSavedPresets, writeSavedPresets, toStoredPreset } from './SavedPres
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+// Extra-gentle easing for motion-driving sliders during preset cross-fades.
+const easeInOutQuint = (t) =>
+  t < 0.5 ? 16 * t * t * t * t * t : 1 - Math.pow(-2 * t + 2, 5) / 2;
+
+const MOTION_BLEND_KEYS = new Set([
+  'uSpeed',
+  'uComplexity',
+  'uWarp',
+  'uTwist',
+  'uTwistAmount',
+  'uSwirl',
+  'uTunnelDepth',
+  'uRingSize',
+]);
 
 const SMOOTH_TRANSITIONS_KEY = 'lobby-smooth-transitions';
 
@@ -56,62 +70,64 @@ function randomizeUniforms(shaderId, target = {}) {
 
 export const PRESETS = [
   {
-    name: 'Prism Gears',
+    name: 'J04 Spocks',
     shader: 'spocks',
     values: {
       uSpeed: 8,
-      uScale: 48,
-      uComplexity: 42,
-      uBrightness: 55,
-      uSaturation: 78,
-      uBloom: 48,
-      uPointSize: 54,
+      uScale: 45,
+      uComplexity: 40,
+      uBrightness: 50,
+      uSaturation: 67,
+      uBloom: 40,
+      uUp: 50,
+      uDown: 50,
+      uScaleY: 49,
+      uScaleZ: 51,
+      uWidth: 41,
+      uHeight: 41,
+      uRotate: 62,
+      uMyTime: 45,
+      uZoom: 50,
+      uRed: 0,
+      uGreen: 0,
+      uBlue: 155,
+      uLineWidth: 36,
+      uIterations: 65,
       uTrailDecay: 92,
-      uPenCount: 5,
-      uGearRatio: 44,
-      uPenDistance: 58,
-      uWobble: 14,
-      uZoom: 74,
-      uPalette: 1,
-      uHueShift: 48,
-      uColorSpeed: 36,
-      uColorSpread: 74,
-      uTintRed: 120,
-      uTintGreen: 180,
-      uTintBlue: 255,
-      uPenShape: 3,
-      uShapeVariety: 25,
+      uWidthRand: 0,
+      uHeightRand: 0,
     },
   },
   {
-    name: 'Neon Roseate',
+    name: 'Spocks Drift',
     shader: 'spocks',
     values: {
       uSpeed: 7,
       uScale: 46,
-      uComplexity: 38,
-      uBrightness: 58,
-      uSaturation: 82,
-      uBloom: 52,
-      uPointSize: 52,
+      uComplexity: 40,
+      uBrightness: 55,
+      uSaturation: 77,
+      uBloom: 40,
+      uUp: 52,
+      uDown: 48,
+      uScaleY: 51,
+      uScaleZ: 49,
+      uWidth: 38,
+      uHeight: 44,
+      uRotate: 68,
+      uMyTime: 47,
+      uZoom: 48,
+      uRed: 38,
+      uGreen: 89,
+      uBlue: 217,
+      uLineWidth: 32,
+      uIterations: 65,
       uTrailDecay: 94,
-      uPenCount: 6,
-      uGearRatio: 38,
-      uPenDistance: 62,
-      uWobble: 22,
-      uZoom: 70,
-      uPalette: 2,
-      uHueShift: 62,
-      uColorSpeed: 42,
-      uColorSpread: 82,
-      uTintRed: 255,
-      uTintGreen: 120,
-      uTintBlue: 210,
-      uPenShape: 5,
-      uShapeVariety: 50,
+      uWidthRand: 1,
+      uHeightRand: 1,
     },
   },
-  {
+{
     name: 'Calm Orbits',
     shader: 'spiro',
     values: {
@@ -135,7 +151,7 @@ export const PRESETS = [
       uTintBlue: 255,
     },
   },
-  {
+{
     name: 'Neon Kaleido',
     shader: 'kaleido',
     values: {
@@ -159,7 +175,7 @@ export const PRESETS = [
       uShapeMorph: 28,
     },
   },
-  {
+{
     name: 'Deep Flow',
     shader: 'flow',
     values: {
@@ -176,7 +192,7 @@ export const PRESETS = [
       uPointSize: 28,
     },
   },
-  {
+{
     name: 'Liquid Merge',
     shader: 'metaballs',
     values: {
@@ -192,7 +208,7 @@ export const PRESETS = [
       uZoom: 40,
     },
   },
-  {
+{
     name: 'Silk Ribbons',
     shader: 'ribbons',
     values: {
@@ -207,7 +223,7 @@ export const PRESETS = [
       uTwistAmount: 45,
     },
   },
-  {
+{
     name: 'Hyperspin',
     shader: 'spiro',
     values: {
@@ -232,171 +248,177 @@ export const PRESETS = [
     },
   },
   {
-    name: 'Jade Lattice',
+    name: 'Vulcan Grid',
     shader: 'spocks',
     values: {
       uSpeed: 9,
       uScale: 44,
-      uComplexity: 36,
-      uBrightness: 54,
-      uSaturation: 72,
-      uBloom: 38,
-      uPointSize: 50,
+      uComplexity: 38,
+      uBrightness: 52,
+      uSaturation: 70,
+      uBloom: 35,
+      uUp: 50,
+      uDown: 50,
+      uScaleY: 48,
+      uScaleZ: 52,
+      uWidth: 36,
+      uHeight: 36,
+      uRotate: 45,
+      uMyTime: 42,
+      uZoom: 52,
+      uRed: 0,
+      uGreen: 180,
+      uBlue: 200,
+      uLineWidth: 34,
+      uIterations: 72,
       uTrailDecay: 90,
-      uPenCount: 7,
-      uGearRatio: 52,
-      uPenDistance: 52,
-      uWobble: 10,
-      uZoom: 72,
-      uPalette: 5,
-      uHueShift: 38,
-      uColorSpeed: 28,
-      uColorSpread: 68,
-      uTintRed: 80,
-      uTintGreen: 220,
-      uTintBlue: 180,
-      uPenShape: 4,
-      uShapeVariety: 35,
+      uWidthRand: 0,
+      uHeightRand: 0,
     },
   },
   {
-    name: 'Candy Spindle',
+    name: 'Nebula Boxes',
     shader: 'spocks',
     values: {
       uSpeed: 6,
-      uScale: 50,
-      uComplexity: 46,
-      uBrightness: 60,
-      uSaturation: 85,
-      uBloom: 50,
-      uPointSize: 56,
+      uScale: 48,
+      uComplexity: 45,
+      uBrightness: 58,
+      uSaturation: 82,
+      uBloom: 45,
+      uUp: 54,
+      uDown: 46,
+      uScaleY: 55,
+      uScaleZ: 45,
+      uWidth: 42,
+      uHeight: 38,
+      uRotate: 55,
+      uMyTime: 50,
+      uZoom: 46,
+      uRed: 220,
+      uGreen: 90,
+      uBlue: 140,
+      uLineWidth: 30,
+      uIterations: 58,
       uTrailDecay: 93,
-      uPenCount: 6,
-      uGearRatio: 36,
-      uPenDistance: 66,
-      uWobble: 26,
-      uZoom: 68,
-      uPalette: 4,
-      uHueShift: 72,
-      uColorSpeed: 48,
-      uColorSpread: 88,
-      uTintRed: 255,
-      uTintGreen: 160,
-      uTintBlue: 220,
-      uPenShape: 2,
-      uShapeVariety: 55,
+      uWidthRand: 1,
+      uHeightRand: 1,
     },
   },
   {
-    name: 'Electric Orbit',
+    name: 'Warp Tunnel',
     shader: 'spocks',
     values: {
       uSpeed: 14,
       uScale: 42,
-      uComplexity: 54,
-      uBrightness: 62,
-      uSaturation: 78,
-      uBloom: 55,
-      uPointSize: 48,
+      uComplexity: 52,
+      uBrightness: 60,
+      uSaturation: 75,
+      uBloom: 50,
+      uUp: 48,
+      uDown: 52,
+      uScaleY: 58,
+      uScaleZ: 62,
+      uWidth: 34,
+      uHeight: 34,
+      uRotate: 78,
+      uMyTime: 55,
+      uZoom: 38,
+      uRed: 100,
+      uGreen: 140,
+      uBlue: 255,
+      uLineWidth: 28,
+      uIterations: 70,
       uTrailDecay: 88,
-      uPenCount: 8,
-      uGearRatio: 48,
-      uPenDistance: 54,
-      uWobble: 18,
-      uZoom: 64,
-      uPalette: 3,
-      uHueShift: 55,
-      uColorSpeed: 52,
-      uColorSpread: 80,
-      uTintRed: 140,
-      uTintGreen: 200,
-      uTintBlue: 255,
-      uPenShape: 1,
-      uShapeVariety: 60,
+      uWidthRand: 0,
+      uHeightRand: 0,
     },
   },
   {
-    name: 'Cobalt Lace',
+    name: 'Korax Lattice',
     shader: 'spocks',
     values: {
       uSpeed: 5,
       uScale: 43,
-      uComplexity: 34,
-      uBrightness: 56,
-      uSaturation: 68,
-      uBloom: 32,
-      uPointSize: 46,
-      uTrailDecay: 86,
-      uPenCount: 9,
-      uGearRatio: 62,
-      uPenDistance: 48,
-      uWobble: 8,
-      uZoom: 76,
-      uPalette: 0,
-      uHueShift: 42,
-      uColorSpeed: 22,
-      uColorSpread: 62,
-      uTintRed: 90,
-      uTintGreen: 150,
-      uTintBlue: 255,
-      uPenShape: 6,
-      uShapeVariety: 20,
+      uComplexity: 35,
+      uBrightness: 54,
+      uSaturation: 62,
+      uBloom: 28,
+      uUp: 50,
+      uDown: 50,
+      uScaleY: 46,
+      uScaleZ: 54,
+      uWidth: 28,
+      uHeight: 28,
+      uRotate: 35,
+      uMyTime: 38,
+      uZoom: 56,
+      uRed: 80,
+      uGreen: 140,
+      uBlue: 200,
+      uLineWidth: 38,
+      uIterations: 78,
+      uTrailDecay: 85,
+      uWidthRand: 0,
+      uHeightRand: 0,
     },
   },
   {
-    name: 'Ember Bloom',
+    name: 'Tellar Ember',
     shader: 'spocks',
     values: {
       uSpeed: 5,
       uScale: 50,
-      uComplexity: 40,
-      uBrightness: 64,
-      uSaturation: 80,
-      uBloom: 68,
-      uPointSize: 58,
+      uComplexity: 42,
+      uBrightness: 62,
+      uSaturation: 78,
+      uBloom: 65,
+      uUp: 52,
+      uDown: 48,
+      uScaleY: 49,
+      uScaleZ: 51,
+      uWidth: 48,
+      uHeight: 46,
+      uRotate: 40,
+      uMyTime: 42,
+      uZoom: 62,
+      uRed: 255,
+      uGreen: 140,
+      uBlue: 40,
+      uLineWidth: 34,
+      uIterations: 60,
       uTrailDecay: 96,
-      uPenCount: 5,
-      uGearRatio: 40,
-      uPenDistance: 64,
-      uWobble: 20,
-      uZoom: 70,
-      uPalette: 4,
-      uHueShift: 28,
-      uColorSpeed: 34,
-      uColorSpread: 76,
-      uTintRed: 255,
-      uTintGreen: 150,
-      uTintBlue: 60,
-      uPenShape: 5,
-      uShapeVariety: 70,
+      uWidthRand: 0,
+      uHeightRand: 1,
     },
   },
   {
-    name: 'Vortex Prism',
+    name: 'Proxus Vortex',
     shader: 'spocks',
     values: {
       uSpeed: 18,
       uScale: 40,
-      uComplexity: 56,
-      uBrightness: 60,
-      uSaturation: 74,
-      uBloom: 46,
-      uPointSize: 50,
-      uTrailDecay: 84,
-      uPenCount: 7,
-      uGearRatio: 34,
-      uPenDistance: 70,
-      uWobble: 32,
-      uZoom: 62,
-      uPalette: 6,
-      uHueShift: 68,
-      uColorSpeed: 58,
-      uColorSpread: 90,
-      uTintRed: 200,
-      uTintGreen: 180,
-      uTintBlue: 255,
-      uPenShape: 7,
-      uShapeVariety: 45,
+      uComplexity: 58,
+      uBrightness: 58,
+      uSaturation: 70,
+      uBloom: 42,
+      uUp: 48,
+      uDown: 52,
+      uScaleY: 62,
+      uScaleZ: 68,
+      uWidth: 32,
+      uHeight: 32,
+      uRotate: 85,
+      uMyTime: 65,
+      uZoom: 30,
+      uRed: 180,
+      uGreen: 200,
+      uBlue: 255,
+      uLineWidth: 22,
+      uIterations: 55,
+      uTrailDecay: 82,
+      uWidthRand: 0,
+      uHeightRand: 0,
     },
   },
   {
@@ -405,88 +427,92 @@ export const PRESETS = [
     values: {
       uSpeed: 6,
       uScale: 52,
-      uComplexity: 46,
-      uBrightness: 56,
-      uSaturation: 90,
-      uBloom: 58,
-      uPointSize: 55,
+      uComplexity: 48,
+      uBrightness: 42,
+      uSaturation: 88,
+      uBloom: 55,
+      uUp: 56,
+      uDown: 44,
+      uScaleY: 62,
+      uScaleZ: 38,
+      uWidth: 46,
+      uHeight: 50,
+      uRotate: 52,
+      uMyTime: 48,
+      uZoom: 54,
+      uRed: 200,
+      uGreen: 120,
+      uBlue: 255,
+      uLineWidth: 26,
+      uIterations: 62,
       uTrailDecay: 97,
-      uPenCount: 6,
-      uGearRatio: 42,
-      uPenDistance: 60,
-      uWobble: 24,
-      uZoom: 72,
-      uPalette: 2,
-      uHueShift: 78,
-      uColorSpeed: 44,
-      uColorSpread: 92,
-      uTintRed: 220,
-      uTintGreen: 130,
-      uTintBlue: 255,
-      uPenShape: 1,
-      uShapeVariety: 80,
+      uWidthRand: 1,
+      uHeightRand: 1,
     },
   },
   {
-    name: 'Deep Ink',
+    name: 'Zephon Void',
     shader: 'spocks',
     values: {
       uSpeed: 4,
       uScale: 46,
-      uComplexity: 28,
-      uBrightness: 54,
-      uSaturation: 48,
-      uBloom: 34,
-      uPointSize: 48,
+      uComplexity: 30,
+      uBrightness: 38,
+      uSaturation: 45,
+      uBloom: 32,
+      uUp: 50,
+      uDown: 50,
+      uScaleY: 48,
+      uScaleZ: 52,
+      uWidth: 52,
+      uHeight: 52,
+      uRotate: 28,
+      uMyTime: 35,
+      uZoom: 65,
+      uRed: 0,
+      uGreen: 90,
+      uBlue: 70,
+      uLineWidth: 42,
+      uIterations: 45,
       uTrailDecay: 88,
-      uPenCount: 4,
-      uGearRatio: 58,
-      uPenDistance: 46,
-      uWobble: 6,
-      uZoom: 78,
-      uPalette: 7,
-      uHueShift: 32,
-      uColorSpeed: 18,
-      uColorSpread: 55,
-      uTintRed: 40,
-      uTintGreen: 120,
-      uTintBlue: 160,
-      uPenShape: 3,
-      uShapeVariety: 15,
+      uWidthRand: 1,
+      uHeightRand: 0,
     },
   },
   {
     name: 'Lobby Safe',
     shader: 'spocks',
     display: {
+      motionTrails: 0,
       resolutionScale: 75,
     },
     values: {
       uSpeed: 5,
       uScale: 48,
-      uComplexity: 26,
-      uBrightness: 50,
-      uSaturation: 58,
-      uBloom: 24,
-      uPointSize: 44,
-      uTrailDecay: 86,
-      uPenCount: 3,
-      uGearRatio: 46,
-      uPenDistance: 52,
-      uWobble: 6,
-      uZoom: 76,
-      uPalette: 1,
-      uHueShift: 45,
-      uColorSpeed: 20,
-      uColorSpread: 60,
-      uTintRed: 100,
-      uTintGreen: 180,
-      uTintBlue: 220,
-      uPenShape: 4,
-      uShapeVariety: 30,
+      uComplexity: 28,
+      uBrightness: 42,
+      uSaturation: 52,
+      uBloom: 22,
+      uUp: 50,
+      uDown: 50,
+      uScaleY: 49,
+      uScaleZ: 51,
+      uWidth: 40,
+      uHeight: 40,
+      uRotate: 40,
+      uMyTime: 38,
+      uZoom: 55,
+      uRed: 0,
+      uGreen: 100,
+      uBlue: 140,
+      uLineWidth: 34,
+      uIterations: 28,
+      uTrailDecay: 55,
+      uWidthRand: 0,
+      uHeightRand: 0,
     },
   },
-  {
+{
     name: 'Rigel Trails',
     shader: 'spiro',
     values: {
@@ -510,7 +536,7 @@ export const PRESETS = [
       uTintBlue: 240,
     },
   },
-  {
+{
     name: 'Trill Bloom',
     shader: 'spiro',
     values: {
@@ -534,7 +560,7 @@ export const PRESETS = [
       uTintBlue: 255,
     },
   },
-  {
+{
     name: 'Andor Ink',
     shader: 'spiro',
     values: {
@@ -558,7 +584,7 @@ export const PRESETS = [
       uTintBlue: 195,
     },
   },
-  {
+{
     name: 'Mirror Six',
     shader: 'kaleido',
     values: {
@@ -582,7 +608,7 @@ export const PRESETS = [
       uShapeMorph: 0,
     },
   },
-  {
+{
     name: 'Hex Morph',
     shader: 'kaleido',
     values: {
@@ -606,7 +632,7 @@ export const PRESETS = [
       uShapeMorph: 45,
     },
   },
-  {
+{
     name: 'Star Chamber',
     shader: 'kaleido',
     values: {
@@ -630,7 +656,7 @@ export const PRESETS = [
       uShapeMorph: 15,
     },
   },
-  {
+{
     name: 'Prism Drift',
     shader: 'kaleido',
     values: {
@@ -654,7 +680,7 @@ export const PRESETS = [
       uShapeMorph: 8,
     },
   },
-  {
+{
     name: 'Jade Carousel',
     shader: 'kaleido',
     values: {
@@ -678,7 +704,7 @@ export const PRESETS = [
       uShapeMorph: 52,
     },
   },
-  {
+{
     name: 'Ember Fold',
     shader: 'kaleido',
     values: {
@@ -702,7 +728,7 @@ export const PRESETS = [
       uShapeMorph: 65,
     },
   },
-  {
+{
     name: 'Crystal Swap',
     shader: 'kaleido',
     values: {
@@ -726,7 +752,7 @@ export const PRESETS = [
       uShapeMorph: 38,
     },
   },
-  {
+{
     name: 'Particle Storm',
     shader: 'flow',
     values: {
@@ -743,7 +769,7 @@ export const PRESETS = [
       uPointSize: 35,
     },
   },
-  {
+{
     name: 'Gentle Drift',
     shader: 'flow',
     values: {
@@ -760,7 +786,7 @@ export const PRESETS = [
       uPointSize: 22,
     },
   },
-  {
+{
     name: 'Lumis Stream',
     shader: 'flow',
     values: {
@@ -777,7 +803,7 @@ export const PRESETS = [
       uPointSize: 30,
     },
   },
-  {
+{
     name: 'Celix Wake',
     shader: 'flow',
     values: {
@@ -794,7 +820,7 @@ export const PRESETS = [
       uPointSize: 32,
     },
   },
-  {
+{
     name: 'Bubble Bath',
     shader: 'metaballs',
     values: {
@@ -810,7 +836,7 @@ export const PRESETS = [
       uZoom: 35,
     },
   },
-  {
+{
     name: 'Mercury Pool',
     shader: 'metaballs',
     values: {
@@ -826,7 +852,7 @@ export const PRESETS = [
       uZoom: 48,
     },
   },
-  {
+{
     name: 'Aurora Blobs',
     shader: 'metaballs',
     values: {
@@ -842,7 +868,7 @@ export const PRESETS = [
       uZoom: 32,
     },
   },
-  {
+{
     name: 'Solix Pulse',
     shader: 'metaballs',
     values: {
@@ -858,7 +884,7 @@ export const PRESETS = [
       uZoom: 42,
     },
   },
-  {
+{
     name: 'Stargate Transit',
     shader: 'wormhole',
     values: {
@@ -886,7 +912,7 @@ export const PRESETS = [
       uTintBlue: 255,
     },
   },
-  {
+{
     name: 'Contact Passage',
     shader: 'wormhole',
     values: {
@@ -914,7 +940,7 @@ export const PRESETS = [
       uTintBlue: 255,
     },
   },
-  {
+{
     name: 'Dial Home Run',
     shader: 'wormhole',
     values: {
@@ -942,7 +968,7 @@ export const PRESETS = [
       uTintBlue: 240,
     },
   },
-  {
+{
     name: 'Sliders Vortex',
     shader: 'wormhole',
     values: {
@@ -970,7 +996,7 @@ export const PRESETS = [
       uTintBlue: 255,
     },
   },
-  {
+{
     name: 'Slow Drift',
     shader: 'wormhole',
     values: {
@@ -998,7 +1024,7 @@ export const PRESETS = [
       uTintBlue: 255,
     },
   },
-  {
+{
     name: 'Ribbon Dance',
     shader: 'ribbons',
     values: {
@@ -1013,7 +1039,7 @@ export const PRESETS = [
       uTwistAmount: 62,
     },
   },
-  {
+{
     name: 'Velara Weave',
     shader: 'ribbons',
     values: {
@@ -1028,7 +1054,7 @@ export const PRESETS = [
       uTwistAmount: 35,
     },
   },
-  {
+{
     name: 'Quiet Streams',
     shader: 'ribbons',
     values: {
@@ -1043,7 +1069,7 @@ export const PRESETS = [
       uTwistAmount: 22,
     },
   },
-  {
+{
     name: 'Nyxos Spiral',
     shader: 'ribbons',
     values: {
@@ -1635,7 +1661,10 @@ export class PresetManager {
       const b = toValues[key] ?? fromValues[key];
       const spec = specs[key];
       if (isDiscreteUniform(spec)) {
-        blended[key] = eased < 0.5 ? a : b;
+        // Hold counts/shapes until the cross-fade finishes — mid-blend snaps read as violent spins.
+        blended[key] = a;
+      } else if (MOTION_BLEND_KEYS.has(key)) {
+        blended[key] = lerp(a, b, easeInOutQuint(eased));
       } else {
         blended[key] = lerp(a, b, eased);
       }

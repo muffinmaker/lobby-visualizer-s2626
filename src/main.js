@@ -494,7 +494,7 @@ async function start() {
       visualizer.setShader(shader, values);
       visualizer.applyValues(values);
     } else if (presetManager.isTransitioning) {
-      visualizer.applyValues(values, { syncSmooth: true, deferRebuild: true });
+      visualizer.applyValues(values, { deferRebuild: true });
     }
 
     if (presetManager.isTransitioning) {
@@ -525,6 +525,9 @@ async function start() {
     }
   }
 
+  const DOUBLE_SPACE_MS = 400;
+  let lastSpacePressAt = 0;
+
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' && tutorial.isOpen()) {
       tutorial.close();
@@ -537,6 +540,14 @@ async function start() {
     }
     if (e.code === 'Space') {
       e.preventDefault();
+      const now = performance.now();
+      if (now - lastSpacePressAt < DOUBLE_SPACE_MS) {
+        lastSpacePressAt = 0;
+        const label = settings.cycleMenuPosition();
+        if (label) showGamepadToast(`Menu: ${label}`);
+        return;
+      }
+      lastSpacePressAt = now;
       settings.toggleVisible();
     }
     if (e.code === 'KeyF') toggleFullscreen();
@@ -564,7 +575,7 @@ async function start() {
     '%cLobby Visualizer',
     'font-weight:bold;font-size:14px',
     `\nShaders: ${SHADER_IDS.join(', ')}`,
-    '\nSpace: settings | ?: tutorial | F: fullscreen | H: hide UI | ↑/↓: zoom & motion | ←/→: element counts | Z/C/X/B/V: motion/colors/shapes/party/preset | USB gamepad: see tutorial',
+    '\nSpace: settings | Space×2: move menu | ?: tutorial | F: fullscreen | H: hide UI | ↑/↓: zoom | ←/→: element counts | Z/C/X/B/V: motion/colors/shapes/party/preset | USB gamepad: see tutorial',
   );
 }
 

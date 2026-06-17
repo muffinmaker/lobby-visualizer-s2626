@@ -14,15 +14,28 @@ const TRAIL_FRAG = `
 uniform sampler2D uPrev;
 uniform float uDecay;
 uniform vec3 uFadeColor;
+uniform float uPreserveHue;
 varying vec2 vUv;
 
 void main() {
   vec4 prev = texture2D(uPrev, vUv);
-  prev.rgb = mix(uFadeColor, prev.rgb, uDecay);
-  // Additive strokes can clip to white — ease bright buildup back toward the fade tint.
-  float lum = dot(prev.rgb, vec3(0.299, 0.587, 0.114));
-  float wash = smoothstep(0.32, 0.88, lum);
-  prev.rgb = mix(prev.rgb, mix(uFadeColor, prev.rgb, 0.42), wash * 0.82);
+  if (uPreserveHue > 0.5) {
+    // Dim trails without pulling saturated strokes toward the background grey.
+    float ink = max(
+      max(abs(prev.r - uFadeColor.r), abs(prev.g - uFadeColor.g)),
+      abs(prev.b - uFadeColor.b)
+    );
+    vec3 faded = prev.rgb * uDecay;
+    prev.rgb = mix(uFadeColor, faded, smoothstep(0.008, 0.04, ink));
+    float peak = max(max(prev.r, prev.g), prev.b);
+    if (peak > 0.98) prev.rgb *= 0.98 / peak;
+  } else {
+    prev.rgb = mix(uFadeColor, prev.rgb, uDecay);
+    // Additive strokes can clip to white — ease bright buildup back toward the fade tint.
+    float lum = dot(prev.rgb, vec3(0.299, 0.587, 0.114));
+    float wash = smoothstep(0.32, 0.88, lum);
+    prev.rgb = mix(prev.rgb, mix(uFadeColor, prev.rgb, 0.42), wash * 0.82);
+  }
   gl_FragColor = vec4(prev.rgb, 1.0);
 }`;
 
@@ -50,15 +63,15 @@ function buildUniforms(shaderId, uiValues = {}) {
 }
 
 function isPointShader(id) {
-  return id === 'spiro' || id === 'flow' || id === 'spocks';
+  return id === 'spiro' || id === 'flow';
 }
 
 function usesFeedbackTrails(shaderId) {
-  return isPointShader(shaderId);
+  return isPointShader(shaderId) || shaderId === 'spocks';
 }
 
 function isTrailBlended(shaderId, points) {
-  return points;
+  return points || shaderId === 'spocks';
 }
 
 function wrapFragment(source) {
@@ -79,7 +92,6 @@ function createPointGeometry(count, extraAttributes = {}) {
 }
 
 const SPIRO_MAX_ORBITS = 10;
-const SPIROGRAPH_MAX_PENS = 10;
 
 function createSpiroGeometry(count = SPIRO_MAX_ORBITS) {
   const indices = new Float32Array(count);
@@ -93,21 +105,6 @@ function createSpiroGeometry(count = SPIRO_MAX_ORBITS) {
     aPhase: { array: phases, itemSize: 1 },
   });
   geometry.userData.maxOrbits = count;
-  return geometry;
-}
-
-function createSpirographGeometry(count = SPIROGRAPH_MAX_PENS) {
-  const indices = new Float32Array(count);
-  const phases = new Float32Array(count);
-  for (let i = 0; i < count; i++) {
-    indices[i] = i;
-    phases[i] = (i / Math.max(count, 1)) * Math.PI * 2;
-  }
-  const geometry = createPointGeometry(count, {
-    aIndex: { array: indices, itemSize: 1 },
-    aPhase: { array: phases, itemSize: 1 },
-  });
-  geometry.userData.maxPens = count;
   return geometry;
 }
 
@@ -157,12 +154,28 @@ function createFullscreenQuad() {
 }
 
 function feedbackScale(shaderId, resolutionScale = 100, liteMode = false) {
-  const base = liteMode ? 0.42 : 0.7;
+  const base = shaderId === 'spocks' ? (liteMode ? 0.42 : 0.55) : liteMode ? 0.42 : 0.7;
   return base * (resolutionScale / 100);
 }
 
 function shaderPixelRatioCap(shaderId, liteMode = false) {
+  if (shaderId === 'spocks') return 1;
   return liteMode ? 1 : 1.5;
+}
+
+// Shaders that multiply accumulated uTime by a speed-dependent factor in the fragment shader.
+const TIME_SPEED_FACTORS = {
+  kaleido: (speed) => 1 + 2 * speed,
+  wormhole: (speed) => 0.3 + 0.65 * speed,
+};
+
+function compensateAnimPhase(animPhase, shaderId, prevSpeed, nextSpeed) {
+  const factor = TIME_SPEED_FACTORS[shaderId];
+  if (!factor) return animPhase;
+  const oldFactor = factor(prevSpeed);
+  const newFactor = factor(nextSpeed);
+  if (newFactor < 1e-7 || Math.abs(oldFactor - newFactor) < 1e-8) return animPhase;
+  return animPhase * (oldFactor / newFactor);
 }
 
 export function defaultResolutionScale() {
@@ -209,6 +222,7 @@ export class Visualizer {
         uPrev: { value: null },
         uDecay: { value: 0.92 },
         uFadeColor: { value: new THREE.Color(0x020208) },
+        uPreserveHue: { value: 0 },
       },
       vertexShader: FULLSCREEN_VERT,
       fragmentShader: wrapFragment(TRAIL_FRAG),
@@ -225,11 +239,9 @@ export class Visualizer {
     this.materials = {};
     this.geometries = {
       spiro: createSpiroGeometry(),
-      spirograph: createSpirographGeometry(),
       flow: createFlowGeometry(),
     };
     this.geometries.spiro.setDrawRange(0, 6);
-    this.geometries.spirograph.setDrawRange(0, 5);
 
     this.initPasses();
     this.onResize = this.onResize.bind(this);
@@ -251,16 +263,15 @@ export class Visualizer {
     const geometry = points
       ? id === 'flow'
         ? this.geometries.flow
-        : id === 'spocks'
-          ? this.geometries.spirograph
-          : this.geometries.spiro
+        : this.geometries.spiro
       : createFullscreenQuad();
 
+    const trailBlended = isTrailBlended(id, points);
     const material = new THREE.ShaderMaterial({
       uniforms: buildUniforms(id, this.values),
-      vertexShader: points ? shader.vertex : FULLSCREEN_VERT,
+      vertexShader: points ? shader.vertex : shader.vertex || FULLSCREEN_VERT,
       fragmentShader: wrapFragment(shader.fragment),
-      transparent: isTrailBlended(id, points),
+      transparent: trailBlended,
       depthTest: false,
       depthWrite: false,
       blending: points ? THREE.AdditiveBlending : THREE.NormalBlending,
@@ -371,13 +382,6 @@ export class Visualizer {
           );
         }
       }
-      if (shaderId === 'spocks' && shaderValues.uPenCount !== undefined) {
-        const pens = Math.min(
-          SPIROGRAPH_MAX_PENS,
-          Math.max(1, Math.floor(shaderValues.uPenCount)),
-        );
-        this.geometries.spirograph.setDrawRange(0, pens);
-      }
     }
 
     const dpr = this.effectivePixelRatio();
@@ -478,14 +482,6 @@ export class Visualizer {
       this.geometries.spiro.setDrawRange(0, pens);
     }
 
-    if (this.currentShaderId === 'spocks' && shaderValues.uPenCount !== undefined) {
-      const pens = Math.min(
-        SPIROGRAPH_MAX_PENS,
-        Math.max(1, Math.floor(shaderValues.uPenCount)),
-      );
-      this.geometries.spirograph.setDrawRange(0, pens);
-    }
-
     if (this.currentShaderId === 'flow' && shaderValues.uParticleCount !== undefined) {
       const flowMax = flowMaxParticles(this.liteMode);
       this.geometries.flow = ensureFlowGeometryCapacity(this.geometries.flow, this.liteMode);
@@ -541,6 +537,7 @@ export class Visualizer {
     }
     const nextSpeed = Math.max(smoothed.uSpeed ?? 0.05, 0.001);
     const prevSpeed = this.lastAnimSpeed ?? nextSpeed;
+    this.animPhase = compensateAnimPhase(this.animPhase, shaderId, prevSpeed, nextSpeed);
     this.animPhase += dt * (prevSpeed + nextSpeed) * 0.5;
     this.lastAnimSpeed = nextSpeed;
     material.uniforms.uTime.value = this.animPhase;

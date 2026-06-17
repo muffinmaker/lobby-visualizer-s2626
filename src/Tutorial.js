@@ -31,8 +31,8 @@ const SECTIONS = [
         <li><kbd>H</kbd> Hide settings UI</li>
         <li><strong>◀ ▶</strong> (transport bar, around shader name) Previous / next shader — changes which slider set is shown</li>
         <li><strong>▲ ▼</strong> (transport bar, beside preset number) Previous / next preset for the current shader</li>
-        <li><kbd>↑</kbd> <kbd>↓</kbd> Zoom / warp plus psychedelic motion (rotate, twist, pulse, speed… — varies by shader)</li>
-        <li><kbd>←</kbd> <kbd>→</kbd> Spirograph: gear ratio · others: fewer / more elements (orbits, mirrors, particles…)</li>
+        <li><kbd>↑</kbd> Zoom in · <kbd>↓</kbd> Zoom out (all shaders)</li>
+        <li><kbd>←</kbd> <kbd>→</kbd> Spirograph: rotate · others: fewer / more elements (orbits, mirrors, particles…)</li>
         <li><strong>↻ Drift all</strong> (transport bar) Toggle slow random drift on every slider (global + shader)</li>
         <li><strong>∿ Smooth transitions</strong> (transport bar) Toggle preset cross-fade vs instant</li>
         <li><strong>⟳ Auto-cycle</strong> (transport bar, end) Toggle auto-cycling presets</li>
@@ -53,8 +53,8 @@ const SECTIONS = [
       <p>Shoulders and face buttons use edge-triggered presses (~250&nbsp;ms debounce). The D-pad supports <strong>hold-to-repeat</strong> for live zoom and element tweaks. Face buttons each do something different on the <strong>same preset</strong> — motion, party burst, colors, or a preset hop. Mapping is identical on every shader. A brief toast at the top left confirms each action.</p>
       <ul class="tutorial-keys">
         <li><strong>L / R</strong> (shoulder buttons) Previous / next shader</li>
-        <li><strong>D-pad ▲ ▼</strong> Zoom / warp + psychedelic motion (hold to slide faster)</li>
-        <li><strong>D-pad ◀ ▶</strong> Spirograph: gear ratio · others: fewer / more elements (hold)</li>
+        <li><strong>D-pad ▲ ▼</strong> Zoom in / out (hold to repeat)</li>
+        <li><strong>D-pad ◀ ▶</strong> Spirograph: rotate · others: fewer / more elements (hold)</li>
         <li><strong>Start</strong> Toggle fullscreen (same as <kbd>F</kbd>)</li>
         <li><strong>Select</strong> Toolbar → options → hide (same as <kbd>Space</kbd>)</li>
         <li><strong>A</strong> Random <em>motion</em> — speed, bloom, trails (same preset)</li>
@@ -79,7 +79,7 @@ const SECTIONS = [
       <p><strong>Lite mode (multi-screen)</strong> in Display caps resolution, turns off motion trails, and limits pens/particles/bloom for smoother framerate when running several fullscreen windows on one GPU. It syncs across browser tabs on the same machine.</p>
       <p><strong>Resolution %</strong> lowers render quality to save GPU power — try 50–75% on slower machines. Motion trails and high particle counts also use more resources; set Motion Trails to 0 if needed.</p>
       <p><strong>Motion Trails</strong> (0–100) controls trail strength on shaders that support it (Spirograph, Spiro, Flow). Per-shader trail decay sliders in each shader folder fine-tune persistence at full strength. Enable <strong>Trails never decay</strong> to keep trails permanently (no fade between frames).</p>
-      <p>For weak lobby GPUs running <strong>Spirograph</strong>, pick the built-in <strong>Lobby Safe</strong> preset: it uses fewer pens, turns motion trails off, sets Resolution % to 75, and uses conservative speed and brightness.</p>
+      <p>For weak lobby GPUs running <strong>Spirograph</strong>, pick the built-in <strong>Lobby Safe</strong> preset: it lowers iterations, turns motion trails off, sets Resolution % to 75, and uses conservative speed and brightness.</p>
       <p><strong>Kaleidoscope</strong> presets such as <strong>Jade Carousel</strong>, <strong>Ember Fold</strong>, and <strong>Crystal Swap</strong> showcase multi-shape morph (Shape Count 2–4 + Shape Morph). Saturation and Bloom vary the color theme per preset.</p>
       <p>The transport bar has <strong>◀ ▶</strong> around the shader name to switch visual styles (and which sliders appear), and <strong>▲ ▼</strong> beside the <strong>preset number</strong> (e.g. <strong>3/11</strong>) to step through saved combinations for that shader. <strong>↻</strong> toggles drift on every slider (global + shader); <strong>∿</strong> toggles smooth preset cross-fades; <strong>⟳</strong> toggles auto-cycle. <strong>↺ Reset preset</strong> in the settings panel restores built-in defaults for the current preset name.</p>
       <p><strong>Background Red / Green / Blue</strong> (Display) sets the canvas and trail fade color — independent of square, tint, or palette colors in each shader.</p>

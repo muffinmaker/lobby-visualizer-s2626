@@ -1,76 +1,38 @@
 import { GLOBAL_UNIFORMS } from './shaders/index.js';
 import { getSpecMap } from './uniformMap.js';
 
-/** Per-shader D-pad tuning: ▲▼ zoom / psychedelic motion, ◀▶ element counts. */
+/** Per-shader D-pad: ▲▼ zoom, ◀▶ element counts. */
 const PSYCHE_PROFILES = {
   spocks: {
-    vertical: [
-      { key: 'uZoom', label: 'Zoom' },
-      { key: 'uColorSpeed', label: 'Color drift', stepScale: 0.45 },
-      { key: 'uWobble', label: 'Wobble', stepScale: 0.4 },
-      { key: 'uSpeed', label: 'Speed', stepScale: 0.25, global: true },
-    ],
-    horizontal: { key: 'uGearRatio', label: 'Gear ratio' },
+    horizontal: { key: 'uRotate', label: 'Rotate' },
   },
   spiro: {
-    vertical: [
-      { key: 'uZoom', label: 'Zoom' },
-      { key: 'uTwist', label: 'Twist', stepScale: 0.5 },
-      { key: 'uPulse', label: 'Pulse', stepScale: 0.45 },
-      { key: 'uSpeed', label: 'Speed', stepScale: 0.2, global: true },
-    ],
     horizontal: { key: 'uOrbitCount', label: 'Orbits' },
   },
   kaleido: {
-    vertical: [
-      { key: 'uWarp', label: 'Warp' },
-      { key: 'uShapeMorph', label: 'Morph', stepScale: 0.5 },
-      { key: 'uScale', label: 'Scale', stepScale: 0.35, global: true },
-      { key: 'uSpeed', label: 'Speed', stepScale: 0.2, global: true },
-    ],
     horizontal: { key: 'uSegments', label: 'Mirrors' },
   },
   flow: {
-    vertical: [
-      { key: 'uFieldScale', label: 'Field scale' },
-      { key: 'uNoiseScale', label: 'Noise', stepScale: 0.45 },
-      { key: 'uSpeed', label: 'Speed', stepScale: 0.3, global: true },
-      { key: 'uComplexity', label: 'Complexity', stepScale: 0.25, global: true },
-    ],
     horizontal: { key: 'uParticleCount', label: 'Particles' },
   },
   metaballs: {
-    vertical: [
-      { key: 'uZoom', label: 'Zoom' },
-      { key: 'uEdgeGlow', label: 'Glow', stepScale: 0.45 },
-      { key: 'uSpeed', label: 'Speed', stepScale: 0.25, global: true },
-    ],
     horizontal: { key: 'uBallCount', label: 'Blobs' },
   },
   wormhole: {
-    vertical: [
-      { key: 'uZoom', label: 'Zoom' },
-      { key: 'uSwirl', label: 'Twist', stepScale: 0.5 },
-      { key: 'uHorizonGlow', label: 'Light', stepScale: 0.45 },
-      { key: 'uSpeed', label: 'Speed', stepScale: 0.25, global: true },
-    ],
     horizontal: { key: 'uChevrons', label: 'Ribs' },
   },
   ribbons: {
-    vertical: [
-      { key: 'uTwistAmount', label: 'Twist' },
-      { key: 'uScale', label: 'Scale', stepScale: 0.35, global: true },
-      { key: 'uSpeed', label: 'Speed', stepScale: 0.3, global: true },
-    ],
     horizontal: { key: 'uRibbonCount', label: 'Ribbons' },
   },
 };
 
-const FALLBACK_VERTICAL = [
-  { key: 'uScale', label: 'Scale', global: true },
-  { key: 'uSpeed', label: 'Speed', stepScale: 0.35, global: true },
-  { key: 'uComplexity', label: 'Complexity', stepScale: 0.3, global: true },
-];
+function getZoomEntry(shaderId) {
+  const specs = getSpecMap(shaderId);
+  if (specs.uZoom) {
+    return { key: 'uZoom', label: 'Zoom' };
+  }
+  return { key: 'uScale', label: 'Zoom', global: true };
+}
 
 function getSpec(settings, key, global) {
   if (global || GLOBAL_UNIFORMS[key]) return GLOBAL_UNIFORMS[key];
@@ -90,10 +52,7 @@ function clampValue(value, spec) {
 
 export function createGamepadPsyche({ settings, onToast }) {
   function getProfile(shaderId = settings.state.shader) {
-    return PSYCHE_PROFILES[shaderId] ?? {
-      vertical: FALLBACK_VERTICAL,
-      horizontal: null,
-    };
+    return PSYCHE_PROFILES[shaderId] ?? { horizontal: null };
   }
 
   function nudgeEntry(entry, delta) {
@@ -122,24 +81,14 @@ export function createGamepadPsyche({ settings, onToast }) {
   }
 
   function adjustVertical(delta) {
-    const profile = getProfile();
-    const changes = [];
-    let rebuild = false;
+    const entry = getZoomEntry(settings.state.shader);
+    const result = nudgeEntry(entry, delta);
+    if (!result) return null;
 
-    for (const entry of profile.vertical) {
-      const result = nudgeEntry(entry, delta);
-      if (!result) continue;
-      changes.push(result);
-      const spec = getSpec(settings, entry.key, entry.global);
-      if (spec?.rebuild) rebuild = true;
-    }
-
-    if (!applyChanges(changes, rebuild)) return null;
-
-    const lead = changes[0];
-    const extra = changes.length > 1 ? ` +${changes.length - 1}` : '';
-    onToast?.(`${lead.label} ${lead.value}${extra}`);
-    return changes;
+    const spec = getSpec(settings, entry.key, entry.global);
+    applyChanges([result], Boolean(spec?.rebuild));
+    onToast?.(`${result.label} ${result.value}`);
+    return [result];
   }
 
   function adjustHorizontal(delta) {

@@ -20,6 +20,7 @@ export default {
     uniform float uRibbonCount;
     uniform float uThickness;
     uniform float uTwistAmount;
+    uniform float uZoom;
     uniform float uAspect;
 
     varying vec2 vUv;
@@ -41,7 +42,7 @@ export default {
     }
 
     void main() {
-      vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.4;
+      vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.4 / max(uZoom, 0.2);
       float t = uTime;
       vec3 col = vec3(0.0);
 

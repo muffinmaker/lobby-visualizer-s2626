@@ -1,5 +1,41 @@
 const FLASH_MS = 1000;
 
+function refitTransportBar(titleEl) {
+  const fitWrap = titleEl?.querySelector('.transport-fit');
+  const cluster = fitWrap?.querySelector('.transport-cluster');
+  if (!fitWrap || !cluster) return;
+
+  cluster.style.transform = '';
+  cluster.style.width = '';
+  fitWrap.style.height = '';
+
+  const available = fitWrap.clientWidth;
+  const needed = cluster.scrollWidth;
+  const scale = needed > 0 && available > 0 ? Math.min(1, available / needed) : 1;
+
+  if (scale < 0.999) {
+    const height = cluster.offsetHeight;
+    cluster.style.width = `${needed}px`;
+    cluster.style.transform = `scale(${scale})`;
+    cluster.style.transformOrigin = 'left top';
+    fitWrap.style.height = `${height * scale}px`;
+  }
+}
+
+function attachTransportFit(guiElement, titleEl) {
+  const fit = () => refitTransportBar(titleEl);
+
+  const observer = new ResizeObserver(() => fit());
+  observer.observe(guiElement);
+  observer.observe(titleEl);
+
+  guiElement.addEventListener('menubigmodechange', fit);
+  window.addEventListener('resize', fit);
+  requestAnimationFrame(fit);
+
+  return fit;
+}
+
 function flashButton(btn) {
   if (!btn) return;
   clearTimeout(flashButton._timers?.get(btn));
@@ -143,7 +179,13 @@ export function mountTransportBar(guiElement, handlers) {
   transport.addEventListener('pointerdown', (e) => e.stopPropagation());
   actions.addEventListener('click', (e) => e.stopPropagation());
   actions.addEventListener('pointerdown', (e) => e.stopPropagation());
-  titleEl.append(transport);
+
+  const fitWrap = document.createElement('div');
+  fitWrap.className = 'transport-fit';
+  fitWrap.append(transport);
+  titleEl.append(fitWrap);
+
+  const refit = attachTransportFit(guiElement, titleEl);
 
   function setAutocycleActive(active) {
     autocycle.classList.toggle('is-active', active);
@@ -168,6 +210,7 @@ export function mountTransportBar(guiElement, handlers) {
     const text = name || 'Shader';
     shaderNav.groupLabel.textContent = text;
     shaderNav.groupLabel.setAttribute('title', text);
+    refit();
   }
 
   function setPresetLabel(current, total) {
@@ -175,6 +218,7 @@ export function mountTransportBar(guiElement, handlers) {
     const title = total > 0 ? `Preset ${current} of ${total}` : 'No presets for this shader';
     presetNav.groupLabel.textContent = text;
     presetNav.groupLabel.setAttribute('title', title);
+    refit();
   }
 
   const controls = {
@@ -196,6 +240,7 @@ export function mountTransportBar(guiElement, handlers) {
   return {
     ...controls,
     flashControl,
+    refit,
     setAutocycleActive,
     setSmoothTransitionsActive,
     setDriftAllActive,

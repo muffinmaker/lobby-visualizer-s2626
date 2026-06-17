@@ -549,7 +549,7 @@ export const GAMEPAD_BUTTON_MAP = [
   { input: 'L shoulder', action: 'Previous shader' },
   { input: 'R shoulder', action: 'Next shader' },
   { input: 'D-pad ▲ ▼', action: 'Zoom / warp + psychedelic motion (hold to slide)' },
-  { input: 'D-pad ◀ ▶', action: 'Spirograph: gear ratio · others: fewer / more elements (hold)' },
+  { input: 'D-pad ◀ ▶', action: 'Spirograph: rotate · others: fewer / more elements (hold)' },
   { input: 'Start', action: 'Toggle fullscreen' },
   { input: 'Select', action: 'Toolbar → options → hidden (cycle)' },
   { input: 'A', action: 'Random motion (speed, bloom, trails…)' },

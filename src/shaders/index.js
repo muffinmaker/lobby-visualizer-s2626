@@ -5,238 +5,121 @@ export const SHADERS = {
     label: 'Spirograph',
     uniforms: { ...SHADER_UNIFORM_TEMPLATES.spocks },
     vertex: /* glsl */ `
-      uniform float uTime;
-      uniform float uSpeed;
-      uniform float uScale;
-      uniform float uComplexity;
-      uniform float uPenCount;
-      uniform float uGearRatio;
-      uniform float uPenDistance;
-      uniform float uWobble;
-      uniform float uPenShape;
-      uniform float uShapeVariety;
-      uniform float uPointSize;
-      uniform float uAspect;
-      uniform float uZoom;
-      uniform float uPalette;
-      uniform float uHueShift;
-      uniform float uColorSpeed;
-      uniform float uColorSpread;
-      uniform float uTintRed;
-      uniform float uTintGreen;
-      uniform float uTintBlue;
-
-      attribute float aIndex;
-      attribute float aPhase;
-
-      varying vec3 vColor;
-      varying float vPenAngle;
-      varying float vPenAspect;
-      varying float vShapeId;
-
-      float hash1(float n) {
-        return fract(sin(n) * 43758.5453);
-      }
-
-      vec3 palette(float t) {
-        float p = floor(uPalette + 0.5);
-        vec3 offset;
-        if (p < 0.5) offset = vec3(0.0, 0.33, 0.67);
-        else if (p < 1.5) offset = vec3(0.12, 0.42, 0.78);
-        else if (p < 2.5) offset = vec3(0.55, 0.12, 0.72);
-        else if (p < 3.5) offset = vec3(0.0, 0.62, 0.88);
-        else if (p < 4.5) offset = vec3(0.82, 0.22, 0.08);
-        else if (p < 5.5) offset = vec3(0.18, 0.72, 0.42);
-        else if (p < 6.5) offset = vec3(0.68, 0.08, 0.55);
-        else offset = vec3(0.05, 0.15, 0.35);
-
-        vec3 base = 0.5 + 0.5 * cos(6.28318 * (offset + t + uHueShift));
-        vec3 floorCol = vec3(0.32, 0.14, 0.42);
-        base = mix(floorCol, base, uColorSpread);
-        vec3 tint = vec3(uTintRed, uTintGreen, uTintBlue);
-        return clamp(base * (tint / 0.58), 0.0, 2.2);
-      }
-
+      varying vec2 vUv;
       void main() {
-        float pen = aIndex;
-        float penCount = max(uPenCount, 1.0);
-        if (pen >= penCount) {
-          gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-          gl_PointSize = 0.0;
-          return;
-        }
-
-        float lane = (pen + 0.5) / penCount;
-        float penSeed = pen * 12.9898 + aPhase * 78.233;
-        float h1 = hash1(penSeed);
-        float h2 = hash1(penSeed + 1.7);
-        float h3 = hash1(penSeed + 3.1);
-        float h4 = hash1(penSeed + 5.9);
-
-        float t = uTime + aPhase * (0.55 + h1 * 1.4);
-        float baseOmega = (0.7 + uSpeed * 0.42 + lane * 0.14) * (1.0 + uComplexity * 0.14);
-        float penOmega = baseOmega * (0.55 + h1 * 1.1);
-        float penOmega2 = baseOmega * (0.35 + h2 * 0.95) * (1.0 + uWobble * 0.6);
-        float penOmega3 = baseOmega * (0.28 + h3 * 0.8) * (1.0 + uWobble * 0.45);
-        float theta = t * penOmega;
-        float theta2 = t * penOmega2 + h2 * 6.28318;
-        float theta3 = t * -penOmega3 + h3 * 4.18879;
-
-        float R = uScale * 2.04 * (0.38 + 0.62 * lane) * (0.82 + h1 * 0.36);
-        float ratio = uGearRatio * (0.68 + lane * 0.26 + h2 * 0.18) + uComplexity * 0.05;
-        ratio = clamp(ratio, 0.08, 0.94);
-        float r = R * ratio * (0.78 + h3 * 0.44);
-        float d = R * uPenDistance * (0.18 + 0.52 * lane) * (0.65 + h4 * 0.7);
-
-        float k = ((R - r) / max(r, 0.001)) * (0.75 + h4 * 0.55);
-        float wobble = 1.0 + uWobble * sin(t * (1.3 + h1 * 2.4) + pen * 2.1);
-
-        vec2 pos = vec2(
-          (R - r) * cos(theta) + d * cos(k * theta) * wobble,
-          (R - r) * sin(theta) - d * sin(k * theta) * wobble
-        );
-
-        // Each pen gets its own epicycle drift so curves diverge over time.
-        float driftAmp = R * (0.06 + uWobble * 0.14) * (0.45 + h2 * 0.85);
-        pos += vec2(cos(theta2), sin(theta2)) * driftAmp * (0.55 + h3);
-        pos += vec2(cos(theta3 * (1.1 + h4)), sin(theta3 * (0.9 + h1))) * driftAmp * 0.42;
-
-        pos.x /= max(uAspect, 0.75);
-        pos /= max(pow(uZoom, 0.42), 0.16);
-
-        float dTheta = max(penOmega, 0.001);
-        float c0 = cos(theta);
-        float s0 = sin(theta);
-        float ck = cos(k * theta);
-        float sk = sin(k * theta);
-        vec2 dPosDTheta = vec2(
-          -(R - r) * s0 - d * k * sk * wobble,
-          (R - r) * c0 - d * k * ck * wobble
-        );
-        vec2 vel = dPosDTheta * dTheta;
-        vel += vec2(-sin(theta2), cos(theta2)) * driftAmp * (0.55 + h3) * penOmega2;
-        vel += vec2(-sin(theta3 * (1.1 + h4)), cos(theta3 * (0.9 + h1)))
-          * driftAmp * 0.42 * penOmega3 * vec2(1.1 + h4, 0.9 + h1);
-
-        float radial = length(pos);
-        float centerBias = smoothstep(0.55, 0.0, radial);
-        float colorT = lane + t * uColorSpeed * 0.35 + pen * 0.11 + h1 * 0.35 + centerBias * 0.55;
-        vColor = palette(colorT);
-        vColor = mix(vColor, palette(colorT + 0.41 + h2 * 0.5), centerBias * 0.55);
-        float gray = dot(vColor, vec3(0.299, 0.587, 0.114));
-        vColor = mix(vec3(gray), vColor, 1.0 + centerBias * 0.35);
-
-        vPenAngle = atan(vel.y, vel.x);
-        vPenAspect = 0.42 + lane * 0.22 + h4 * 0.18;
-
-        float baseShape = clamp(floor(uPenShape + 0.5), 1.0, 7.0);
-        float altShape = floor(hash1(penSeed + 9.2) * 7.0) + 1.0;
-        float variety = clamp(uShapeVariety, 0.0, 1.0);
-        vShapeId = floor(mix(baseShape, altShape, variety) + 0.5);
-
-        vec4 mvPosition = modelViewMatrix * vec4(pos, 0.0, 1.0);
-        gl_Position = projectionMatrix * mvPosition;
-        float size = uPointSize * (230.0 / -mvPosition.z) * (0.9 + lane * 0.2 + h1 * 0.15);
-        gl_PointSize = clamp(size, 10.0, 120.0);
+        vUv = uv;
+        gl_Position = vec4(position, 1.0);
       }
     `,
     fragment: /* glsl */ `
+      uniform float uTime;
+      uniform float uSpeed;
+      uniform float uScale;
       uniform float uBrightness;
       uniform float uSaturation;
-      uniform float uBloom;
+      uniform float uUp;
+      uniform float uDown;
+      uniform float uScaleY;
+      uniform float uScaleZ;
+      uniform float uWidth;
+      uniform float uHeight;
+      uniform float uRotate;
+      uniform float uMyTime;
+      uniform float uZoom;
+      uniform float uRed;
+      uniform float uGreen;
+      uniform float uBlue;
+      uniform float uLineWidth;
+      uniform float uIterations;
+      uniform float uWidthRand;
+      uniform float uHeightRand;
+      uniform vec2 uResolution;
+      uniform float uAspect;
 
-      varying vec3 vColor;
-      varying float vPenAngle;
-      varying float vPenAspect;
-      varying float vShapeId;
+      varying vec2 vUv;
 
-      mat2 rot2(float a) {
+      mat2 rot(float a) {
         float c = cos(a), s = sin(a);
         return mat2(c, -s, s, c);
       }
 
-      float sdCircle(vec2 p, float r) {
-        return length(p) - r;
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
       }
 
-      float sdBox(vec2 p, vec2 b) {
-        vec2 q = abs(p) - b;
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      }
+
+      float sdBox(vec2 p, vec2 halfSize) {
+        vec2 q = abs(p) - halfSize;
         return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
       }
 
-      float sdEquilateralTriangle(vec2 p, float r) {
-        const float k = 1.732050808;
-        p.x = abs(p.x) - r;
-        p.y = p.y + r / k;
-        if (p.x + k * p.y > 0.0) p = vec2(p.x - k * p.y, -k * p.x - p.y) / 2.0;
-        p.x -= clamp(p.x, -2.0 * r, 0.0);
-        return -length(p) * sign(p.y);
-      }
-
-      float sdHexagon(vec2 p, float r) {
-        const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);
-        p = abs(p);
-        p -= 2.0 * min(dot(k.xy, p), 0.0) * k.xy;
-        p -= vec2(clamp(p.x, -k.z * r, k.z * r), r);
-        return length(p) * sign(p.y);
-      }
-
-      float sdStar(vec2 p, float r) {
-        float an = 6.28318 / 5.0;
-        float en = 6.28318 / 10.0;
-        vec2 acs = vec2(cos(an), sin(an));
-        vec2 ecs = vec2(cos(en), sin(en));
-        float bn = mod(atan(p.y, p.x), 2.0 * an) - an;
-        p = length(p) * vec2(cos(bn), abs(sin(bn)));
-        p -= r * acs;
-        p += ecs * clamp(-dot(p, ecs), 0.0, r * acs.y / ecs.y);
-        return length(p) * sign(p.x);
-      }
-
-      float shapeDistance(vec2 p, float shapeId, float size) {
-        if (shapeId < 0.5) return 1e3;
-        if (shapeId < 1.5) return sdCircle(p, size);
-        if (shapeId < 2.5) return sdEquilateralTriangle(p, size * 1.12);
-        if (shapeId < 3.5) return sdBox(p, vec2(size));
-        if (shapeId < 4.5) return sdHexagon(p, size);
-        if (shapeId < 5.5) return sdStar(p, size * 0.95);
-        if (shapeId < 6.5) return sdBox(rot2(0.785398) * p, vec2(size * 0.82));
-        vec2 q = abs(p);
-        return min(
-          sdBox(q - vec2(size * 0.52, 0.0), vec2(size * 0.16, size * 0.82)),
-          sdBox(q - vec2(0.0, size * 0.52), vec2(size * 0.82, size * 0.16))
-        );
-      }
-
-      float shapeOutline(vec2 uv, float shapeId, float size) {
-        float d = shapeDistance(uv, floor(shapeId + 0.5), size);
-        return 1.0 - smoothstep(0.0, 0.042, abs(d));
+      // Ring around the square edge only (avoids interior cross artifacts).
+      float rectOutline(vec2 p, vec2 halfSize, float lw) {
+        float d = abs(sdBox(p, halfSize));
+        return 1.0 - smoothstep(lw * 0.35, lw * 0.35 + lw, d);
       }
 
       void main() {
-        vec2 uv = gl_PointCoord - 0.5;
-        float c = cos(vPenAngle);
-        float s = sin(vPenAngle);
-        uv = mat2(c, -s, s, c) * uv;
-        uv.x *= vPenAspect;
+        float t = uTime;
+        vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * uScale;
+        uv *= exp(uZoom * 0.08);
 
-        float size = 0.34;
-        float stamp = shapeOutline(uv, vShapeId, size);
-        float d = shapeDistance(uv, vShapeId, size);
-        float halo = exp(-d * d * 20.0) * uBloom * 0.22;
+        float minRes = min(uResolution.x, uResolution.y);
+        float lw = max(uLineWidth / minRes, 0.0015);
 
-        vec3 col = vColor * stamp;
+        float w = uWidth;
+        float h = uHeight;
+        if (uWidthRand > 0.5) {
+          w *= mix(0.55, 1.45, noise(vec2(t * 0.03, 17.0)));
+        }
+        if (uHeightRand > 0.5) {
+          h *= mix(0.55, 1.45, noise(vec2(t * 0.03, 42.0)));
+        }
+
+        // Match J04: cumulative ofScale(mytime*z, mytime*y) per iteration.
+        vec2 sx = max(abs(vec2(uMyTime * uScaleZ, uMyTime * uScaleY)), vec2(1e-4));
+
+        // ofRotateDeg(time * rotate) — rotate is in degrees per second per layer.
+        float ang = radians(t * uRotate);
+        vec2 offset = vec2(uUp, uDown) * uScale;
+        vec2 halfSize = vec2(w, h) * 0.5;
+
+        float edge = 0.0;
+        for (float i = 0.0; i < 120.0; i++) {
+          if (i >= uIterations) break;
+
+          vec2 scalePow = vec2(pow(sx.x, i), pow(sx.y, i));
+          vec2 local = uv / scalePow;
+          local = rot(-i * ang) * local;
+          local -= offset;
+
+          edge = max(edge, rectOutline(local, halfSize, lw));
+        }
+
+        float percent = cos(t * 0.5) * 0.5 + 0.5;
+        vec3 light = vec3(uRed, uGreen, uBlue);
+        vec3 dark = vec3(0.0);
+        vec3 fg = mix(light, dark, percent);
+        vec3 col = fg * edge * uBrightness;
+
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(gray), col, uSaturation);
-        col *= uBrightness * (0.78 + stamp * 0.28);
-        col += vColor * halo;
 
-        float alpha = clamp(stamp * 0.95 + halo * 0.12, 0.0, 0.92);
-        if (alpha < 0.02) discard;
-        gl_FragColor = vec4(col, alpha);
+        gl_FragColor = vec4(col, edge);
       }
     `,
   },
+
 
   spiro: {
     label: 'Spiro Flow',
@@ -395,6 +278,7 @@ export const SHADERS = {
       uniform float uShape3;
       uniform float uShape4;
       uniform float uShapeMorph;
+      uniform float uZoom;
       uniform vec2 uResolution;
       uniform float uAspect;
 
@@ -548,7 +432,7 @@ export const SHADERS = {
 
       void main() {
         vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0);
-        float viewZoom = 2.4 / max(uScale, 0.2);
+        float viewZoom = 2.4 / max(uZoom, 0.2);
         uv *= viewZoom;
 
         float t = uTime;
@@ -596,6 +480,7 @@ export const SHADERS = {
       uniform float uComplexity;
       uniform float uFieldScale;
       uniform float uNoiseScale;
+      uniform float uZoom;
       uniform float uPointSize;
       uniform float uParticleCount;
       uniform float uAspect;
@@ -645,6 +530,7 @@ export const SHADERS = {
 
         pos *= 1.0 + 0.1 * sin(t * 0.5 + life * 20.0);
         pos.x /= max(uAspect, 0.75);
+        pos /= max(pow(uZoom, 0.55), 0.25);
 
         float density = sqrt(3200.0 / max(uParticleCount, 800.0));
         vCover = clamp(density, 0.22, 1.35);
