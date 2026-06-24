@@ -33,6 +33,8 @@ export const SHADERS = {
       uniform float uIterations;
       uniform float uWidthRand;
       uniform float uHeightRand;
+      uniform float uDepthPulse;
+      uniform float uColorSpeed;
       uniform vec2 uResolution;
       uniform float uAspect;
 
@@ -69,6 +71,18 @@ export const SHADERS = {
         return 1.0 - smoothstep(lw * 0.35, lw * 0.35 + lw, d);
       }
 
+      vec3 neonPalette(float hue) {
+        vec3 base = 0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + hue * 1.65));
+        return pow(clamp(base, 0.0, 1.0), vec3(0.82)) * 1.35;
+      }
+
+      vec3 applyTint(vec3 col) {
+        vec3 tint = vec3(uRed, uGreen, uBlue);
+        float tintAmt = max(tint.r, max(tint.g, tint.b));
+        if (tintAmt < 0.01) return col;
+        return col * mix(vec3(1.0), tint / tintAmt, 0.35);
+      }
+
       void main() {
         float t = uTime;
         vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * uScale;
@@ -95,7 +109,12 @@ export const SHADERS = {
         vec2 halfSize = vec2(w, h) * 0.5;
 
         float edge = 0.0;
-        for (float i = 0.0; i < 120.0; i++) {
+        vec3 accCol = vec3(0.0);
+        float accW = 0.0;
+        float radial = clamp(length(uv) / max(uScale * 0.9, 0.15), 0.0, 1.35);
+        float iterDenom = max(uIterations - 1.0, 1.0);
+
+        for (float i = 0.0; i < 220.0; i++) {
           if (i >= uIterations) break;
 
           vec2 scalePow = vec2(pow(sx.x, i), pow(sx.y, i));
@@ -103,14 +122,26 @@ export const SHADERS = {
           local = rot(-i * ang) * local;
           local -= offset;
 
-          edge = max(edge, rectOutline(local, halfSize, lw));
+          float layerEdge = rectOutline(local, halfSize, lw);
+          if (layerEdge < 0.001) continue;
+
+          float layerDepth = i / iterDenom;
+          float localRadial = clamp(length(local) * scalePow.x / max(uScale * 0.75, 0.15), 0.0, 1.35);
+          float hueT = layerDepth * 1.45 + radial * 0.55 + localRadial * 0.35
+            + t * uColorSpeed * 0.55;
+          vec3 layerCol = applyTint(neonPalette(hueT));
+
+          accCol += layerCol * layerEdge;
+          accW += layerEdge;
+          edge = max(edge, layerEdge);
         }
 
-        float percent = cos(t * 0.5) * 0.5 + 0.5;
-        vec3 light = vec3(uRed, uGreen, uBlue);
-        vec3 dark = vec3(0.0);
-        vec3 fg = mix(light, dark, percent);
-        vec3 col = fg * edge * uBrightness;
+        vec3 col = accW > 1e-5 ? (accCol / accW) * edge * uBrightness : vec3(0.0);
+
+        if (uDepthPulse > 0.5) {
+          float percent = cos(t * 0.5) * 0.5 + 0.5;
+          col = mix(col, vec3(0.0), percent);
+        }
 
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(gray), col, uSaturation);
@@ -484,6 +515,12 @@ export const SHADERS = {
       uniform float uPointSize;
       uniform float uParticleCount;
       uniform float uAspect;
+      uniform float uLogoCollider;
+      uniform float uLogoColliderBounce;
+      uniform float uLogoColliderRadius;
+      uniform float uLogoColliderVisible;
+      uniform float uLogoColliderScale;
+      uniform float uLogoColliderShape;
 
       attribute vec3 aSeed;
 
@@ -517,19 +554,74 @@ export const SHADERS = {
         return vec2(cos(angle), sin(angle));
       }
 
+      float heartField(vec2 p) {
+        // Approx implicit heart shape centered at 0.
+        p *= 2.0;
+        p.y += 0.25;
+        float x = p.x;
+        float y = p.y;
+        return pow(x * x + y * y - 1.0, 3.0) - x * x * y * y * y;
+      }
+
       void main() {
         float t = uTime;
         vec2 seed = aSeed.xy;
         float life = aSeed.z;
+        float aspect = max(uAspect, 0.75);
+        float colliderActive = step(0.5, uLogoCollider) * step(0.5, uLogoColliderVisible);
+        float colliderRadius = max(0.04, uLogoColliderRadius * uLogoColliderScale);
 
         vec2 pos = seed * uScale * uFieldScale;
         for (int i = 0; i < 8; i++) {
           vec2 dir = flow(pos, t + float(i) * 0.02 + life * 10.0);
           pos += dir * 0.018 * uScale;
+
+          if (colliderActive > 0.5) {
+            vec2 screenPos = vec2(pos.x / aspect, pos.y);
+            float shape = floor(uLogoColliderShape + 0.5);
+            bool inside = false;
+            vec2 n = normalize(screenPos + vec2(1e-5, 1e-5));
+
+            if (shape > 0.5) {
+              vec2 hp = screenPos / colliderRadius;
+              float h = heartField(hp);
+              if (h < 0.0) {
+                inside = true;
+                float eps = 0.0025;
+                float hx1 = heartField(hp + vec2(eps, 0.0));
+                float hx2 = heartField(hp - vec2(eps, 0.0));
+                float hy1 = heartField(hp + vec2(0.0, eps));
+                float hy2 = heartField(hp - vec2(0.0, eps));
+                vec2 grad = vec2(hx1 - hx2, hy1 - hy2);
+                n = normalize(grad + vec2(1e-5, 1e-5));
+                float g = max(length(grad), 1e-4);
+                float approxDist = h / g;
+                hp -= n * approxDist;
+                screenPos = hp * colliderRadius;
+              }
+            } else {
+              float dCircle = length(screenPos) - colliderRadius;
+              vec2 b = vec2(colliderRadius * 0.8, colliderRadius * 0.5);
+              vec2 q = abs(screenPos) - b;
+              float dBox = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+              float d = min(dCircle, dBox);
+              if (d < 0.0) {
+                inside = true;
+                screenPos -= n * d;
+              }
+            }
+
+            if (inside) {
+              vec2 dirScreen = normalize(vec2(dir.x / aspect, dir.y));
+              dirScreen = reflect(dirScreen, n);
+              screenPos += dirScreen * 0.012 * uScale * (0.5 + uLogoColliderBounce * 0.7);
+              pos = vec2(screenPos.x * aspect, screenPos.y);
+            }
+          }
         }
 
         pos *= 1.0 + 0.1 * sin(t * 0.5 + life * 20.0);
-        pos.x /= max(uAspect, 0.75);
+        pos.x /= aspect;
         pos /= max(pow(uZoom, 0.55), 0.25);
 
         float density = sqrt(3200.0 / max(uParticleCount, 800.0));

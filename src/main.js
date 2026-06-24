@@ -21,6 +21,27 @@ import {
   saveCustomLogoToStorage,
   saveLogoSelection,
 } from './logoOverlay.js';
+import {
+  createLogoPackController,
+  loadStoredLogoPack,
+  loadStoredLogoPackDrift,
+  loadStoredLogoPackDriftSpeed,
+  loadStoredLogoPackTextVisible,
+  loadStoredLogoPackSymbol,
+  loadStoredLogoPackVariant,
+  saveLogoPackTextVisible,
+} from './logoPacks.js';
+import {
+  createTextOverlayController,
+  loadStoredTextColor,
+  loadStoredTextContent,
+  loadStoredTextEnabled,
+  loadStoredTextAutoFit,
+  loadStoredTextOpacity,
+  loadStoredTextLineHeight,
+  loadStoredTextPosition,
+  loadStoredTextSize,
+} from './textOverlay.js';
 import { LITE_MODE_KEY } from './liteMode.js';
 
 const hint = document.getElementById('hint');
@@ -81,6 +102,8 @@ function createLogoFileInput(onFile) {
 
 async function start() {
   const logoOverlay = createLogoOverlayController();
+  const logoPack = createLogoPackController();
+  const textOverlay = createTextOverlayController();
   const logoOptions = [{ label: 'None', value: 'none' }, ...loadOverlayLogos()];
   const storedCustom = loadStoredCustomLogo();
   if (storedCustom) {
@@ -125,9 +148,113 @@ async function start() {
     settings.refreshLogoDropdown();
     settings.setLogoSelection(CUSTOM_LOGO_VALUE);
     saveLogoSelection(CUSTOM_LOGO_VALUE);
+    if (logoPack.isActive()) {
+      logoPack.setPack('none');
+      settings.state.logoPack = 'none';
+      settings.refreshLogoPackSymbolDropdown();
+      settings.updateLogoPackSymbolCtrl();
+    }
+    applyLogoDisplay();
   });
 
   let settings;
+  let visualizer;
+  let packTextModeActive = false;
+  let manualTextSnapshot = null;
+
+  function applyLogoDisplay() {
+    if (logoPack.isActive()) {
+      logoOverlay.setLogo(logoPack.getCurrentUrl());
+      updateFlowLogoColliderUniforms();
+      return;
+    }
+    logoOverlay.setLogo(settings?.state?.logoOverlay ?? initialLogo);
+    updateFlowLogoColliderUniforms();
+  }
+
+  function updateFlowLogoColliderUniforms() {
+    const flowUniforms = visualizer?.materials?.flow?.uniforms;
+    if (!flowUniforms) return;
+    const hasLogo =
+      logoPack.isActive() || (settings?.state?.logoOverlay && settings.state.logoOverlay !== 'none');
+    const logoScale = (logoOverlay.getScale?.() ?? 100) / 100;
+    const activeSymbolId = logoPack.isActive() ? logoPack.getSymbolId() : null;
+    // Shape 1 currently maps to the Pride heart symbol; others use generic collider.
+    const colliderShape = activeSymbolId === 'heart' ? 1 : 0;
+    flowUniforms.uLogoColliderVisible.value = hasLogo ? 1 : 0;
+    flowUniforms.uLogoColliderScale.value = Math.max(0.45, Math.min(2.6, logoScale));
+    flowUniforms.uLogoColliderShape.value = colliderShape;
+  }
+
+  function colliderRadiusFromLogoScalePercent(scalePercent) {
+    const clamped = Math.max(10, Math.min(200, scalePercent));
+    const t = (clamped - 10) / 190;
+    return 0.12 + t * (0.9 - 0.12);
+  }
+
+  function syncColliderRadiusToLogoScale() {
+    if (!settings) return;
+    const radius = colliderRadiusFromLogoScalePercent(logoOverlay.getScale?.() ?? 100);
+    settings.state.uLogoColliderRadius = radius;
+    settings.handleValueChange();
+  }
+
+  function syncPackTextOverlay() {
+    const shouldShowPackText = Boolean(settings?.state?.logoPackTextVisible) && logoPack.isActive();
+    if (shouldShowPackText) {
+      if (!packTextModeActive) {
+        manualTextSnapshot = {
+          enabled: textOverlay.getEnabled(),
+          content: textOverlay.getContent(),
+        };
+        packTextModeActive = true;
+      }
+      textOverlay.setContent(logoPack.getCurrentText());
+      textOverlay.setEnabled(true);
+      if (settings && !settings.state.textEnabled) {
+        settings.state.textEnabled = true;
+        settings.textEnabledCtrl?.updateDisplay();
+      }
+      return;
+    }
+
+    if (!packTextModeActive) return;
+    packTextModeActive = false;
+    const restore = manualTextSnapshot;
+    manualTextSnapshot = null;
+    if (!restore) return;
+
+    textOverlay.setContent(restore.content);
+    textOverlay.setEnabled(restore.enabled);
+    if (settings) {
+      settings.state.textEnabled = restore.enabled;
+      settings.textEnabledCtrl?.updateDisplay();
+    }
+  }
+
+  logoPack.onChange = () => {
+    if (settings) {
+      settings.syncLogoPackSymbolDisplay(logoPack.getSymbolId());
+      if (logoPack.isActive() && !logoPack.isDriftEnabled() && settings.state.logoPackDrift) {
+        settings.state.logoPackDrift = false;
+        settings.logoPackDriftController?.updateDisplay();
+        settings.updateLogoPackSymbolCtrl();
+      }
+    }
+    applyLogoDisplay();
+    syncPackTextOverlay();
+  };
+
+  function cycleLogoPack(delta) {
+    if (!logoPack.isActive()) return;
+    const symbolId = logoPack.cycleSymbol(delta);
+    if (!symbolId || !settings) return;
+    settings.state.logoPackDrift = false;
+    settings.logoPackDriftController?.updateDisplay();
+    settings.syncLogoPackSymbolDisplay(symbolId);
+    settings.updateLogoPackSymbolCtrl();
+    applyLogoDisplay();
+  }
 
   const custom = await loadCustomShaders();
   if (custom.length) {
@@ -137,7 +264,7 @@ async function start() {
   const presetManager = new PresetManager();
   const driftManager = new DriftManager();
   const musicMode = new MusicMode();
-  const visualizer = new Visualizer(document.body);
+  visualizer = new Visualizer(document.body);
   mountLogoOverlayAboveCanvas(visualizer);
   visualizer.renderer.debug.checkShaderErrors = import.meta.env.DEV;
 
@@ -156,16 +283,94 @@ async function start() {
     initialLogoOpacity,
     onLogoChange: (value) => {
       saveLogoSelection(value);
-      logoOverlay.setLogo(value);
+      if (logoPack.isActive()) {
+        logoPack.setPack('none');
+        settings.state.logoPack = 'none';
+        settings.refreshLogoPackSymbolDropdown();
+        settings.updateLogoPackSymbolCtrl();
+      }
+      applyLogoDisplay();
     },
     onLogoScaleChange: (value) => {
       logoOverlay.setScale(value);
+      syncColliderRadiusToLogoScale();
+      updateFlowLogoColliderUniforms();
     },
     onLogoOpacityChange: (value) => {
       logoOverlay.setOpacity(value);
     },
     onAddLogoRequest: () => {
       logoFileInput.click();
+    },
+    initialLogoPack: loadStoredLogoPack(),
+    initialLogoPackSymbol: loadStoredLogoPackSymbol(),
+    initialLogoPackVariant: loadStoredLogoPackVariant(),
+    initialLogoPackDrift: loadStoredLogoPackDrift(),
+    initialLogoPackDriftSpeed: loadStoredLogoPackDriftSpeed(),
+    initialLogoPackTextVisible: loadStoredLogoPackTextVisible(),
+    onLogoPackChange: (value) => {
+      logoPack.setPack(value);
+      if (value !== 'none' && settings.state.logoOverlay !== 'none') {
+        settings.state.logoOverlay = 'none';
+        settings.logoController?.updateDisplay();
+        saveLogoSelection('none');
+      }
+      settings.updateLogoPackSymbolCtrl();
+      applyLogoDisplay();
+    },
+    onLogoPackSymbolChange: (value) => {
+      logoPack.setSymbol(value);
+      applyLogoDisplay();
+    },
+    onLogoPackVariantChange: (value) => {
+      logoPack.setVariant(value);
+      applyLogoDisplay();
+    },
+    onLogoPackDriftChange: (value) => {
+      logoPack.setDrift(value);
+      settings.updateLogoPackSymbolCtrl();
+      applyLogoDisplay();
+    },
+    onLogoPackDriftSpeedChange: (value) => {
+      logoPack.setDriftSpeed(value);
+    },
+    onLogoPackTextVisibleChange: (value) => {
+      saveLogoPackTextVisible(value);
+      syncPackTextOverlay();
+    },
+    onLogoPackCycle: (delta) => {
+      cycleLogoPack(delta);
+    },
+    initialTextEnabled: loadStoredTextEnabled(),
+    initialTextSize: loadStoredTextSize(),
+    initialTextOpacity: loadStoredTextOpacity(),
+    initialTextColor: loadStoredTextColor(),
+    initialTextPosition: loadStoredTextPosition(),
+    initialTextAutoFit: loadStoredTextAutoFit(),
+    initialTextLineHeight: loadStoredTextLineHeight(),
+    onTextEnabledChange: (value) => {
+      textOverlay.setEnabled(value);
+    },
+    onTextSizeChange: (value) => {
+      textOverlay.setSize(value);
+    },
+    onTextOpacityChange: (value) => {
+      textOverlay.setOpacity(value);
+    },
+    onTextColorChange: (value) => {
+      textOverlay.setColor(value);
+    },
+    onTextPositionChange: (value) => {
+      textOverlay.setPosition(value);
+    },
+    onTextAutoFitChange: (value) => {
+      textOverlay.setAutoFit(value);
+    },
+    onTextLineHeightChange: (value) => {
+      textOverlay.setLineHeight(value);
+    },
+    onOpenNotepad: () => {
+      textOverlay.openNotepad();
     },
     onChange: ({ shader, values }) => {
       presetManager.setActiveShader(shader);
@@ -177,7 +382,17 @@ async function start() {
     },
   });
 
-  logoOverlay.setLogo(initialLogo);
+  logoPack.setPack(loadStoredLogoPack());
+  logoPack.setSymbol(loadStoredLogoPackSymbol());
+  logoPack.setVariant(loadStoredLogoPackVariant());
+  logoPack.setDrift(loadStoredLogoPackDrift());
+  logoPack.setDriftSpeed(loadStoredLogoPackDriftSpeed());
+  syncColliderRadiusToLogoScale();
+  applyLogoDisplay();
+  updateFlowLogoColliderUniforms();
+
+  textOverlay.setContent(loadStoredTextContent());
+  syncPackTextOverlay();
 
   presetManager.setLiveValuesGetter(() => settings.getValues());
 
@@ -377,6 +592,7 @@ async function start() {
 
   let uiHidden = false;
   let hintHidden = false;
+  const notepadPanel = document.getElementById('notepad-panel');
 
   function applyPresetState(
     { shader, values, display },
@@ -470,6 +686,8 @@ async function start() {
       settings.applyDrift(driftValues);
     }
 
+    logoPack.update(dt);
+
     const transition = presetManager.update(dt, () => settings.getValues());
 
     let values = presetManager.isTransitioning
@@ -529,8 +747,17 @@ async function start() {
   let lastSpacePressAt = 0;
 
   window.addEventListener('keydown', (e) => {
+    const notepadOpen = notepadPanel?.classList.contains('is-open');
+
     if (e.code === 'Escape' && tutorial.isOpen()) {
       tutorial.close();
+      return;
+    }
+    if (e.code === 'Escape' && notepadOpen) {
+      textOverlay.closeNotepad();
+      return;
+    }
+    if (notepadOpen) {
       return;
     }
     if (e.code === 'Slash' && e.shiftKey) {
@@ -562,6 +789,10 @@ async function start() {
     if (e.code === 'KeyB') chaos.party();
     if (e.code === 'KeyV' || e.code === 'KeyY') chaos.preset();
     if (e.code === 'KeyR') chaos.preset();
+    if (!(e.target instanceof HTMLTextAreaElement) && !(e.target instanceof HTMLInputElement)) {
+      if (e.code === 'BracketRight') cycleLogoPack(1);
+      if (e.code === 'BracketLeft') cycleLogoPack(-1);
+    }
   });
 
   setTimeout(() => {
@@ -575,7 +806,7 @@ async function start() {
     '%cLobby Visualizer',
     'font-weight:bold;font-size:14px',
     `\nShaders: ${SHADER_IDS.join(', ')}`,
-    '\nSpace: settings | Space×2: move menu | ?: tutorial | F: fullscreen | H: hide UI | ↑/↓: zoom | ←/→: element counts | Z/C/X/B/V: motion/colors/shapes/party/preset | USB gamepad: see tutorial',
+    '\nSpace: settings | Space×2: move menu | ?: tutorial | F: fullscreen | H: hide UI | [ ]: prev/next pack logo | ↑/↓: zoom | ←/→: element counts | Z/C/X/B/V: motion/colors/shapes/party/preset | USB gamepad: see tutorial',
   );
 }
 

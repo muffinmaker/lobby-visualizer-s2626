@@ -26,8 +26,14 @@ import {
   saveMenuPosition,
 } from './menuPosition.js';
 import { applyMenuBigMode, loadMenuBigMode, saveMenuBigMode } from './menuBigMode.js';
+import {
+  LOGO_PACK_CHOICES,
+  getPackSymbolChoices,
+} from './logoPacks.js';
+import { TEXT_POSITIONS } from './textOverlay.js';
 
 const TRAIL_SHADERS = new Set(['spocks', 'spiro', 'flow']);
+const FLOW_LOGO_COLLIDER_KEYS = new Set(['uLogoCollider', 'uLogoColliderBounce', 'uLogoColliderRadius']);
 
 function formatDisplayValue(value) {
   const rounded = Math.round(value * 10) / 10;
@@ -67,6 +73,34 @@ export class SettingsPanel {
     onLogoScaleChange,
     onLogoOpacityChange,
     onAddLogoRequest,
+    initialLogoPack = 'none',
+    initialLogoPackSymbol = 'rainbow',
+    initialLogoPackVariant = 'white',
+    initialLogoPackDrift = false,
+    initialLogoPackDriftSpeed = 50,
+    initialLogoPackTextVisible = false,
+    onLogoPackChange,
+    onLogoPackSymbolChange,
+    onLogoPackVariantChange,
+    onLogoPackDriftChange,
+    onLogoPackDriftSpeedChange,
+    onLogoPackTextVisibleChange,
+    onLogoPackCycle,
+    initialTextEnabled = false,
+    initialTextSize = 100,
+    initialTextOpacity = 100,
+    initialTextColor = 'white',
+    initialTextPosition = 'center',
+    initialTextAutoFit = true,
+    initialTextLineHeight = 135,
+    onTextEnabledChange,
+    onTextSizeChange,
+    onTextOpacityChange,
+    onTextColorChange,
+    onTextPositionChange,
+    onTextAutoFitChange,
+    onTextLineHeightChange,
+    onOpenNotepad,
   }) {
     this.presetManager = presetManager;
     this.visualizer = visualizer;
@@ -78,6 +112,21 @@ export class SettingsPanel {
     this.onLogoScaleChange = onLogoScaleChange;
     this.onLogoOpacityChange = onLogoOpacityChange;
     this.onAddLogoRequest = onAddLogoRequest;
+    this.onLogoPackChange = onLogoPackChange;
+    this.onLogoPackSymbolChange = onLogoPackSymbolChange;
+    this.onLogoPackVariantChange = onLogoPackVariantChange;
+    this.onLogoPackDriftChange = onLogoPackDriftChange;
+    this.onLogoPackDriftSpeedChange = onLogoPackDriftSpeedChange;
+    this.onLogoPackTextVisibleChange = onLogoPackTextVisibleChange;
+    this.onLogoPackCycle = onLogoPackCycle;
+    this.onTextEnabledChange = onTextEnabledChange;
+    this.onTextSizeChange = onTextSizeChange;
+    this.onTextOpacityChange = onTextOpacityChange;
+    this.onTextColorChange = onTextColorChange;
+    this.onTextPositionChange = onTextPositionChange;
+    this.onTextAutoFitChange = onTextAutoFitChange;
+    this.onTextLineHeightChange = onTextLineHeightChange;
+    this.onOpenNotepad = onOpenNotepad;
     this.visible = true;
     this.gamepadMenuActive = false;
     this.navigableItems = [];
@@ -94,6 +143,19 @@ export class SettingsPanel {
       logoOverlay: initialLogo,
       logoScale: initialLogoScale,
       logoOpacity: initialLogoOpacity,
+      logoPack: initialLogoPack,
+      logoPackSymbol: initialLogoPackSymbol,
+      logoPackVariant: initialLogoPackVariant,
+      logoPackDrift: initialLogoPackDrift,
+      logoPackDriftSpeed: initialLogoPackDriftSpeed,
+      logoPackTextVisible: initialLogoPackTextVisible,
+      textEnabled: initialTextEnabled,
+      textSize: initialTextSize,
+      textOpacity: initialTextOpacity,
+      textColor: initialTextColor,
+      textPosition: initialTextPosition,
+      textAutoFit: initialTextAutoFit,
+      textLineHeight: initialTextLineHeight,
       autoCycle: presetManager.autoCycle,
       cycleInterval: presetManager.cycleInterval,
       transitionDuration: presetManager.transitionDuration,
@@ -202,31 +264,8 @@ export class SettingsPanel {
     this.resetPresetCtrl = this.gui.add(resetActions, 'resetPreset').name('↺ Reset preset');
     this.refreshResetPresetButton();
 
-    this.logoController = this.gui
-      .add(this.state, 'logoOverlay', this.buildLogoChoices())
-      .name('Logo')
-      .onChange((value) => {
-        this.onLogoChange?.(value);
-      });
-
-    const logoActions = {
-      addLogo: () => this.onAddLogoRequest?.(),
-    };
-    this.gui.add(logoActions, 'addLogo').name('Add logo');
-
-    this.gui
-      .add(this.state, 'logoScale', 10, 200, 1)
-      .name('Logo Scale %')
-      .onChange((value) => {
-        this.onLogoScaleChange?.(value);
-      });
-
-    this.gui
-      .add(this.state, 'logoOpacity', 0, 100, 1)
-      .name('Logo Opacity %')
-      .onChange((value) => {
-        this.onLogoOpacityChange?.(value);
-      });
+    this.buildLogoSection();
+    this.buildTextOverlaySection();
 
     if (this.musicMode) {
       const mm = this.musicMode;
@@ -303,6 +342,188 @@ export class SettingsPanel {
     this.applyMenuBigMode(this.state.menuBigMode);
     this.patchNumberControllers();
     this.gui.close();
+  }
+
+  buildLogoSection() {
+    const logo = this.gui.addFolder('Logo');
+    this.logoFolder = logo;
+    const flowSpecs = SHADERS.flow?.uniforms ?? {};
+    for (const key of FLOW_LOGO_COLLIDER_KEYS) {
+      if (this.state[key] === undefined && flowSpecs[key]) {
+        this.state[key] = flowSpecs[key].value;
+      }
+    }
+
+    this.logoController = logo
+      .add(this.state, 'logoOverlay', this.buildLogoChoices())
+      .name('Image')
+      .onChange((value) => {
+        this.onLogoChange?.(value);
+      });
+
+    const logoActions = {
+      addLogo: () => this.onAddLogoRequest?.(),
+      prevPackLogo: () => this.onLogoPackCycle?.(-1),
+      nextPackLogo: () => this.onLogoPackCycle?.(1),
+    };
+    logo.add(logoActions, 'addLogo').name('Add image');
+    this.logoPackPrevCtrl = logo.add(logoActions, 'prevPackLogo').name('◀ Prev pack logo');
+    this.logoPackNextCtrl = logo.add(logoActions, 'nextPackLogo').name('Next pack logo ▶');
+
+    logo
+      .add(this.state, 'logoScale', 10, 200, 1)
+      .name('Scale %')
+      .onChange((value) => {
+        this.onLogoScaleChange?.(value);
+      });
+
+    logo
+      .add(this.state, 'logoOpacity', 0, 100, 1)
+      .name('Opacity %')
+      .onChange((value) => {
+        this.onLogoOpacityChange?.(value);
+      });
+
+    this.logoPackController = logo
+      .add(this.state, 'logoPack', LOGO_PACK_CHOICES)
+      .name('Pack')
+      .onChange((value) => {
+        this.refreshLogoPackSymbolDropdown();
+        this.updateLogoPackSymbolCtrl();
+        this.onLogoPackChange?.(value);
+      });
+
+    this.logoPackSymbolController = logo
+      .add(this.state, 'logoPackSymbol', getPackSymbolChoices(this.state.logoPack))
+      .name('Pack symbol')
+      .onChange((value) => {
+        this.onLogoPackSymbolChange?.(value);
+      });
+
+    this.logoPackVariantController = logo
+      .add(this.state, 'logoPackVariant', { White: 'white', Black: 'black' })
+      .name('Pack variant')
+      .onChange((value) => {
+        this.onLogoPackVariantChange?.(value);
+      });
+
+    this.logoPackDriftController = logo
+      .add(this.state, 'logoPackDrift')
+      .name('Pack drift (auto)')
+      .onChange((value) => {
+        this.updateLogoPackSymbolCtrl();
+        this.onLogoPackDriftChange?.(value);
+      });
+
+    this.logoPackDriftSpeedCtrl = logo
+      .add(this.state, 'logoPackDriftSpeed', 1, 100, 1)
+      .name('Pack drift speed')
+      .onChange((value) => {
+        this.onLogoPackDriftSpeedChange?.(value);
+      });
+
+    this.logoPackTextVisibleCtrl = logo
+      .add(this.state, 'logoPackTextVisible')
+      .name('Show pack text')
+      .onChange((value) => {
+        this.onLogoPackTextVisibleChange?.(value);
+      });
+
+    this.logoColliderCtrl = logo
+      .add(this.state, 'uLogoCollider', 0, 1, 1)
+      .name('Logo Collider')
+      .onChange(() => this.handleValueChange());
+    logo
+      .add(this.state, 'uLogoColliderBounce', flowSpecs.uLogoColliderBounce?.min ?? 0.2, flowSpecs.uLogoColliderBounce?.max ?? 2.6, flowSpecs.uLogoColliderBounce?.step ?? 1)
+      .name('Logo Bounce')
+      .onChange(() => this.handleValueChange());
+
+    this.updateLogoPackSymbolCtrl();
+  }
+
+  syncLogoPackSymbolDisplay(symbolId) {
+    if (!symbolId) return;
+    this.state.logoPackSymbol = symbolId;
+    this.logoPackSymbolController?.updateDisplay();
+  }
+
+  refreshLogoPackSymbolDropdown() {
+    if (!this.logoPackSymbolController) return;
+    const choices = getPackSymbolChoices(this.state.logoPack);
+    const values = Object.values(choices);
+    if (values.length && !values.includes(this.state.logoPackSymbol)) {
+      this.state.logoPackSymbol = values[0];
+    }
+    this.logoPackSymbolController.options(choices);
+    this.logoPackSymbolController.updateDisplay();
+  }
+
+  updateLogoPackSymbolCtrl() {
+    if (!this.logoPackSymbolController) return;
+    const packActive = this.state.logoPack !== 'none';
+    const drift = this.state.logoPackDrift;
+    if (!packActive || drift) this.logoPackSymbolController.disable();
+    else this.logoPackSymbolController.enable();
+    this.logoPackDriftController?.disable(!packActive);
+    this.logoPackDriftSpeedCtrl?.disable(!packActive || !drift);
+    this.logoPackVariantController?.disable(!packActive);
+    this.logoPackTextVisibleCtrl?.disable(!packActive);
+    this.logoPackPrevCtrl?.disable(!packActive);
+    this.logoPackNextCtrl?.disable(!packActive);
+    this.logoPackSymbolController.updateDisplay();
+  }
+
+  buildTextOverlaySection() {
+    const text = this.gui.addFolder('Text Overlay');
+    this.textOverlayFolder = text;
+
+    text.add(this.state, 'textEnabled').name('Enabled').onChange((value) => {
+      this.onTextEnabledChange?.(value);
+    });
+
+    const textActions = {
+      openNotepad: () => this.onOpenNotepad?.(),
+    };
+    text.add(textActions, 'openNotepad').name('Open notepad');
+
+    text
+      .add(this.state, 'textSize', 40, 240, 1)
+      .name('Text size %')
+      .onChange((value) => {
+        this.onTextSizeChange?.(value);
+      });
+
+    text
+      .add(this.state, 'textOpacity', 0, 100, 1)
+      .name('Text opacity %')
+      .onChange((value) => {
+        this.onTextOpacityChange?.(value);
+      });
+
+    text
+      .add(this.state, 'textColor', { White: 'white', Black: 'black' })
+      .name('Text color')
+      .onChange((value) => {
+        this.onTextColorChange?.(value);
+      });
+
+    text
+      .add(this.state, 'textPosition', TEXT_POSITIONS)
+      .name('Position')
+      .onChange((value) => {
+        this.onTextPositionChange?.(value);
+      });
+
+    text.add(this.state, 'textAutoFit').name('Auto-fit text').onChange((value) => {
+      this.onTextAutoFitChange?.(value);
+    });
+
+    text
+      .add(this.state, 'textLineHeight', 90, 220, 1)
+      .name('Line spacing %')
+      .onChange((value) => {
+        this.onTextLineHeightChange?.(value);
+      });
   }
 
   buildDisplaySection() {
@@ -584,6 +805,7 @@ export class SettingsPanel {
     });
 
     for (const [key, spec] of Object.entries(specs)) {
+      if (specs === SHADERS.flow?.uniforms && FLOW_LOGO_COLLIDER_KEYS.has(key)) continue;
       this.addUniformRow(folder, key, spec);
     }
   }
@@ -813,9 +1035,13 @@ export class SettingsPanel {
       uIterations: 'Iterations',
       uWidthRand: 'Width Random',
       uHeightRand: 'Height Random',
+      uDepthPulse: 'Depth Pulse',
       uTintRed: 'Tint Red',
       uTintGreen: 'Tint Green',
       uTintBlue: 'Tint Blue',
+      uLogoCollider: 'Logo Collider',
+      uLogoColliderBounce: 'Logo Bounce',
+      uLogoColliderRadius: 'Logo Radius',
       uBgRed: 'Background Red',
       uBgGreen: 'Background Green',
       uBgBlue: 'Background Blue',

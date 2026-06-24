@@ -53,10 +53,12 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uGreen: rgb(0),
     uBlue: rgb(155),
     uLineWidth: pct(36, 0.5, 5),
-    uIterations: count(65, 20, 100),
+    uIterations: count(80, 20, 180),
     uTrailDecay: pct(92, 0.85, 0.995),
     uWidthRand: toggle(0),
     uHeightRand: toggle(0),
+    uDepthPulse: toggle(1),
+    uColorSpeed: pct(52, 0, 2),
   },
   spiro: {
     uPointSize: pct(58, 2, 14),
@@ -103,6 +105,9 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uFieldScale: pct(40, 0.5, 6),
     uNoiseScale: pct(32, 0.3, 5),
     uTrailAlpha: pct(24, 0.02, 0.25),
+    uLogoCollider: toggle(0),
+    uLogoColliderBounce: pct(48, 0.2, 2.6),
+    uLogoColliderRadius: pct(40, 0.12, 0.9),
   },
   metaballs: {
     uBallCount: count(7, 3, 12),

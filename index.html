@@ -457,6 +457,127 @@
         display: none;
       }
 
+      #hero-text {
+        position: absolute;
+        left: 50%;
+        width: min(92vw, 56rem);
+        padding: 0 1.5rem;
+        transform: translateX(-50%) scale(calc(var(--text-size, 1) * var(--text-fit-scale, 1)));
+        transform-origin: center center;
+        opacity: var(--text-opacity, 1);
+        color: #fff;
+        font-size: clamp(1.1rem, 3.2vw, 2.4rem);
+        font-weight: 600;
+        line-height: var(--text-line-height, 1.35);
+        letter-spacing: 0.02em;
+        text-align: center;
+        white-space: pre-wrap;
+        word-break: break-word;
+        mix-blend-mode: screen;
+        text-shadow: 0 0 24px rgba(0, 0, 0, 0.45);
+        pointer-events: none;
+      }
+
+      #hero-text[data-position='top'] {
+        top: 8vh;
+      }
+
+      #hero-text[data-position='center'] {
+        top: 50%;
+        transform: translate(-50%, -50%) scale(calc(var(--text-size, 1) * var(--text-fit-scale, 1)));
+      }
+
+      #hero-text[data-position='bottom'] {
+        bottom: 10vh;
+      }
+
+      #hero-text[data-color='black'] {
+        color: #000;
+        mix-blend-mode: multiply;
+        text-shadow: 0 0 20px rgba(255, 255, 255, 0.35);
+      }
+
+      #hero-text.is-hidden {
+        display: none;
+      }
+
+      #notepad-panel {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        background: rgba(0, 0, 0, 0.55);
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+        pointer-events: auto;
+      }
+
+      #notepad-panel.is-open {
+        display: flex;
+      }
+
+      .notepad-card {
+        width: min(42rem, 100%);
+        max-height: min(70vh, 36rem);
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 1rem 1.1rem 1.1rem;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 0.65rem;
+        background: rgba(24, 24, 24, 0.94);
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+      }
+
+      .notepad-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 0.92rem;
+        font-weight: 600;
+      }
+
+      #notepad-close {
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 0.35rem;
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.85);
+        padding: 0.28rem 0.65rem;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      #notepad-close:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      #notepad-input {
+        flex: 1 1 auto;
+        min-height: 14rem;
+        resize: vertical;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 0.45rem;
+        background: rgba(0, 0, 0, 0.35);
+        color: rgba(255, 255, 255, 0.92);
+        padding: 0.75rem 0.85rem;
+        font: inherit;
+        line-height: 1.45;
+      }
+
+      #notepad-input:focus {
+        outline: 1px solid rgba(255, 255, 255, 0.28);
+      }
+
+      .notepad-hint {
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 0.75rem;
+      }
+
       .lil-gui .title.gui-title-row {
         display: flex;
         align-items: flex-start;
@@ -544,6 +665,7 @@
         text-transform: uppercase;
         color: rgba(255, 255, 255, 0.42);
         padding: 0 0.1rem 0 0.05rem;
+        -webkit-user-select: none;
         user-select: none;
       }
 
@@ -879,6 +1001,21 @@
           width="520"
           height="478"
         />
+      </div>
+      <div id="hero-text" class="is-hidden" data-position="center" data-color="white"></div>
+    </div>
+    <div id="notepad-panel" aria-hidden="true">
+      <div class="notepad-card" role="dialog" aria-label="Text notepad">
+        <div class="notepad-header">
+          <span>Notepad</span>
+          <button id="notepad-close" type="button">Done</button>
+        </div>
+        <textarea
+          id="notepad-input"
+          placeholder="Type overlay text… line breaks are kept."
+          spellcheck="true"
+        ></textarea>
+        <p class="notepad-hint">Saved automatically. Toggle “Text overlay” in settings to show on screen.</p>
       </div>
     </div>
     <div id="hint">Space · settings &nbsp;|&nbsp; ? · tutorial &nbsp;|&nbsp; F · fullscreen &nbsp;|&nbsp; H · hide UI</div>

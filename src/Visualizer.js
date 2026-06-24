@@ -276,6 +276,11 @@ export class Visualizer {
       depthWrite: false,
       blending: points ? THREE.AdditiveBlending : THREE.NormalBlending,
     });
+    if (id === 'flow') {
+      material.uniforms.uLogoColliderVisible = { value: 0 };
+      material.uniforms.uLogoColliderScale = { value: 1 };
+      material.uniforms.uLogoColliderShape = { value: 0 };
+    }
 
     const mesh = points
       ? new THREE.Points(geometry, material)
