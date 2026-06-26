@@ -21,11 +21,13 @@ function isColorKey(key, spec) {
 }
 
 function isStructureKey(key, spec) {
-  if (spec.kind === 'shape' || spec.kind === 'trailShape') return true;
+  if (spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape') return true;
   if (
     key === 'uZoom' ||
     key === 'uIterations' ||
     key === 'uRotate' ||
+    key === 'uStampShape' ||
+    key === 'uPolygonSides' ||
     key === 'uWidthRand' ||
     key === 'uHeightRand' ||
     key === 'uSegments' ||

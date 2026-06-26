@@ -1,7 +1,16 @@
 import { randomizeUniform } from './randomize.js';
+import { canDrift, isDiscreteDriftSpec } from './driftUtils.js';
 
 const lerp = (a, b, t) => a + (b - a) * t;
 const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+function blendDriftValue(from, to, t, spec) {
+  const eased = easeInOut(t);
+  if (isDiscreteDriftSpec(spec)) {
+    return Math.round(lerp(from, to, eased));
+  }
+  return Math.round(lerp(from, to, eased));
+}
 
 function createChannel(spec, value) {
   return {
@@ -20,7 +29,12 @@ export class DriftManager {
     this.duration = 55;
     this.speed = 30;
     this.speedAuto = true;
+    this.shaderId = null;
     this.channels = new Map();
+  }
+
+  setShader(shaderId) {
+    this.shaderId = shaderId ?? null;
   }
 
   getSpeedFactor() {
@@ -56,14 +70,14 @@ export class DriftManager {
     ch.enabled = enabled;
     ch.spec = spec;
     ch.from = currentValue;
-    ch.to = enabled ? randomizeUniform(key, spec) ?? currentValue : currentValue;
+    ch.to = enabled ? randomizeUniform(key, spec, { shaderId: this.shaderId }) ?? currentValue : currentValue;
     ch.phase = enabled ? 'blend' : 'wait';
     ch.elapsed = 0;
   }
 
   setEnabledMany(entries, enabled, currentValues) {
     for (const [key, spec] of entries) {
-      if (spec.rebuild) continue;
+      if (!canDrift(spec)) continue;
       this.setEnabled(key, spec, enabled, currentValues[key] ?? spec.value);
     }
   }
@@ -72,7 +86,7 @@ export class DriftManager {
     const ch = this.channels.get(key);
     if (!ch || !ch.enabled) return;
     ch.from = value;
-    ch.to = randomizeUniform(key, ch.spec) ?? value;
+    ch.to = randomizeUniform(key, ch.spec, { shaderId: this.shaderId }) ?? value;
     ch.phase = 'blend';
     ch.elapsed = 0;
   }
@@ -83,7 +97,7 @@ export class DriftManager {
     const step = dt * this.getSpeedFactor();
 
     for (const [key, ch] of this.channels) {
-      if (!ch.enabled || !ch.spec || ch.spec.rebuild) continue;
+      if (!ch.enabled || !ch.spec || !canDrift(ch.spec)) continue;
 
       if (ch.phase === 'wait') {
         ch.elapsed += step;
@@ -91,7 +105,7 @@ export class DriftManager {
         hasUpdate = true;
         if (ch.elapsed >= this.interval) {
           ch.from = currentValues[key] ?? ch.from;
-          ch.to = randomizeUniform(key, ch.spec) ?? ch.from;
+          ch.to = randomizeUniform(key, ch.spec, { shaderId: this.shaderId }) ?? ch.from;
           ch.phase = 'blend';
           ch.elapsed = 0;
         }
@@ -100,7 +114,7 @@ export class DriftManager {
 
       ch.elapsed += step;
       const t = Math.min(ch.elapsed / this.duration, 1);
-      blended[key] = Math.round(lerp(ch.from, ch.to, easeInOut(t)));
+      blended[key] = blendDriftValue(ch.from, ch.to, t, ch.spec);
       hasUpdate = true;
 
       if (t >= 1) {

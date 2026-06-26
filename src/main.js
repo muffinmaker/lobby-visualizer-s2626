@@ -22,6 +22,10 @@ import {
   saveLogoSelection,
 } from './logoOverlay.js';
 import {
+  colliderShapeId,
+  computeLogoColliderHalfExtents,
+} from './logoCollider.js';
+import {
   createLogoPackController,
   loadStoredLogoPack,
   loadStoredLogoPackDrift,
@@ -177,26 +181,25 @@ async function start() {
     if (!flowUniforms) return;
     const hasLogo =
       logoPack.isActive() || (settings?.state?.logoOverlay && settings.state.logoOverlay !== 'none');
-    const logoScale = (logoOverlay.getScale?.() ?? 100) / 100;
-    const activeSymbolId = logoPack.isActive() ? logoPack.getSymbolId() : null;
-    // Shape 1 currently maps to the Pride heart symbol; others use generic collider.
-    const colliderShape = activeSymbolId === 'heart' ? 1 : 0;
     flowUniforms.uLogoColliderVisible.value = hasLogo ? 1 : 0;
-    flowUniforms.uLogoColliderScale.value = Math.max(0.45, Math.min(2.6, logoScale));
-    flowUniforms.uLogoColliderShape.value = colliderShape;
-  }
 
-  function colliderRadiusFromLogoScalePercent(scalePercent) {
-    const clamped = Math.max(10, Math.min(200, scalePercent));
-    const t = (clamped - 10) / 190;
-    return 0.12 + t * (0.9 - 0.12);
-  }
+    if (!hasLogo) return;
 
-  function syncColliderRadiusToLogoScale() {
-    if (!settings) return;
-    const radius = colliderRadiusFromLogoScalePercent(logoOverlay.getScale?.() ?? 100);
-    settings.state.uLogoColliderRadius = radius;
-    settings.handleValueChange();
+    const imageSize = logoOverlay.getImageSize?.() ?? { w: 100, h: 100 };
+    const { halfX, halfY } = computeLogoColliderHalfExtents({
+      camera: visualizer.pointCamera,
+      viewportW: window.innerWidth,
+      viewportH: window.innerHeight,
+      imageW: imageSize.w,
+      imageH: imageSize.h,
+      logoScalePercent: logoOverlay.getScale?.() ?? 100,
+    });
+    flowUniforms.uLogoColliderHalfExtents.value.set(halfX, halfY);
+
+    const colliderKind = logoPack.isActive()
+      ? logoPack.getColliderKind?.() ?? 'ellipse'
+      : 'ellipse';
+    flowUniforms.uLogoColliderShape.value = colliderShapeId(colliderKind);
   }
 
   function syncPackTextOverlay() {
@@ -265,6 +268,7 @@ async function start() {
   const driftManager = new DriftManager();
   const musicMode = new MusicMode();
   visualizer = new Visualizer(document.body);
+  visualizer.onViewportResize = () => updateFlowLogoColliderUniforms();
   mountLogoOverlayAboveCanvas(visualizer);
   visualizer.renderer.debug.checkShaderErrors = import.meta.env.DEV;
 
@@ -293,7 +297,6 @@ async function start() {
     },
     onLogoScaleChange: (value) => {
       logoOverlay.setScale(value);
-      syncColliderRadiusToLogoScale();
       updateFlowLogoColliderUniforms();
     },
     onLogoOpacityChange: (value) => {
@@ -379,6 +382,7 @@ async function start() {
         if (key.startsWith('u')) uniforms[key] = value;
       }
       Object.assign(presetManager.currentPreset.values, uniforms);
+      if (shader === 'flow') updateFlowLogoColliderUniforms();
     },
   });
 
@@ -387,7 +391,7 @@ async function start() {
   logoPack.setVariant(loadStoredLogoPackVariant());
   logoPack.setDrift(loadStoredLogoPackDrift());
   logoPack.setDriftSpeed(loadStoredLogoPackDriftSpeed());
-  syncColliderRadiusToLogoScale();
+  logoOverlay.onImageLoad = () => updateFlowLogoColliderUniforms();
   applyLogoDisplay();
   updateFlowLogoColliderUniforms();
 
@@ -599,11 +603,15 @@ async function start() {
     presetName,
     { updateGui = true, changeShader = false, syncSmooth = false } = {},
   ) {
+    const trailSettings = {
+      motionTrails: settings.state.motionTrails,
+      trailsNeverDecay: settings.state.trailsNeverDecay,
+    };
     if (changeShader && shader) {
-      visualizer.setShader(shader);
+      visualizer.setShader(shader, { ...values, ...trailSettings });
       presetManager.setActiveShader(shader);
     }
-    visualizer.applyValues(values, { syncSmooth });
+    visualizer.applyValues({ ...values, ...trailSettings }, { syncSmooth });
     if (updateGui) {
       settings.applyExternalState({
         ...(changeShader && shader ? { shader } : {}),

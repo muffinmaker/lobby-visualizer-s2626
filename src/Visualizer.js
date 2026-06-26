@@ -15,10 +15,15 @@ uniform sampler2D uPrev;
 uniform float uDecay;
 uniform vec3 uFadeColor;
 uniform float uPreserveHue;
+uniform float uTrailPersist;
 varying vec2 vUv;
 
 void main() {
   vec4 prev = texture2D(uPrev, vUv);
+  if (uTrailPersist > 0.5) {
+    gl_FragColor = prev;
+    return;
+  }
   if (uPreserveHue > 0.5) {
     // Dim trails without pulling saturated strokes toward the background grey.
     float ink = max(
@@ -153,9 +158,14 @@ function createFullscreenQuad() {
   return new THREE.PlaneGeometry(2, 2);
 }
 
+const SPOCKS_RESOLUTION_MULT = 3;
+
 function feedbackScale(shaderId, resolutionScale = 100, liteMode = false) {
-  const base = shaderId === 'spocks' ? (liteMode ? 0.42 : 0.55) : liteMode ? 0.42 : 0.7;
-  return base * (resolutionScale / 100);
+  let base = shaderId === 'spocks' ? (liteMode ? 0.42 : 0.55) : liteMode ? 0.42 : 0.7;
+  if (shaderId === 'spocks' && !liteMode) {
+    base *= SPOCKS_RESOLUTION_MULT;
+  }
+  return Math.min(1, base) * (resolutionScale / 100);
 }
 
 function shaderPixelRatioCap(shaderId, liteMode = false) {
@@ -223,6 +233,7 @@ export class Visualizer {
         uDecay: { value: 0.92 },
         uFadeColor: { value: new THREE.Color(0x020208) },
         uPreserveHue: { value: 0 },
+        uTrailPersist: { value: 0 },
       },
       vertexShader: FULLSCREEN_VERT,
       fragmentShader: wrapFragment(TRAIL_FRAG),
@@ -248,6 +259,9 @@ export class Visualizer {
     window.addEventListener('resize', this.onResize);
     this.onResize();
   }
+
+  /** Optional hook after viewport / camera aspect updates. */
+  onViewportResize = null;
 
   initPasses() {
     for (const id of Object.keys(SHADERS)) {
@@ -278,7 +292,7 @@ export class Visualizer {
     });
     if (id === 'flow') {
       material.uniforms.uLogoColliderVisible = { value: 0 };
-      material.uniforms.uLogoColliderScale = { value: 1 };
+      material.uniforms.uLogoColliderHalfExtents = { value: new THREE.Vector2(1.2, 2.2) };
       material.uniforms.uLogoColliderShape = { value: 0 };
     }
 
@@ -299,7 +313,11 @@ export class Visualizer {
 
   effectivePixelRatio() {
     const cap = shaderPixelRatioCap(this.currentShaderId, this.liteMode);
-    return Math.min(window.devicePixelRatio, cap) * (this.resolutionScale / 100);
+    let ratio = Math.min(window.devicePixelRatio, cap) * (this.resolutionScale / 100);
+    if (this.currentShaderId === 'spocks' && !this.liteMode) {
+      ratio *= SPOCKS_RESOLUTION_MULT;
+    }
+    return ratio;
   }
 
   recreateTrailBuffers() {
@@ -399,6 +417,8 @@ export class Visualizer {
     ) {
       this.recreateTrailBuffers();
     }
+
+    this.applyTrailSettingsFromUi(uiValues);
   }
 
   setResolutionScale(scale) {
@@ -451,17 +471,28 @@ export class Visualizer {
       baseDecay = 0.9;
     }
 
-    const minDecay = 0.68;
-    let decay = minDecay + (baseDecay - minDecay);
+    const trailStrength = Math.max(0, Math.min(1, this.motionTrails / 100));
+    const minDecay = 0.68 + (1 - trailStrength) * 0.22;
+    let decay = minDecay + (baseDecay - minDecay) * trailStrength;
+    if (this.currentShaderId === 'spiro') {
+      decay += 0.028 * trailStrength;
+    }
+    const persistTrails = this.currentShaderId === 'spocks' && (values.uTrailPersist ?? 0) > 0.5;
+    if (persistTrails) {
+      decay = 1;
+    }
     if (this.trailsNeverDecay) {
       decay = Math.min(decay, 0.93);
     } else {
-      decay = Math.min(decay, 0.96);
+      const decayCap = this.currentShaderId === 'spiro' ? 0.99 : 0.96;
+      decay = Math.min(decay, decayCap);
     }
     this.trailMaterial.uniforms.uDecay.value = decay;
+    this.trailMaterial.uniforms.uPreserveHue.value = usesFeedbackTrails(this.currentShaderId) ? 1 : 0;
+    this.trailMaterial.uniforms.uTrailPersist.value = persistTrails ? 1 : 0;
   }
 
-  applyValues(uiValues, { syncSmooth = false, deferRebuild = false } = {}) {
+  applyTrailSettingsFromUi(uiValues) {
     if (uiValues.motionTrails !== undefined) {
       const trails = Math.max(0, Math.min(100, Math.round(uiValues.motionTrails)));
       this.motionTrails = this.liteMode ? 0 : trails;
@@ -469,6 +500,10 @@ export class Visualizer {
     if (uiValues.trailsNeverDecay !== undefined) {
       this.trailsNeverDecay = Boolean(uiValues.trailsNeverDecay);
     }
+  }
+
+  applyValues(uiValues, { syncSmooth = false, deferRebuild = false } = {}) {
+    this.applyTrailSettingsFromUi(uiValues);
     this.values = { ...uiValues };
     const shaderValues = toShaderValues(uiValues, this.currentShaderId);
     this.ensureMaterialUniforms(this.currentShaderId, shaderValues);
@@ -512,6 +547,7 @@ export class Visualizer {
     }
 
     this.recreateTrailBuffers();
+    this.onViewportResize?.();
   }
 
   renderScene(target = null) {

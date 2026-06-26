@@ -147,11 +147,14 @@ export function createLogoOverlayController() {
     if (!url) {
       heroLogo.classList.add('is-hidden');
       heroLogo.removeAttribute('src');
+      onImageLoad?.();
       return;
     }
     heroLogo.classList.remove('is-hidden');
     if (heroLogo.getAttribute('src') !== url) {
       heroLogo.src = url;
+    } else if (heroLogo.complete && heroLogo.naturalWidth) {
+      onImageLoad?.();
     }
   }
 
@@ -176,6 +179,24 @@ export function createLogoOverlayController() {
     return customDataUrl;
   }
 
+  let onImageLoad = null;
+
+  if (heroLogo) {
+    heroLogo.addEventListener('load', () => onImageLoad?.());
+  }
+
+  function getImageSize() {
+    if (!heroLogo || heroLogo.classList.contains('is-hidden')) return null;
+    const w = heroLogo.naturalWidth;
+    const h = heroLogo.naturalHeight;
+    if (!w || !h) return null;
+    return { w, h };
+  }
+
+  function getElement() {
+    return heroLogo;
+  }
+
   applyScale();
   applyOpacity();
 
@@ -187,6 +208,11 @@ export function createLogoOverlayController() {
     getCustomDataUrl,
     getScale: () => scale,
     getOpacity: () => opacity,
+    getImageSize,
+    getElement,
     resolveLogoUrl,
+    set onImageLoad(fn) {
+      onImageLoad = fn;
+    },
   };
 }

@@ -11,6 +11,14 @@ const DISCRETE_KEYS = new Set([
   'uPalette',
   'uPenShape',
   'uTrailShape',
+  'uStampShape',
+  'uPolygonSides',
+  'uIterations',
+  'uOrbitCount',
+  'uPenCount',
+  'uBallCount',
+  'uRibbonCount',
+  'uChevrons',
 ]);
 
 const KEY_SMOOTH_TIMES = {
@@ -25,7 +33,6 @@ const KEY_SMOOTH_TIMES = {
   uBgBlue: 1.4,
   uRotate: 1.8,
   uMyTime: 1.8,
-  uIterations: 1.8,
   uScaleY: 2.0,
   uScaleZ: 2.0,
   uUp: 1.8,

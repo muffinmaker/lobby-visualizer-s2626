@@ -15,11 +15,12 @@ function monoSymbol(draw, { viewBox = '0 0 100 100', color }) {
   );
 }
 
-function symbol(id, label, meaning, draw) {
+function symbol(id, label, meaning, draw, collider = 'ellipse') {
   return {
     id,
     label,
     meaning,
+    collider,
     white: monoSymbol(draw, { color: '#ffffff' }),
     black: monoSymbol(draw, { color: '#000000' }),
   };
@@ -37,8 +38,7 @@ const PRIDE_SYMBOLS = [
     `<path d="M32 78 L50 22 L68 78 M38 58 H62" stroke="${c}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>`,
   ),
   symbol('triangle', 'Pink Triangle', 'Reclaimed from persecution history as a symbol of queer resilience.', (c) =>
-    `<path d="M50 18 L82 78 H18 Z" stroke="${c}" stroke-width="5" fill="none"/>`,
-  ),
+    `<path d="M50 18 L82 78 H18 Z" stroke="${c}" stroke-width="5" fill="none"/>`, 'triangle'),
   symbol('trans', 'Trans Symbol', 'Represents transgender identity, transition, and gender diversity.', (c) =>
     `<circle cx="50" cy="50" r="30" stroke="${c}" stroke-width="5"/>
      <path d="M50 20 V44 M50 20 L42 28 M50 20 L58 28" stroke="${c}" stroke-width="5" stroke-linecap="round"/>
@@ -53,20 +53,17 @@ const PRIDE_SYMBOLS = [
     <rect x="62" y="24" width="10" height="52" fill="${c}" opacity="0.4"/>
     <path d="M74 24 L90 50 L74 76 Z" fill="${c}"/>`),
   symbol('heart', 'Heart', 'Represents love, care, and solidarity across the community.', (c) =>
-    `<path d="M50 78 C28 58 14 46 14 32 C14 22 22 16 30 16 C38 16 44 20 50 28 C56 20 62 16 70 16 C78 16 86 22 86 32 C86 46 72 58 50 78 Z" stroke="${c}" stroke-width="4" fill="none"/>`,
-  ),
+    `<path d="M50 78 C28 58 14 46 14 32 C14 22 22 16 30 16 C38 16 44 20 50 28 C56 20 62 16 70 16 C78 16 86 22 86 32 C86 46 72 58 50 78 Z" stroke="${c}" stroke-width="4" fill="none"/>`, 'heart'),
   symbol('equality', 'Equality', 'A sign for equal rights, dignity, and legal recognition.', (c) =>
     `<path d="M28 40 H72 M28 60 H72" stroke="${c}" stroke-width="8" stroke-linecap="round"/>
      <circle cx="50" cy="50" r="34" stroke="${c}" stroke-width="4" fill="none"/>`,
   ),
   symbol('bi', 'Bi Triangles', 'Inspired by bi pride motifs, representing attraction across more than one gender.', (c) =>
     `<path d="M30 70 L50 24 L70 70 Z" stroke="${c}" stroke-width="5" fill="none"/>
-     <path d="M38 70 L50 42 L62 70 Z" stroke="${c}" stroke-width="4" fill="none"/>`,
-  ),
+     <path d="M38 70 L50 42 L62 70 Z" stroke="${c}" stroke-width="4" fill="none"/>`, 'triangle'),
   symbol('pan', 'Pan', 'Inspired by pan pride, representing attraction regardless of gender.', (c) =>
     `<path d="M50 20 L78 70 H22 Z" stroke="${c}" stroke-width="5" fill="none"/>
-     <circle cx="50" cy="52" r="10" stroke="${c}" stroke-width="4" fill="none"/>`,
-  ),
+     <circle cx="50" cy="52" r="10" stroke="${c}" stroke-width="4" fill="none"/>`, 'triangle'),
   symbol('labrys', 'Labrys', 'A historic lesbian/feminist symbol associated with strength and self-determination.', (c) =>
     `<path d="M50 22 V78" stroke="${c}" stroke-width="5" stroke-linecap="round"/>
      <path d="M28 30 C18 18 12 28 22 38 L36 48" stroke="${c}" stroke-width="5" stroke-linecap="round" fill="none"/>
@@ -349,12 +346,17 @@ export function createLogoPackController() {
     emit();
   }
 
+  function getColliderKind() {
+    return getCurrentSymbol()?.collider ?? 'ellipse';
+  }
+
   normalizeSymbolId();
 
   return {
     getPackId: () => packId,
     getSymbolId: () => currentSymbolId(),
     getStoredSymbolId: () => normalizeSymbolId(),
+    getColliderKind,
     getVariant: () => variant,
     isDriftEnabled: () => driftEnabled,
     getDriftSpeed: () => driftSpeed,

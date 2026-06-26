@@ -23,6 +23,8 @@ export const SHADERS = {
       uniform float uScaleZ;
       uniform float uWidth;
       uniform float uHeight;
+      uniform float uStampShape;
+      uniform float uPolygonSides;
       uniform float uRotate;
       uniform float uMyTime;
       uniform float uZoom;
@@ -65,9 +67,68 @@ export const SHADERS = {
         return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
       }
 
-      // Ring around the square edge only (avoids interior cross artifacts).
-      float rectOutline(vec2 p, vec2 halfSize, float lw) {
-        float d = abs(sdBox(p, halfSize));
+      float sdCircle(vec2 p, float r) {
+        return length(p) - r;
+      }
+
+      float sdEquilateralTriangle(vec2 p, float r) {
+        const float k = 1.732050808;
+        p.x = abs(p.x) - r;
+        p.y = p.y + r / k;
+        if (p.x + k * p.y > 0.0) p = vec2(p.x - k * p.y, -k * p.x - p.y) / 2.0;
+        p.x -= clamp(p.x, -2.0 * r, 0.0);
+        return -length(p) * sign(p.y);
+      }
+
+      float sdHexagon(vec2 p, float r) {
+        const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);
+        p = abs(p);
+        p -= 2.0 * min(dot(k.xy, p), 0.0) * k.xy;
+        p -= vec2(clamp(p.x, -k.z * r, k.z * r), r);
+        return length(p) * sign(p.y);
+      }
+
+      float sdStar(vec2 p, float r) {
+        float an = 6.28318 / 5.0;
+        float en = 6.28318 / 10.0;
+        vec2 acs = vec2(cos(an), sin(an));
+        vec2 ecs = vec2(cos(en), sin(en));
+        float bn = mod(atan(p.y, p.x), 2.0 * an) - an;
+        p = length(p) * vec2(cos(bn), abs(sin(bn)));
+        p -= r * acs;
+        p += ecs * clamp(-dot(p, ecs), 0.0, r * acs.y / ecs.y);
+        return length(p) * sign(p.x);
+      }
+
+      float sdPolygon(vec2 p, float r, float n) {
+        float sides = max(n, 3.0);
+        float an = 6.2831853 / sides;
+        vec2 q = vec2(cos(an * 0.5), sin(an * 0.5));
+        float bn = mod(atan(p.y, p.x), an) - an * 0.5;
+        return cos(bn) * length(p) - q.x * r;
+      }
+
+      float shapeDistance(vec2 p, float shapeId, vec2 halfSize, float sides) {
+        float r = max(min(halfSize.x, halfSize.y), 0.015);
+        float rMax = max(max(halfSize.x, halfSize.y), 0.015);
+        shapeId = floor(shapeId + 0.5);
+        if (shapeId < 0.5) return sdBox(p, halfSize);
+        if (shapeId < 1.5) return sdPolygon(p, r, sides);
+        if (shapeId < 2.5) return sdCircle(p, r);
+        if (shapeId < 3.5) return sdEquilateralTriangle(p, r * 1.15);
+        if (shapeId < 4.5) return sdBox(p, vec2(r));
+        if (shapeId < 5.5) return sdHexagon(p, r);
+        if (shapeId < 6.5) return sdStar(p, r);
+        if (shapeId < 7.5) return sdBox(rot(0.785398) * p, vec2(r * 0.85));
+        vec2 q = abs(p);
+        return min(
+          sdBox(q - vec2(rMax * 0.55, 0.0), vec2(rMax * 0.18, rMax * 0.85)),
+          sdBox(q - vec2(0.0, rMax * 0.55), vec2(rMax * 0.85, rMax * 0.18))
+        );
+      }
+
+      float stampOutline(vec2 p, float shapeId, vec2 halfSize, float sides, float lw) {
+        float d = abs(shapeDistance(p, shapeId, halfSize, sides));
         return 1.0 - smoothstep(lw * 0.35, lw * 0.35 + lw, d);
       }
 
@@ -122,7 +183,7 @@ export const SHADERS = {
           local = rot(-i * ang) * local;
           local -= offset;
 
-          float layerEdge = rectOutline(local, halfSize, lw);
+          float layerEdge = stampOutline(local, uStampShape, halfSize, uPolygonSides, lw);
           if (layerEdge < 0.001) continue;
 
           float layerDepth = i / iterDenom;
@@ -141,6 +202,7 @@ export const SHADERS = {
         if (uDepthPulse > 0.5) {
           float percent = cos(t * 0.5) * 0.5 + 0.5;
           col = mix(col, vec3(0.0), percent);
+          edge *= 1.0 - percent;
         }
 
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
@@ -167,6 +229,7 @@ export const SHADERS = {
       uniform float uZoom;
       uniform float uPalette;
       uniform float uHueShift;
+      uniform float uColorSpeed;
       uniform float uColorSpread;
       uniform float uTintRed;
       uniform float uTintGreen;
@@ -179,22 +242,67 @@ export const SHADERS = {
       varying float vPenAngle;
       varying float vPenAspect;
 
-      vec3 palette(float t) {
-        float p = floor(uPalette + 0.5);
-        vec3 offset;
-        if (p < 0.5) offset = vec3(0.0, 0.33, 0.67);
-        else if (p < 1.5) offset = vec3(0.05, 0.15, 0.25);
-        else if (p < 2.5) offset = vec3(0.55, 0.65, 0.75);
-        else if (p < 3.5) offset = vec3(0.0, 0.55, 0.85);
-        else if (p < 4.5) offset = vec3(0.15, 0.35, 0.55);
-        else if (p < 5.5) offset = vec3(0.0, 0.2, 0.45);
-        else if (p < 6.5) offset = vec3(0.45, 0.55, 0.65);
-        else offset = vec3(0.0, 0.0, 0.0);
+      vec3 neonPalette(float hue, float chroma, vec3 offset, float gain) {
+        vec3 base = 0.5 + 0.5 * cos(6.28318 * (offset + hue * chroma));
+        return pow(clamp(base, 0.0, 1.0), vec3(0.82)) * gain;
+      }
 
-        vec3 base = 0.5 + 0.5 * cos(6.28318 * (offset + t + uHueShift));
-        base = mix(vec3(0.55), base, uColorSpread);
+      vec3 applyTint(vec3 col) {
         vec3 tint = vec3(uTintRed, uTintGreen, uTintBlue);
-        return clamp(base * (tint / 0.55), 0.0, 2.5);
+        float tintAmt = max(tint.r, max(tint.g, tint.b));
+        if (tintAmt < 0.01) return col;
+        return col * mix(vec3(1.0), tint / tintAmt, 0.32);
+      }
+
+      vec3 palette(float lane, float radial, float t) {
+        float p = floor(uPalette + 0.5);
+        float hue = lane * 1.45 + radial * 0.65 + t * uColorSpeed * 0.55 + uHueShift;
+        vec3 offset = vec3(0.0, 0.33, 0.67);
+        float chroma = 1.65;
+        float gain = 1.35;
+
+        if (p < 0.5) {
+          // Classic rainbow
+        } else if (p < 1.5) {
+          offset = vec3(0.05, 0.12, 0.22);
+          chroma = 1.15;
+        } else if (p < 2.5) {
+          offset = vec3(0.52, 0.62, 0.72);
+          chroma = 1.35;
+        } else if (p < 3.5) {
+          chroma = 2.1;
+        } else if (p < 4.5) {
+          offset = vec3(0.12, 0.28, 0.42);
+          chroma = 0.95;
+          gain = 1.12;
+        } else if (p < 5.5) {
+          offset = vec3(0.0, 0.18, 0.38);
+          chroma = 1.25;
+        } else if (p < 6.5) {
+          offset = vec3(0.42, 0.54, 0.66);
+          chroma = 1.4;
+        } else if (p < 7.5) {
+          vec3 vivid = neonPalette(hue, 1.65, vec3(0.0, 0.33, 0.67), 1.35);
+          float mono = dot(vivid, vec3(0.299, 0.587, 0.114));
+          return applyTint(mix(vec3(0.5), vec3(mono), uColorSpread));
+        } else if (p < 8.5) {
+          chroma = 2.45;
+          hue *= 1.35;
+        } else if (p < 9.5) {
+          offset = vec3(0.35, 0.55, 0.75);
+          chroma = 1.9;
+          hue += sin(t * 0.55 + lane * 4.2) * 0.1;
+        } else if (p < 10.5) {
+          offset = vec3(0.0, 0.08, 0.18);
+          chroma = 1.55;
+        } else {
+          chroma = 2.25;
+          hue += sin(t * 0.42 + radial * 3.0) * 0.14;
+        }
+
+        vec3 col = neonPalette(hue, chroma, offset, gain);
+        col = mix(vec3(0.55), col, uColorSpread);
+        return applyTint(col);
       }
 
       void main() {
@@ -225,8 +333,9 @@ export const SHADERS = {
 
         float pulse = 1.0 + uPulse * 0.08 * sin(t * 1.4 + orbit);
         pos *= pulse;
+        float radial = clamp(length(pos) / max(uScale * 0.45, 0.12), 0.0, 1.35);
         pos.x /= max(uAspect, 0.75);
-        pos /= max(pow(uZoom, 0.65), 0.35);
+        pos /= max(pow(uZoom, 0.65) * 0.25, 0.09);
 
         vec2 vel = vec2(
           -R * sin(a) * omega - r * sin(b) * (-k * twist),
@@ -234,7 +343,8 @@ export const SHADERS = {
         );
         vPenAngle = atan(vel.y, vel.x);
         vPenAspect = 0.55 + lane * 0.25;
-        vColor = palette(orbit / max(orbitCount - 1.0, 1.0));
+        float laneHue = orbit / max(orbitCount - 1.0, 1.0);
+        vColor = palette(laneHue, radial + sin(t * 0.65 + orbit * 0.35) * 0.12, t);
 
         vec4 mvPosition = modelViewMatrix * vec4(pos, 0.0, 1.0);
         gl_Position = projectionMatrix * mvPosition;
@@ -263,16 +373,16 @@ export const SHADERS = {
         float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
         float edge = 1.0 - smoothstep(0.0, 0.04, abs(d));
         float fill = 1.0 - smoothstep(0.0, 0.02, d);
-        float stamp = max(edge, fill * 0.85);
-        float halo = exp(-d * d * 18.0) * uBloom * 0.35;
+        float stamp = max(edge, fill * 0.92);
+        float halo = exp(-d * d * 14.0) * uBloom * 0.72;
 
         vec3 col = vColor * stamp;
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(gray), col, uSaturation);
-        col *= uBrightness * (0.75 + stamp * 0.35);
-        col += col * halo;
+        col *= uBrightness * (0.88 + stamp * 0.42);
+        col += vColor * halo * 0.55;
 
-        float alpha = clamp(stamp * 0.92 + halo * 0.2, 0.0, 0.95);
+        float alpha = clamp(stamp * 0.98 + halo * 0.48, 0.0, 1.0);
         if (alpha < 0.02) discard;
         gl_FragColor = vec4(col, alpha);
       }
@@ -517,9 +627,8 @@ export const SHADERS = {
       uniform float uAspect;
       uniform float uLogoCollider;
       uniform float uLogoColliderBounce;
-      uniform float uLogoColliderRadius;
       uniform float uLogoColliderVisible;
-      uniform float uLogoColliderScale;
+      uniform vec2 uLogoColliderHalfExtents;
       uniform float uLogoColliderShape;
 
       attribute vec3 aSeed;
@@ -555,7 +664,6 @@ export const SHADERS = {
       }
 
       float heartField(vec2 p) {
-        // Approx implicit heart shape centered at 0.
         p *= 2.0;
         p.y += 0.25;
         float x = p.x;
@@ -563,66 +671,78 @@ export const SHADERS = {
         return pow(x * x + y * y - 1.0, 3.0) - x * x * y * y * y;
       }
 
+      float logoColliderDistance(vec2 p, float shape, vec2 halfExt) {
+        halfExt = max(halfExt, vec2(0.02));
+        vec2 pn = p / halfExt;
+
+        if (shape < 0.5) {
+          float k0 = length(pn);
+          return (k0 - 1.0) * min(halfExt.x, halfExt.y);
+        }
+
+        if (shape < 1.5) {
+          vec2 hp = pn * vec2(1.05, 0.95) + vec2(0.0, -0.08);
+          float h = heartField(hp);
+          float eps = 0.004;
+          float hx1 = heartField(hp + vec2(eps, 0.0));
+          float hx2 = heartField(hp - vec2(eps, 0.0));
+          float hy1 = heartField(hp + vec2(0.0, eps));
+          float hy2 = heartField(hp - vec2(0.0, eps));
+          vec2 grad = vec2(hx1 - hx2, hy1 - hy2);
+          float g = max(length(grad), 1e-4);
+          return (h / g) * min(halfExt.x, halfExt.y) * 0.55;
+        }
+
+        vec2 tp = pn;
+        tp.y = -tp.y;
+        tp = abs(tp);
+        float tri = max(tp.x * 0.866025 + tp.y * 0.5, -tp.y) - 0.58;
+        return tri * min(halfExt.x, halfExt.y);
+      }
+
+      vec2 logoColliderNormal(vec2 p, float shape, vec2 halfExt) {
+        float eps = 0.0035;
+        float d0 = logoColliderDistance(p, shape, halfExt);
+        float dx = logoColliderDistance(p + vec2(eps, 0.0), shape, halfExt) - d0;
+        float dy = logoColliderDistance(p + vec2(0.0, eps), shape, halfExt) - d0;
+        return normalize(vec2(dx, dy) + vec2(1e-5, 1e-5));
+      }
+
       void main() {
         float t = uTime;
         vec2 seed = aSeed.xy;
         float life = aSeed.z;
         float aspect = max(uAspect, 0.75);
-        float colliderActive = step(0.5, uLogoCollider) * step(0.5, uLogoColliderVisible);
-        float colliderRadius = max(0.04, uLogoColliderRadius * uLogoColliderScale);
 
         vec2 pos = seed * uScale * uFieldScale;
         for (int i = 0; i < 8; i++) {
           vec2 dir = flow(pos, t + float(i) * 0.02 + life * 10.0);
           pos += dir * 0.018 * uScale;
-
-          if (colliderActive > 0.5) {
-            vec2 screenPos = vec2(pos.x / aspect, pos.y);
-            float shape = floor(uLogoColliderShape + 0.5);
-            bool inside = false;
-            vec2 n = normalize(screenPos + vec2(1e-5, 1e-5));
-
-            if (shape > 0.5) {
-              vec2 hp = screenPos / colliderRadius;
-              float h = heartField(hp);
-              if (h < 0.0) {
-                inside = true;
-                float eps = 0.0025;
-                float hx1 = heartField(hp + vec2(eps, 0.0));
-                float hx2 = heartField(hp - vec2(eps, 0.0));
-                float hy1 = heartField(hp + vec2(0.0, eps));
-                float hy2 = heartField(hp - vec2(0.0, eps));
-                vec2 grad = vec2(hx1 - hx2, hy1 - hy2);
-                n = normalize(grad + vec2(1e-5, 1e-5));
-                float g = max(length(grad), 1e-4);
-                float approxDist = h / g;
-                hp -= n * approxDist;
-                screenPos = hp * colliderRadius;
-              }
-            } else {
-              float dCircle = length(screenPos) - colliderRadius;
-              vec2 b = vec2(colliderRadius * 0.8, colliderRadius * 0.5);
-              vec2 q = abs(screenPos) - b;
-              float dBox = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
-              float d = min(dCircle, dBox);
-              if (d < 0.0) {
-                inside = true;
-                screenPos -= n * d;
-              }
-            }
-
-            if (inside) {
-              vec2 dirScreen = normalize(vec2(dir.x / aspect, dir.y));
-              dirScreen = reflect(dirScreen, n);
-              screenPos += dirScreen * 0.012 * uScale * (0.5 + uLogoColliderBounce * 0.7);
-              pos = vec2(screenPos.x * aspect, screenPos.y);
-            }
-          }
         }
 
         pos *= 1.0 + 0.1 * sin(t * 0.5 + life * 20.0);
         pos.x /= aspect;
-        pos /= max(pow(uZoom, 0.55), 0.25);
+        float zoom = max(pow(uZoom, 0.55), 0.25);
+        pos /= zoom;
+
+        float colliderActive = step(0.5, uLogoCollider) * step(0.5, uLogoColliderVisible);
+        vec2 halfExt = max(uLogoColliderHalfExtents, vec2(0.02));
+        float shape = floor(uLogoColliderShape + 0.5);
+
+        if (colliderActive > 0.5) {
+          vec2 screenPos = pos;
+          float d = logoColliderDistance(screenPos, shape, halfExt);
+          if (d < 0.0) {
+            vec2 n = logoColliderNormal(screenPos, shape, halfExt);
+            screenPos -= n * d;
+            vec2 fieldPos = vec2(screenPos.x * aspect, screenPos.y) * zoom;
+            vec2 dir = flow(fieldPos, t + life * 10.0);
+            vec2 dirScreen = normalize(vec2(dir.x / aspect, dir.y) + vec2(1e-5, 1e-5));
+            dirScreen = reflect(dirScreen, n);
+            screenPos += dirScreen * 0.02 * (0.35 + uLogoColliderBounce * 0.65);
+            pos = screenPos;
+          }
+        }
 
         float density = sqrt(3200.0 / max(uParticleCount, 800.0));
         vCover = clamp(density, 0.22, 1.35);

@@ -22,6 +22,25 @@ const rgb = (value) => ({ value, min: 0, max: 255, step: 1, kind: 'rgb' });
 const toggle = (value = 0) => ({ value, min: 0, max: 1, step: 1, kind: 'toggle' });
 const count = (value, min, max) => ({ value, min, max, step: 1, kind: 'count' });
 
+export const BASE_PALETTE_OPTIONS = {
+  Classic: 0,
+  Warm: 1,
+  Cool: 2,
+  Neon: 3,
+  Pastel: 4,
+  Fire: 5,
+  Ocean: 6,
+  Mono: 7,
+};
+
+export const SPIRO_PALETTE_OPTIONS = {
+  ...BASE_PALETTE_OPTIONS,
+  Prism: 8,
+  Aurora: 9,
+  Sunset: 10,
+  Vivid: 11,
+};
+
 export const BACKGROUND_UNIFORMS = {
   uBgRed: rgb(2),
   uBgGreen: rgb(2),
@@ -46,6 +65,8 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uScaleZ: pct(51, 0.9, 1.1),
     uWidth: pct(41, 0.05, 1.2),
     uHeight: pct(41, 0.05, 1.2),
+    uStampShape: { value: 0, min: 0, max: 8, step: 1, kind: 'stampShape' },
+    uPolygonSides: count(6, 3, 12),
     uRotate: center(62, -4, 4),
     uMyTime: pct(48, 0.1, 2),
     uZoom: { ...center(50, -5, 5), invert: true },
@@ -59,17 +80,19 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uHeightRand: toggle(0),
     uDepthPulse: toggle(1),
     uColorSpeed: pct(52, 0, 2),
+    uTrailPersist: toggle(0),
   },
   spiro: {
-    uPointSize: pct(58, 2, 14),
-    uTrailDecay: pct(90, 0.82, 0.985),
+    uPointSize: pct(64, 2, 14),
+    uTrailDecay: pct(96, 0.9, 0.992),
     uOrbitCount: count(6, 2, 10),
     uTwist: pct(28, 0, 3),
     uPulse: pct(12, 0, 0.8),
     uZoom: { value: 64, min: 0, max: 100, step: 1, kind: 'zoom', shaderMin: -1.5, shaderMax: 3, invert: true },
-    uPalette: { value: 0, min: 0, max: 7, step: 1, kind: 'palette' },
+    uPalette: { value: 0, min: 0, max: 11, step: 1, kind: 'palette', paletteOptions: 'spiro' },
     uHueShift: pct(50, 0, 1),
-    uColorSpread: pct(65, 0.2, 1.5),
+    uColorSpeed: pct(55, 0, 2),
+    uColorSpread: pct(72, 0.2, 1.5),
     uTintRed: rgb(200),
     uTintGreen: rgb(180),
     uTintBlue: rgb(255),
@@ -107,7 +130,6 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uTrailAlpha: pct(24, 0.02, 0.25),
     uLogoCollider: toggle(0),
     uLogoColliderBounce: pct(48, 0.2, 2.6),
-    uLogoColliderRadius: pct(40, 0.12, 0.9),
   },
   metaballs: {
     uBallCount: count(7, 3, 12),

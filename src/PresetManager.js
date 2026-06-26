@@ -48,7 +48,8 @@ function isDiscreteUniform(spec) {
   return (
     spec?.kind === 'palette' ||
     spec?.kind === 'shape' ||
-    spec?.kind === 'count' ||
+    spec?.kind === 'stampShape' ||
+    spec?.kind === 'trailShape' ||
     spec?.kind === 'toggle'
   );
 }

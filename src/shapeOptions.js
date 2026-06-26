@@ -23,3 +23,15 @@ export const TRAIL_SHAPE_OPTIONS = {
   Flare: 10,
   Smear: 11,
 };
+
+export const STAMP_SHAPE_OPTIONS = {
+  Rectangle: 0,
+  Polygon: 1,
+  Circle: 2,
+  Triangle: 3,
+  Square: 4,
+  Hexagon: 5,
+  Star: 6,
+  Diamond: 7,
+  Cross: 8,
+};

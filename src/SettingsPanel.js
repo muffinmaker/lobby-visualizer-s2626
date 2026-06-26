@@ -8,8 +8,10 @@ import {
   getShaderChoices,
 } from './shaders/index.js';
 import { mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
-import { SHAPE_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
+import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
+import { SHAPE_OPTIONS, STAMP_SHAPE_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
+import { canDrift } from './driftUtils.js';
 import {
   applyLiteLimits,
   loadLiteMode,
@@ -33,7 +35,7 @@ import {
 import { TEXT_POSITIONS } from './textOverlay.js';
 
 const TRAIL_SHADERS = new Set(['spocks', 'spiro', 'flow']);
-const FLOW_LOGO_COLLIDER_KEYS = new Set(['uLogoCollider', 'uLogoColliderBounce', 'uLogoColliderRadius']);
+const FLOW_LOGO_COLLIDER_KEYS = new Set(['uLogoCollider', 'uLogoColliderBounce']);
 
 function formatDisplayValue(value) {
   const rounded = Math.round(value * 10) / 10;
@@ -236,6 +238,7 @@ export class SettingsPanel {
 
   build() {
     mergeShaderDefaults(this.state, this.state.shader);
+    this.driftManager.setShader(this.state.shader);
 
     const pm = this.presetManager;
     const dm = this.driftManager;
@@ -567,11 +570,7 @@ export class SettingsPanel {
     this.motionTrailsCtrl = display
       .add(this.state, 'motionTrails', 0, 100, 1)
       .name('Motion Trails')
-      .onChange((v) => {
-        if (!this.state.liteMode && TRAIL_SHADERS.has(this.state.shader)) {
-          this.state.motionTrails = 100;
-          this.motionTrailsCtrl.updateDisplay();
-        }
+      .onChange(() => {
         this.updateTrailsNeverDecayCtrl();
         this.handleValueChange();
       });
@@ -743,6 +742,7 @@ export class SettingsPanel {
     const pm = this.presetManager;
     mergeShaderDefaults(this.state, shaderId);
     this.state.shader = shaderId;
+    this.driftManager.setShader(shaderId);
     if (!this.state.liteMode && TRAIL_SHADERS.has(shaderId)) {
       this.state.motionTrails = 100;
       this.motionTrailsCtrl?.updateDisplay();
@@ -751,6 +751,7 @@ export class SettingsPanel {
     pm.setActiveShader(shaderId);
     this.onChange?.({ shader: shaderId, values });
     this.visualizer.setShader(shaderId, values);
+    this.visualizer.applyValues(values);
     this.rebuildShaderFolder(shaderId);
     this.applyLiteIfEnabled();
     this.refreshPresetDropdown();
@@ -795,11 +796,12 @@ export class SettingsPanel {
 
     driftAllCtrl.onChange((enabled) => {
       this.setFolderDrift(specs, enabled);
-      for (const [key] of Object.entries(specs)) {
+      for (const [key, spec] of Object.entries(specs)) {
+        if (!canDrift(spec)) continue;
         const toggle = this.driftToggles.get(key);
         if (toggle) {
-          toggle.checked = enabled && !specs[key].rebuild;
-          toggle.parentElement.classList.toggle('is-active', toggle.checked);
+          toggle.checked = enabled;
+          toggle.parentElement.classList.toggle('is-active', enabled);
         }
       }
     });
@@ -819,17 +821,11 @@ export class SettingsPanel {
 
     let controller;
     if (spec.kind === 'palette') {
+      const paletteOptions = spec.paletteOptions === 'spiro'
+        ? SPIRO_PALETTE_OPTIONS
+        : BASE_PALETTE_OPTIONS;
       controller = folder
-        .add(this.state, key, {
-          Classic: 0,
-          Warm: 1,
-          Cool: 2,
-          Neon: 3,
-          Pastel: 4,
-          Fire: 5,
-          Ocean: 6,
-          Mono: 7,
-        })
+        .add(this.state, key, { ...paletteOptions })
         .name('Palette')
         .onChange(() => {
           if (this.driftManager.isEnabled(key)) {
@@ -857,6 +853,16 @@ export class SettingsPanel {
           }
           this.handleValueChange();
         });
+    } else if (spec.kind === 'stampShape') {
+      controller = folder
+        .add(this.state, key, { ...STAMP_SHAPE_OPTIONS })
+        .name('Stamp shape')
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
     } else if (spec.rebuild) {
       controller = folder
         .add(this.state, key, spec.min, spec.max, spec.step)
@@ -877,7 +883,7 @@ export class SettingsPanel {
     this.uniformControllers.set(key, controller);
     configureNumberController(controller);
 
-    if (!spec.rebuild && spec.kind !== 'palette' && spec.kind !== 'shape' && spec.kind !== 'trailShape') {
+    if (canDrift(spec)) {
       this.attachDriftToggle(controller, key, spec);
     }
   }
@@ -921,9 +927,7 @@ export class SettingsPanel {
       ...this.globalSpecs,
       ...(SHADERS[this.state.shader]?.uniforms ?? {}),
     };
-    return Object.entries(specs).filter(
-      ([, spec]) => !spec.rebuild && spec.kind !== 'palette' && spec.kind !== 'shape' && spec.kind !== 'trailShape',
-    );
+    return Object.entries(specs).filter(([, spec]) => canDrift(spec));
   }
 
   isDriftAllEnabled() {
@@ -950,13 +954,7 @@ export class SettingsPanel {
     }
 
     for (const { ctrl, specs, stateKey, state } of this.folderDriftActions) {
-      const keys = Object.keys(specs).filter(
-        (key) =>
-          !specs[key].rebuild &&
-          specs[key].kind !== 'palette' &&
-          specs[key].kind !== 'shape' &&
-          specs[key].kind !== 'trailShape',
-      );
+      const keys = Object.keys(specs).filter((key) => canDrift(specs[key]));
       const allOn = enabled && keys.length > 0;
       const anyOn = enabled && keys.length > 0;
       state[stateKey] = allOn;
@@ -974,7 +972,7 @@ export class SettingsPanel {
   syncFolderDriftToggles(specs) {
     for (const { ctrl, specs: folderSpecs, stateKey, state } of this.folderDriftActions) {
       if (folderSpecs !== specs) continue;
-      const keys = Object.keys(specs).filter((key) => !specs[key].rebuild);
+      const keys = Object.keys(specs).filter((key) => canDrift(specs[key]));
       const allOn = keys.length > 0 && keys.every((key) => this.driftManager.isEnabled(key));
       const anyOn = keys.some((key) => this.driftManager.isEnabled(key));
       state[stateKey] = allOn;
@@ -985,9 +983,11 @@ export class SettingsPanel {
   }
 
   rebuildShaderFolder(shaderId) {
+    const savedDrift = new Map();
     if (this.shaderFolder) {
       for (const key of [...this.uniformControllers.keys()]) {
         if (!GLOBAL_UNIFORMS[key]) {
+          if (this.driftManager.isEnabled(key)) savedDrift.set(key, true);
           this.uniformControllers.delete(key);
           this.driftToggles.delete(key);
           this.driftManager.unregister(key);
@@ -1003,6 +1003,18 @@ export class SettingsPanel {
     mergeShaderDefaults(this.state, shaderId);
     this.shaderFolder = this.gui.addFolder(shader.label);
     this.addUniformControls(this.shaderFolder, shader.uniforms);
+
+    for (const [key] of savedDrift) {
+      const spec = shader.uniforms[key];
+      if (!canDrift(spec)) continue;
+      this.driftManager.setEnabled(key, spec, true, this.state[key]);
+      const toggle = this.driftToggles.get(key);
+      if (toggle) {
+        toggle.checked = true;
+        toggle.parentElement?.classList.toggle('is-active', true);
+      }
+    }
+
     this.placeShaderFolderAfterGlobal();
     const focusKey = this.navigableItems[this.gamepadFocusIndex]?.key;
     this.refreshGamepadMenuAfterRebuild(focusKey);
@@ -1029,6 +1041,8 @@ export class SettingsPanel {
       uScaleZ: 'Scale Z',
       uWidth: 'Square Width',
       uHeight: 'Square Height',
+      uStampShape: 'Stamp shape',
+      uPolygonSides: 'Polygon sides',
       uRotate: 'Rotate',
       uMyTime: 'Time Scale',
       uLineWidth: 'Line Width',
@@ -1036,6 +1050,7 @@ export class SettingsPanel {
       uWidthRand: 'Width Random',
       uHeightRand: 'Height Random',
       uDepthPulse: 'Depth Pulse',
+      uTrailPersist: 'Keep trail color',
       uTintRed: 'Tint Red',
       uTintGreen: 'Tint Green',
       uTintBlue: 'Tint Blue',
@@ -1057,7 +1072,7 @@ export class SettingsPanel {
       uHorizonGlow: 'Vanishing Light',
       uChevronGlow: 'Rib Glow',
       uTrailShape: 'Trail Shape',
-      uColorSpeed: 'Color Drift',
+      uColorSpeed: 'Color Speed',
     };
     if (names[key]) return names[key];
     return key.replace(/^u/, '').replace(/([A-Z])/g, ' $1').trim();
@@ -1114,9 +1129,13 @@ export class SettingsPanel {
   applyDisplaySettings(display) {
     if (!display) return;
     if (display.motionTrails !== undefined) {
-      const trails = Math.max(0, Math.min(100, Math.round(display.motionTrails)));
-      this.state.motionTrails =
-        !this.state.liteMode && TRAIL_SHADERS.has(this.state.shader) ? 100 : trails;
+      this.state.motionTrails = Math.max(0, Math.min(100, Math.round(display.motionTrails)));
+    } else if (
+      !this.state.liteMode &&
+      TRAIL_SHADERS.has(this.state.shader) &&
+      this.state.motionTrails === 0
+    ) {
+      this.state.motionTrails = 100;
     }
     if (display.resolutionScale !== undefined) {
       this.state.resolutionScale = Math.max(25, Math.min(100, Math.round(display.resolutionScale)));
@@ -1130,8 +1149,10 @@ export class SettingsPanel {
   applyExternalState({ shader, values, presetName, display }) {
     if (shader && shader !== this.state.shader) {
       this.state.shader = shader;
+      this.driftManager.setShader(shader);
       mergeShaderDefaults(this.state, shader);
       this.visualizer.setShader(shader, this.getValues());
+      this.syncValuesToVisualizer();
       this.rebuildShaderFolder(shader);
       this.refreshPresetDropdown();
       this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
@@ -1149,6 +1170,14 @@ export class SettingsPanel {
 
     if (display) {
       this.applyDisplaySettings(display);
+    } else if (
+      !this.state.liteMode &&
+      TRAIL_SHADERS.has(this.state.shader) &&
+      this.state.motionTrails === 0
+    ) {
+      this.state.motionTrails = 100;
+      this.motionTrailsCtrl?.updateDisplay();
+      this.syncValuesToVisualizer();
     } else {
       this.syncValuesToVisualizer();
     }

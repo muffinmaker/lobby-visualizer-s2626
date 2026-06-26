@@ -8,10 +8,37 @@ export function randomValue(spec) {
   return Math.round(randomBetween(spec.min, spec.max));
 }
 
-export function randomizeUniform(key, spec, { allowRebuild = false } = {}) {
+const SPOCKS_DRIFT_UI_RANGES = {
+  uUp: [44, 56],
+  uDown: [44, 56],
+  uWidth: [32, 50],
+  uHeight: [32, 50],
+  uZoom: [40, 60],
+  uRotate: [38, 85],
+  uMyTime: [36, 62],
+  uIterations: [50, 100],
+  uLineWidth: [26, 44],
+};
+
+const SPIRO_DRIFT_UI_RANGES = {
+  uOrbitCount: [3, 8],
+  uTwist: [12, 55],
+  uPulse: [4, 45],
+  uZoom: [48, 78],
+};
+
+export function randomizeUniform(key, spec, { allowRebuild = false, shaderId = null } = {}) {
   if (spec.rebuild && !allowRebuild) return null;
   if (spec.kind === 'toggle') {
     return Math.random() > 0.5 ? 1 : 0;
+  }
+  if (shaderId === 'spocks' && key in SPOCKS_DRIFT_UI_RANGES) {
+    const [min, max] = SPOCKS_DRIFT_UI_RANGES[key];
+    return Math.round(randomBetween(min, max));
+  }
+  if (shaderId === 'spiro' && key in SPIRO_DRIFT_UI_RANGES) {
+    const [min, max] = SPIRO_DRIFT_UI_RANGES[key];
+    return Math.round(randomBetween(min, max));
   }
   return randomValue(spec);
 }
