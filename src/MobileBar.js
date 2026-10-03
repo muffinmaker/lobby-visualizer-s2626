@@ -129,6 +129,7 @@ export function mountMobileBar(handlers) {
   );
   const save = createBtn('💾', 'Save preset', 'transport-btn save-btn');
   const info = createBtn('i', 'Tutorial', 'transport-btn info-btn');
+  const hideBtn = createBtn('Hide', 'Hide menu', 'transport-btn phone-hide-btn');
 
   driftAll.setAttribute('aria-pressed', 'false');
   smooth.setAttribute('aria-pressed', 'false');
@@ -139,10 +140,11 @@ export function mountMobileBar(handlers) {
   bindBtn(autocycle, handlers.onAutoCycleToggle);
   bindBtn(save, handlers.onSave);
   bindBtn(info, handlers.onInfo);
+  bindBtn(hideBtn, handlers.onHide);
 
   const actions = document.createElement('div');
   actions.className = 'title-actions';
-  actions.append(save, info);
+  actions.append(save, info, hideBtn);
 
   transport.append(
     settingsBtn,
@@ -161,7 +163,12 @@ export function mountMobileBar(handlers) {
   fitWrap.append(transport);
   title.append(fitWrap);
   bar.append(title);
-  document.body.append(bar);
+
+  const showBtn = createBtn('Menu', 'Show menu', 'phone-show-btn');
+  showBtn.hidden = true;
+  bindBtn(showBtn, handlers.onShow);
+
+  document.body.append(bar, showBtn);
 
   function setPressed(btn, active) {
     btn.classList.toggle('is-active', active);
@@ -183,6 +190,8 @@ export function mountMobileBar(handlers) {
     save,
     info,
     settings: settingsBtn,
+    hide: hideBtn,
+    show: showBtn,
   };
 
   function setSettingsOpen(open) {
@@ -195,12 +204,18 @@ export function mountMobileBar(handlers) {
     document.body.classList.toggle('phone-sheet', open);
   }
 
+  function setBarVisible(visible) {
+    // The bar itself is hidden via body.ui-hidden CSS; this only manages the reveal control.
+    showBtn.hidden = Boolean(visible) || bar.hidden;
+  }
+
   document.addEventListener('lobby-sheet', (event) => {
     setSettingsOpen(Boolean(event.detail?.open));
   });
 
   return {
     element: bar,
+    showButton: showBtn,
     ...controls,
     setShaderLabel(name) {
       const text = name || 'Shader';
@@ -223,6 +238,7 @@ export function mountMobileBar(handlers) {
       setPressed(autocycle, active);
     },
     setSettingsOpen,
+    setBarVisible,
     flashControl(id) {
       flashButton(controls[id]);
     },

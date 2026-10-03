@@ -538,7 +538,25 @@ async function start() {
     onSave: onSavePreset,
     onInfo: () => tutorial.toggle(),
     onSettings: () => settings.toggleVisible(),
+    onHide: () => setUiHidden(true),
+    onShow: () => setUiHidden(false),
   });
+
+  function setUiHidden(hidden) {
+    uiHidden = Boolean(hidden);
+    document.body.classList.toggle('ui-hidden', uiHidden);
+    if (document.body.classList.contains('phone-ui')) {
+      if (uiHidden) settings.setVisible(false);
+      phoneBar?.setBarVisible?.(!uiHidden);
+    } else {
+      settings.setVisible(!uiHidden);
+      phoneBar?.setBarVisible?.(true);
+    }
+    if (!hintHidden) {
+      hint.classList.toggle('hidden', uiHidden);
+    }
+    measurePhoneBar();
+  }
 
   settings.onDriftStateChange = () => {
     const enabled = settings.isDriftAllEnabled();
@@ -792,7 +810,11 @@ async function start() {
   }
 
   function measurePhoneBar() {
-    const height = phoneBar?.element && !phoneBar.element.hidden ? phoneBar.element.offsetHeight : 0;
+    const visible =
+      phoneBar?.element &&
+      !phoneBar.element.hidden &&
+      !document.body.classList.contains('ui-hidden');
+    const height = visible ? phoneBar.element.offsetHeight : 0;
     document.documentElement.style.setProperty('--phone-bar-h', `${height}px`);
   }
 
@@ -803,10 +825,12 @@ async function start() {
       settings.gui.domElement.classList.remove('menu-big-mode');
       hint.textContent = phoneHint;
       if (!uiHidden) settings.setVisible(false);
+      phoneBar?.setBarVisible?.(!uiHidden);
     } else {
       document.body.classList.remove('phone-sheet');
       applyMenuBigMode(settings.gui.domElement, loadMenuBigMode());
       hint.textContent = desktopHint;
+      phoneBar?.setBarVisible?.(true);
       if (!uiHidden) {
         settings.setVisible(true);
         settings.gui.close();
@@ -863,16 +887,7 @@ async function start() {
   }
 
   function toggleUI() {
-    uiHidden = !uiHidden;
-    document.body.classList.toggle('ui-hidden', uiHidden);
-    if (document.body.classList.contains('phone-ui')) {
-      if (uiHidden) settings.setVisible(false);
-    } else {
-      settings.setVisible(!uiHidden);
-    }
-    if (!hintHidden) {
-      hint.classList.toggle('hidden', uiHidden);
-    }
+    setUiHidden(!uiHidden);
   }
 
   const DOUBLE_SPACE_MS = 400;

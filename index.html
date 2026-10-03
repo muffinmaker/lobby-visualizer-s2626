@@ -1101,6 +1101,45 @@
         background: rgba(80, 130, 210, 0.45);
       }
 
+      .phone-bar .title.gui-title-row .transport-btn.phone-hide-btn {
+        width: auto;
+        min-width: 2.8rem;
+        height: 1.75rem;
+        padding: 0 0.45rem;
+        border-radius: 0.3rem;
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+
+      .phone-show-btn {
+        display: none;
+        position: fixed;
+        right: 0.7rem;
+        bottom: calc(0.7rem + env(safe-area-inset-bottom));
+        z-index: 37;
+        min-width: 3.6rem;
+        height: 2.2rem;
+        padding: 0 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 0.3rem;
+        background: rgb(17 17 17 / 0.88);
+        color: rgba(255, 255, 255, 0.9);
+        font: 600 0.78rem/1 system-ui, -apple-system, sans-serif;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      body.phone-ui.ui-hidden .phone-show-btn:not([hidden]) {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
       body.phone-ui #hint {
         bottom: calc(var(--phone-bar-h, 4rem) + 0.9rem);
         width: min(92vw, 26rem);
