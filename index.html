@@ -994,173 +994,115 @@
       .phone-bar {
         display: none;
         position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        left: 0.45rem;
+        right: 0.45rem;
+        bottom: calc(0.45rem + env(safe-area-inset-bottom));
         z-index: 36;
-        flex-direction: column;
-        gap: 0.4rem;
-        padding: 0.55rem 0.7rem calc(0.55rem + env(safe-area-inset-bottom));
-        border-top: 1px solid rgba(255, 255, 255, 0.12);
-        background: rgba(10, 10, 16, 0.86);
-        -webkit-backdrop-filter: blur(16px);
-        backdrop-filter: blur(16px);
+        width: auto;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 0.35rem;
+        background: rgb(31 31 31 / var(--menu-bg-alpha));
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+        overflow: hidden;
         touch-action: manipulation;
+        max-height: none;
       }
 
       body.phone-ui .phone-bar:not([hidden]) {
-        display: flex;
+        display: block;
       }
 
       body.phone-ui.ui-hidden .phone-bar {
         display: none;
       }
 
-      .phone-bar-row {
-        display: flex;
-        align-items: center;
-        gap: 0.45rem;
-        min-width: 0;
+      .phone-bar > .title.gui-title-row.phone-bar-title {
+        display: block;
+        cursor: default;
+        padding: 0.35rem 0.4rem;
+        background: rgb(17 17 17 / var(--menu-bg-alpha));
       }
 
-      .phone-bar-row--primary {
-        order: -1;
-      }
-
-      .phone-bar-row--actions {
+      .phone-bar .transport-cluster {
         flex-wrap: wrap;
-        align-items: flex-start;
-        gap: 0.45rem;
+        row-gap: 0.35rem;
+        column-gap: 0.25rem;
       }
 
-      .phone-shader {
-        flex: 1;
-        min-width: 0;
-        text-align: center;
-        font-size: 1.05rem;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        color: #fff;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+      .phone-bar .transport-fit {
+        overflow: visible;
       }
 
-      .phone-preset-group {
-        display: flex;
-        align-items: center;
-        gap: 0.3rem;
-        flex: 0 0 auto;
-        min-height: 2.75rem;
-        padding: 0 0.2rem 0 0.15rem;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.06);
+      .phone-bar .transport-group--primary {
+        height: 2.4rem;
+        min-height: 2.4rem;
       }
 
-      .phone-preset {
+      .phone-bar .transport-shader-label {
+        flex: 1 1 7rem;
+        width: auto;
+        min-width: 5.5rem;
+        max-width: 10rem;
+        font-size: 0.78rem;
+      }
+
+      .phone-bar .transport-preset-label {
+        flex: 0 0 2.8rem;
+        width: 2.8rem;
         min-width: 2.8rem;
-        text-align: center;
-        font-variant-numeric: tabular-nums;
-        font-size: 0.95rem;
-        font-weight: 600;
-        color: rgba(255, 255, 255, 0.88);
+        max-width: 2.8rem;
+        font-size: 0.72rem;
       }
 
-      .phone-toggles {
-        display: flex;
-        flex: 1 1 12rem;
-        flex-wrap: wrap;
-        gap: 0.35rem;
-        min-width: 0;
+      .phone-bar .title.gui-title-row .transport-btn--primary {
+        width: 2.1rem;
+        height: 1.9rem;
+        font-size: 1.45rem;
       }
 
-      .phone-btn {
-        position: relative;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex: 1 1 3.6rem;
+      .phone-bar .title.gui-title-row .transport-btn--secondary {
+        width: 1.45rem;
+        height: 1.2rem;
+        font-size: 0.9rem;
+      }
+
+      .phone-bar .title.gui-title-row .transport-btn.autocycle-btn,
+      .phone-bar .title.gui-title-row .transport-btn.smooth-btn,
+      .phone-bar .title.gui-title-row .transport-btn.drift-all-btn,
+      .phone-bar .title.gui-title-row .transport-btn.save-btn,
+      .phone-bar .title.gui-title-row .transport-btn.info-btn {
+        width: 1.9rem;
+        height: 1.75rem;
+        font-size: 0.85rem;
+      }
+
+      .phone-bar .title.gui-title-row .transport-btn.phone-settings-btn {
+        width: auto;
         min-width: 3.6rem;
-        height: 2.6rem;
+        height: 1.9rem;
         padding: 0 0.55rem;
-        border: 1px solid rgba(255, 255, 255, 0.14);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.06);
-        color: rgba(255, 255, 255, 0.88);
-        font: 600 0.84rem/1 system-ui, -apple-system, sans-serif;
-        letter-spacing: 0.01em;
-        cursor: pointer;
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
-      }
-
-      .phone-btn--primary {
-        flex: 1 1 auto;
-        width: 100%;
-        min-width: 0;
-        height: 3.15rem;
-        border-radius: 0.95rem;
-        font-size: 1.05rem;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        background: rgba(80, 130, 210, 0.42);
-        border-color: rgba(150, 195, 255, 0.55);
-        color: #fff;
-        box-shadow: 0 0.35rem 1.1rem rgba(40, 90, 170, 0.28);
-      }
-
-      .phone-btn--nav {
-        flex: 0 0 2.85rem;
-        width: 2.85rem;
-        min-width: 2.85rem;
-        height: 2.85rem;
-        padding: 0;
-        font-size: 1.7rem;
-        line-height: 1;
-      }
-
-      .phone-btn--small {
-        flex: 0 0 2.35rem;
-        width: 2.35rem;
-        min-width: 2.35rem;
-        height: 2.35rem;
-        font-size: 1.35rem;
-        background: transparent;
-      }
-
-      .phone-btn--settings {
+        border-radius: 0.3rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        text-transform: none;
+        color: rgba(255, 255, 255, 0.9);
+        border-color: rgba(120, 180, 255, 0.45);
         background: rgba(80, 130, 210, 0.28);
-        border-color: rgba(140, 185, 255, 0.4);
-        color: #fff;
       }
 
-      .phone-btn--info {
-        flex: 0 0 2.75rem;
-        width: 2.75rem;
-        min-width: 2.75rem;
-        padding: 0;
-        font-family: Georgia, 'Times New Roman', serif;
-        font-style: italic;
-      }
-
-      .phone-btn.is-active {
+      .phone-bar .title.gui-title-row .transport-btn.phone-settings-btn.is-active {
         color: #fff;
         border-color: rgba(120, 180, 255, 0.7);
         background: rgba(80, 130, 210, 0.45);
       }
 
-      .phone-btn--primary.is-active {
-        background: rgba(210, 90, 90, 0.42);
-        border-color: rgba(255, 170, 170, 0.55);
-        box-shadow: 0 0.35rem 1.1rem rgba(140, 50, 50, 0.24);
-      }
-
-      .phone-btn.is-flash {
-        animation: transport-btn-pulse 0.7s ease-out;
-      }
-
       body.phone-ui #hint {
-        bottom: calc(var(--phone-bar-h, 8rem) + 0.7rem);
+        bottom: calc(var(--phone-bar-h, 4rem) + 0.9rem);
         width: min(92vw, 26rem);
         line-height: 1.45;
         text-align: center;
@@ -1175,7 +1117,7 @@
         overscroll-behavior: contain;
       }
 
-      body.phone-ui .lil-gui.root {
+      body.phone-ui .lil-gui.root:not(.phone-bar) {
         --widget-height: 36px;
         --font-size: 15px;
         --input-font-size: 15px;
@@ -1188,29 +1130,29 @@
         left: 0.45rem !important;
         right: 0.45rem !important;
         top: auto !important;
-        bottom: calc(var(--phone-bar-h, 8rem) + 0.4rem) !important;
+        bottom: calc(var(--phone-bar-h, 4rem) + 0.55rem) !important;
         width: auto !important;
         max-width: none !important;
-        max-height: min(58dvh, calc(100dvh - var(--phone-bar-h, 8rem) - 1.1rem - env(safe-area-inset-bottom))) !important;
-        border-radius: 0.9rem;
+        max-height: min(58dvh, calc(100dvh - var(--phone-bar-h, 4rem) - 1.2rem - env(safe-area-inset-bottom))) !important;
+        border-radius: 0.35rem;
         box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.45);
         font-size: 15px;
       }
 
-      body.phone-ui .lil-gui.root > .title.gui-title-row {
+      body.phone-ui .lil-gui.root:not(.phone-bar) > .title.gui-title-row {
         display: none;
       }
 
-      body.phone-ui .lil-gui .title {
+      body.phone-ui .lil-gui.root:not(.phone-bar) .title {
         min-height: 2.75rem;
         font-size: 0.95rem;
       }
 
-      body.phone-ui .lil-gui .controller {
+      body.phone-ui .lil-gui.root:not(.phone-bar) .controller {
         min-height: 2.4rem;
       }
 
-      body.phone-ui .lil-gui .controller.number .slider {
+      body.phone-ui .lil-gui.root:not(.phone-bar) .controller.number .slider {
         height: 2.25rem;
         min-height: 2.25rem;
       }
@@ -1224,21 +1166,6 @@
         .tutorial-panel {
           max-height: min(78dvh, 720px);
           padding: 1.15rem 1rem 1rem;
-        }
-      }
-
-      @media (max-height: 520px) and (pointer: coarse) {
-        .phone-bar {
-          gap: 0.3rem;
-        }
-
-        .phone-btn--primary {
-          height: 2.7rem;
-          font-size: 0.95rem;
-        }
-
-        .phone-shader {
-          font-size: 0.95rem;
         }
       }
     </style>

@@ -30,50 +30,105 @@ function bindBtn(btn, handler) {
   });
 }
 
+function createNavGroup({
+  label,
+  prevTitle,
+  nextTitle,
+  onPrev,
+  onNext,
+  labelClassName = '',
+  size = 'secondary',
+  labelPosition = 'before',
+  orientation = 'horizontal',
+}) {
+  const group = document.createElement('div');
+  group.className = `transport-group transport-group--${size}`;
+  if (orientation === 'vertical') {
+    group.classList.add('transport-group--vertical');
+  }
+
+  const groupLabel = document.createElement('span');
+  groupLabel.className = ['transport-group-label', labelClassName].filter(Boolean).join(' ');
+  groupLabel.textContent = label;
+
+  const btnClass =
+    size === 'primary' ? 'transport-btn transport-btn--primary' : 'transport-btn transport-btn--secondary';
+  const isVertical = orientation === 'vertical';
+  const prev = createBtn(isVertical ? '▲' : '◀', prevTitle, btnClass);
+  const next = createBtn(isVertical ? '▼' : '▶', nextTitle, btnClass);
+  bindBtn(prev, onPrev);
+  bindBtn(next, onNext);
+
+  if (isVertical) {
+    const stack = document.createElement('div');
+    stack.className = 'transport-nav-stack';
+    stack.append(prev, next);
+    group.append(groupLabel, stack);
+  } else if (labelPosition === 'between') {
+    group.append(prev, groupLabel, next);
+  } else {
+    group.append(groupLabel, prev, next);
+  }
+
+  return { group, groupLabel, prev, next };
+}
+
 export function mountMobileBar(handlers) {
   const bar = document.createElement('nav');
-  bar.className = 'phone-bar';
+  bar.className = 'phone-bar lil-gui root';
   bar.hidden = true;
   bar.setAttribute('aria-label', 'Phone controls');
 
-  const settingsBtn = createBtn('Sliders', 'Show sliders', 'phone-btn phone-btn--settings phone-btn--primary');
+  const title = document.createElement('div');
+  title.className = 'title gui-title-row phone-bar-title';
+
+  const transport = document.createElement('div');
+  transport.className = 'transport-cluster';
+
+  const settingsBtn = createBtn('Sliders', 'Show sliders', 'transport-btn phone-settings-btn');
   settingsBtn.setAttribute('aria-pressed', 'false');
   settingsBtn.setAttribute('aria-expanded', 'false');
   bindBtn(settingsBtn, handlers.onSettings);
 
-  const primaryRow = document.createElement('div');
-  primaryRow.className = 'phone-bar-row phone-bar-row--primary';
-  primaryRow.append(settingsBtn);
+  const shaderNav = createNavGroup({
+    label: handlers.getShaderLabel?.() ?? 'Shader',
+    prevTitle: 'Previous shader',
+    nextTitle: 'Next shader',
+    onPrev: handlers.onShaderPrev,
+    onNext: handlers.onShaderNext,
+    labelClassName: 'transport-shader-label',
+    size: 'primary',
+    labelPosition: 'between',
+  });
 
-  const shaderPrev = createBtn('‹', 'Previous shader', 'phone-btn phone-btn--nav');
-  const shaderNext = createBtn('›', 'Next shader', 'phone-btn phone-btn--nav');
-  const shaderLabel = document.createElement('div');
-  shaderLabel.className = 'phone-shader';
-  shaderLabel.textContent = handlers.getShaderLabel?.() ?? 'Shader';
-  bindBtn(shaderPrev, handlers.onShaderPrev);
-  bindBtn(shaderNext, handlers.onShaderNext);
+  const presetNav = createNavGroup({
+    label: handlers.getPresetLabel?.() ?? '—',
+    prevTitle: 'Previous preset',
+    nextTitle: 'Next preset',
+    onPrev: handlers.onPresetPrev,
+    onNext: handlers.onPresetNext,
+    labelClassName: 'transport-preset-label',
+    size: 'secondary',
+    orientation: 'vertical',
+  });
 
-  const shaderRow = document.createElement('div');
-  shaderRow.className = 'phone-bar-row';
-  shaderRow.append(shaderPrev, shaderLabel, shaderNext);
-
-  const presetPrev = createBtn('‹', 'Previous preset', 'phone-btn phone-btn--nav phone-btn--small');
-  const presetNext = createBtn('›', 'Next preset', 'phone-btn phone-btn--nav phone-btn--small');
-  const presetLabel = document.createElement('div');
-  presetLabel.className = 'phone-preset';
-  presetLabel.textContent = handlers.getPresetLabel?.() ?? '—';
-  bindBtn(presetPrev, handlers.onPresetPrev);
-  bindBtn(presetNext, handlers.onPresetNext);
-
-  const presetGroup = document.createElement('div');
-  presetGroup.className = 'phone-preset-group';
-  presetGroup.append(presetPrev, presetLabel, presetNext);
-
-  const driftAll = createBtn('Drift', 'Drift all parameters', 'phone-btn phone-btn--toggle');
-  const smooth = createBtn('Fade', 'Smooth preset transitions', 'phone-btn phone-btn--toggle');
-  const autocycle = createBtn('Auto', 'Auto-cycle presets', 'phone-btn phone-btn--toggle');
-  const save = createBtn('Save', 'Save preset', 'phone-btn phone-btn--ghost');
-  const info = createBtn('?', 'Tutorial', 'phone-btn phone-btn--ghost phone-btn--info');
+  const driftAll = createBtn(
+    '↻',
+    'Drift all parameters — toggle slow random blends',
+    'transport-btn drift-all-btn',
+  );
+  const smooth = createBtn(
+    '∿',
+    'Smooth preset transitions — toggle cross-fade',
+    'transport-btn smooth-btn',
+  );
+  const autocycle = createBtn(
+    '⟳',
+    'Auto-cycle presets — toggle autoplay',
+    'transport-btn autocycle-btn',
+  );
+  const save = createBtn('💾', 'Save preset', 'transport-btn save-btn');
+  const info = createBtn('i', 'Tutorial', 'transport-btn info-btn');
 
   driftAll.setAttribute('aria-pressed', 'false');
   smooth.setAttribute('aria-pressed', 'false');
@@ -85,15 +140,27 @@ export function mountMobileBar(handlers) {
   bindBtn(save, handlers.onSave);
   bindBtn(info, handlers.onInfo);
 
-  const toggles = document.createElement('div');
-  toggles.className = 'phone-toggles';
-  toggles.append(driftAll, smooth, autocycle, save, info);
+  const actions = document.createElement('div');
+  actions.className = 'title-actions';
+  actions.append(save, info);
 
-  const actionRow = document.createElement('div');
-  actionRow.className = 'phone-bar-row phone-bar-row--actions';
-  actionRow.append(presetGroup, toggles);
+  transport.append(
+    settingsBtn,
+    shaderNav.group,
+    presetNav.group,
+    driftAll,
+    smooth,
+    autocycle,
+    actions,
+  );
+  transport.addEventListener('click', (event) => event.stopPropagation());
+  transport.addEventListener('pointerdown', (event) => event.stopPropagation());
 
-  bar.append(primaryRow, shaderRow, actionRow);
+  const fitWrap = document.createElement('div');
+  fitWrap.className = 'transport-fit';
+  fitWrap.append(transport);
+  title.append(fitWrap);
+  bar.append(title);
   document.body.append(bar);
 
   function setPressed(btn, active) {
@@ -106,10 +173,10 @@ export function mountMobileBar(handlers) {
   setPressed(autocycle, Boolean(handlers.getAutoCycle?.()));
 
   const controls = {
-    shaderPrev,
-    shaderNext,
-    presetPrev,
-    presetNext,
+    shaderPrev: shaderNav.prev,
+    shaderNext: shaderNav.next,
+    presetPrev: presetNav.prev,
+    presetNext: presetNav.next,
     driftAll,
     smoothTransitions: smooth,
     autocycle,
@@ -119,7 +186,7 @@ export function mountMobileBar(handlers) {
   };
 
   function setSettingsOpen(open) {
-    settingsBtn.textContent = open ? 'Close sliders' : 'Sliders';
+    settingsBtn.textContent = open ? 'Close' : 'Sliders';
     settingsBtn.title = open ? 'Hide sliders' : 'Show sliders';
     settingsBtn.setAttribute('aria-label', settingsBtn.title);
     settingsBtn.setAttribute('aria-pressed', String(open));
@@ -137,13 +204,14 @@ export function mountMobileBar(handlers) {
     ...controls,
     setShaderLabel(name) {
       const text = name || 'Shader';
-      shaderLabel.textContent = text;
-      shaderLabel.title = text;
+      shaderNav.groupLabel.textContent = text;
+      shaderNav.groupLabel.setAttribute('title', text);
     },
     setPresetLabel(current, total) {
       const text = total > 0 ? `${current}/${total}` : '—';
-      presetLabel.textContent = text;
-      presetLabel.title = total > 0 ? `Preset ${current} of ${total}` : 'No presets for this shader';
+      const titleText = total > 0 ? `Preset ${current} of ${total}` : 'No presets for this shader';
+      presetNav.groupLabel.textContent = text;
+      presetNav.groupLabel.setAttribute('title', titleText);
     },
     setDriftAllActive(active) {
       setPressed(driftAll, active);
