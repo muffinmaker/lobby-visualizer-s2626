@@ -1,14 +1,20 @@
 const DEFAULT_SWIPE = {
-  minDistance: 56,
-  maxDuration: 700,
-  axisRatio: 1.25,
+  minDistance: 36,
+  maxDuration: 900,
+  axisRatio: 1.05,
+  horizontalBias: 0.85,
 };
 
 const DEFAULT_PINCH_SENSITIVITY = 24;
 
 export function classifySwipe(
   { dx, dy, dt },
-  { minDistance, maxDuration, axisRatio } = DEFAULT_SWIPE,
+  {
+    minDistance = DEFAULT_SWIPE.minDistance,
+    maxDuration = DEFAULT_SWIPE.maxDuration,
+    axisRatio = DEFAULT_SWIPE.axisRatio,
+    horizontalBias = DEFAULT_SWIPE.horizontalBias,
+  } = DEFAULT_SWIPE,
 ) {
   if (!Number.isFinite(dx) || !Number.isFinite(dy) || !Number.isFinite(dt)) return null;
   if (dt < 0 || dt > maxDuration) return null;
@@ -16,7 +22,9 @@ export function classifySwipe(
   const ax = Math.abs(dx);
   const ay = Math.abs(dy);
   if (Math.max(ax, ay) < minDistance) return null;
-  if (ax > ay * axisRatio) return dx < 0 ? 'left' : 'right';
+
+  // Prefer left/right when the gesture is mostly horizontal.
+  if (ax >= ay * horizontalBias) return dx < 0 ? 'left' : 'right';
   if (ay > ax * axisRatio) return dy < 0 ? 'up' : 'down';
   return null;
 }
@@ -43,6 +51,12 @@ function isBlockedTarget(target) {
   );
 }
 
+function isGesturePointer(event) {
+  if (event.pointerType === 'touch' || event.pointerType === 'pen') return true;
+  // Mouse drag on phone layout helps testing and hybrid devices.
+  return event.pointerType === 'mouse' && document.body.classList.contains('phone-ui');
+}
+
 export function mountTouchGestures({ onSwipe, onPinch, onPinchEnd } = {}) {
   const pointers = new Map();
   let swipe = null;
@@ -54,7 +68,7 @@ export function mountTouchGestures({ onSwipe, onPinch, onPinchEnd } = {}) {
   }
 
   function onPointerDown(event) {
-    if (event.pointerType !== 'touch') return;
+    if (!isGesturePointer(event)) return;
     const blocked = isBlockedTarget(event.target);
     pointers.set(event.pointerId, {
       x: event.clientX,
@@ -70,6 +84,11 @@ export function mountTouchGestures({ onSwipe, onPinch, onPinchEnd } = {}) {
         t: performance.now(),
       };
       pinch = null;
+          try {
+            event.target?.setPointerCapture?.(event.pointerId);
+          } catch {
+            /* ignore */
+          }
       return;
     }
 
@@ -132,8 +151,8 @@ export function mountTouchGestures({ onSwipe, onPinch, onPinchEnd } = {}) {
     }
   }
 
-  document.addEventListener('pointerdown', onPointerDown);
-  document.addEventListener('pointermove', onPointerMove);
+  document.addEventListener('pointerdown', onPointerDown, { passive: true });
+  document.addEventListener('pointermove', onPointerMove, { passive: true });
   document.addEventListener('pointerup', finishPointer);
   document.addEventListener('pointercancel', finishPointer);
 

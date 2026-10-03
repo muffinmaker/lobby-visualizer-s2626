@@ -1215,7 +1215,7 @@ export class SettingsPanel {
     this.gui.foldersRecursive().forEach((folder) => folder.open());
   }
 
-  /** Hidden → toolbar → full options → hidden. On a phone, hidden ↔ sliders. */
+  /** Hidden → toolbar → full options → hidden. On a phone, hidden ↔ full sliders. */
   toggleSettingsPanel() {
     if (document.body.classList.contains('phone-ui')) {
       if (this.visible) {
@@ -1224,7 +1224,7 @@ export class SettingsPanel {
         return;
       }
       this.setVisible(true);
-      this.gui.open();
+      this.openPanel();
       return;
     }
     if (!this.visible) {

@@ -36,28 +36,32 @@ export function mountMobileBar(handlers) {
   bar.hidden = true;
   bar.setAttribute('aria-label', 'Phone controls');
 
-  const shaderRow = document.createElement('div');
-  shaderRow.className = 'phone-bar-row';
+  const settingsBtn = createBtn('Sliders', 'Show sliders', 'phone-btn phone-btn--settings phone-btn--primary');
+  settingsBtn.setAttribute('aria-pressed', 'false');
+  settingsBtn.setAttribute('aria-expanded', 'false');
+  bindBtn(settingsBtn, handlers.onSettings);
+
+  const primaryRow = document.createElement('div');
+  primaryRow.className = 'phone-bar-row phone-bar-row--primary';
+  primaryRow.append(settingsBtn);
 
   const shaderPrev = createBtn('‹', 'Previous shader', 'phone-btn phone-btn--nav');
   const shaderNext = createBtn('›', 'Next shader', 'phone-btn phone-btn--nav');
   const shaderLabel = document.createElement('div');
   shaderLabel.className = 'phone-shader';
   shaderLabel.textContent = handlers.getShaderLabel?.() ?? 'Shader';
-
   bindBtn(shaderPrev, handlers.onShaderPrev);
   bindBtn(shaderNext, handlers.onShaderNext);
-  shaderRow.append(shaderPrev, shaderLabel, shaderNext);
 
-  const actionRow = document.createElement('div');
-  actionRow.className = 'phone-bar-row phone-bar-row--actions';
+  const shaderRow = document.createElement('div');
+  shaderRow.className = 'phone-bar-row';
+  shaderRow.append(shaderPrev, shaderLabel, shaderNext);
 
   const presetPrev = createBtn('‹', 'Previous preset', 'phone-btn phone-btn--nav phone-btn--small');
   const presetNext = createBtn('›', 'Next preset', 'phone-btn phone-btn--nav phone-btn--small');
   const presetLabel = document.createElement('div');
   presetLabel.className = 'phone-preset';
   presetLabel.textContent = handlers.getPresetLabel?.() ?? '—';
-
   bindBtn(presetPrev, handlers.onPresetPrev);
   bindBtn(presetNext, handlers.onPresetNext);
 
@@ -70,27 +74,26 @@ export function mountMobileBar(handlers) {
   const autocycle = createBtn('Auto', 'Auto-cycle presets', 'phone-btn phone-btn--toggle');
   const save = createBtn('Save', 'Save preset', 'phone-btn phone-btn--ghost');
   const info = createBtn('?', 'Tutorial', 'phone-btn phone-btn--ghost phone-btn--info');
-  const settingsBtn = createBtn('Sliders', 'Show sliders', 'phone-btn phone-btn--settings');
 
   driftAll.setAttribute('aria-pressed', 'false');
   smooth.setAttribute('aria-pressed', 'false');
   autocycle.setAttribute('aria-pressed', 'false');
-  settingsBtn.setAttribute('aria-pressed', 'false');
-  settingsBtn.setAttribute('aria-expanded', 'false');
 
   bindBtn(driftAll, handlers.onDriftAllToggle);
   bindBtn(smooth, handlers.onSmoothTransitionsToggle);
   bindBtn(autocycle, handlers.onAutoCycleToggle);
   bindBtn(save, handlers.onSave);
   bindBtn(info, handlers.onInfo);
-  bindBtn(settingsBtn, handlers.onSettings);
 
   const toggles = document.createElement('div');
   toggles.className = 'phone-toggles';
-  toggles.append(driftAll, smooth, autocycle, save, info, settingsBtn);
+  toggles.append(driftAll, smooth, autocycle, save, info);
+
+  const actionRow = document.createElement('div');
+  actionRow.className = 'phone-bar-row phone-bar-row--actions';
   actionRow.append(presetGroup, toggles);
 
-  bar.append(shaderRow, actionRow);
+  bar.append(primaryRow, shaderRow, actionRow);
   document.body.append(bar);
 
   function setPressed(btn, active) {
@@ -116,7 +119,7 @@ export function mountMobileBar(handlers) {
   };
 
   function setSettingsOpen(open) {
-    settingsBtn.textContent = open ? 'Close' : 'Sliders';
+    settingsBtn.textContent = open ? 'Close sliders' : 'Sliders';
     settingsBtn.title = open ? 'Hide sliders' : 'Show sliders';
     settingsBtn.setAttribute('aria-label', settingsBtn.title);
     settingsBtn.setAttribute('aria-pressed', String(open));

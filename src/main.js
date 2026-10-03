@@ -777,8 +777,19 @@ async function start() {
   }
 
   const desktopHint = hint.textContent;
-  const phoneHint = 'Swipe sideways for presets  ·  swipe up or down for shaders  ·  pinch to zoom';
-  const phoneQuery = window.matchMedia('(max-width: 840px), (max-height: 520px) and (pointer: coarse)');
+  const phoneHint = 'Swipe left or right for presets  ·  swipe up or down for shaders  ·  pinch to zoom';
+
+  function isPhoneLayout() {
+    const narrow = window.matchMedia('(max-width: 768px)').matches;
+    const veryNarrow = window.matchMedia('(max-width: 560px)').matches;
+    const touchPrimary = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+    const mouseDesktop = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    // Mouse / trackpad browsers keep the lobby menu unless the window is phone-narrow.
+    if (mouseDesktop && !veryNarrow) return false;
+    // Phones and touch tablets get the phone bar on typical mobile widths.
+    if (touchPrimary && window.matchMedia('(max-width: 1100px)').matches) return true;
+    return narrow;
+  }
 
   function measurePhoneBar() {
     const height = phoneBar?.element && !phoneBar.element.hidden ? phoneBar.element.offsetHeight : 0;
@@ -804,8 +815,14 @@ async function start() {
     measurePhoneBar();
   }
 
-  applyPhoneLayout(phoneQuery.matches);
-  phoneQuery.addEventListener('change', (event) => applyPhoneLayout(event.matches));
+  function syncPhoneLayout() {
+    applyPhoneLayout(isPhoneLayout());
+  }
+
+  syncPhoneLayout();
+  window.addEventListener('resize', syncPhoneLayout);
+  window.matchMedia('(hover: hover) and (pointer: fine)').addEventListener('change', syncPhoneLayout);
+  window.matchMedia('(pointer: coarse)').addEventListener('change', syncPhoneLayout);
   if (typeof ResizeObserver !== 'undefined') {
     const barObserver = new ResizeObserver(() => measurePhoneBar());
     barObserver.observe(phoneBar.element);

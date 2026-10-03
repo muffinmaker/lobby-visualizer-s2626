@@ -23,7 +23,7 @@ https://s2626.netlify.app
 
 ## On a phone
 
-A bar along the bottom replaces the desktop menu. Swipe sideways to change presets, swipe up or down to change shaders, and pinch to zoom. Sliders opens the settings sheet.
+Phones and touch tablets get a bottom bar. Computers keep the original lobby menu. On a phone, Sliders is the main button at the top of the bar and opens every settings folder. Swipe left or right to change presets, swipe up or down to change shaders, and pinch to zoom.
 
 ## Roadmap
 
