@@ -1200,6 +1200,14 @@ export class SettingsPanel {
     this.visible = visible;
     this.gui.domElement.style.display = visible ? '' : 'none';
     if (!visible) this.exitGamepadMenu();
+    this.emitSheetState();
+  }
+
+  emitSheetState() {
+    if (!document.body.classList.contains('phone-ui')) return;
+    document.dispatchEvent(
+      new CustomEvent('lobby-sheet', { detail: { open: this.visible } }),
+    );
   }
 
   openPanel() {
@@ -1207,8 +1215,18 @@ export class SettingsPanel {
     this.gui.foldersRecursive().forEach((folder) => folder.open());
   }
 
-  /** Hidden → toolbar → full options → hidden. */
+  /** Hidden → toolbar → full options → hidden. On a phone, hidden ↔ sliders. */
   toggleSettingsPanel() {
+    if (document.body.classList.contains('phone-ui')) {
+      if (this.visible) {
+        this.exitGamepadMenu();
+        this.setVisible(false);
+        return;
+      }
+      this.setVisible(true);
+      this.gui.open();
+      return;
+    }
     if (!this.visible) {
       this.setVisible(true);
       this.gui.close();

@@ -80,14 +80,14 @@ export function createGamepadPsyche({ settings, onToast }) {
     return true;
   }
 
-  function adjustVertical(delta) {
+  function adjustVertical(delta, { silent = false } = {}) {
     const entry = getZoomEntry(settings.state.shader);
     const result = nudgeEntry(entry, delta);
     if (!result) return null;
 
     const spec = getSpec(settings, entry.key, entry.global);
     applyChanges([result], Boolean(spec?.rebuild));
-    onToast?.(`${result.label} ${result.value}`);
+    if (!silent) onToast?.(`${result.label} ${result.value}`);
     return [result];
   }
 

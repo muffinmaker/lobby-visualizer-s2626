@@ -19,7 +19,11 @@ npm run build
 
 ## Live site
 
-https://lobby-visualizer-s2626.netlify.app
+https://s2626.netlify.app
+
+## On a phone
+
+A bar along the bottom replaces the desktop menu. Swipe sideways to change presets, swipe up or down to change shaders, and pinch to zoom. Sliders opens the settings sheet.
 
 ## Roadmap
 

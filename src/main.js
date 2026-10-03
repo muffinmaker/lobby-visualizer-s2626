@@ -6,6 +6,9 @@ import { DriftManager } from './DriftManager.js';
 import { MusicMode } from './MusicMode.js';
 import { createTutorial } from './Tutorial.js';
 import { mountTransportBar } from './TransportBar.js';
+import { mountMobileBar } from './MobileBar.js';
+import { mountTouchGestures } from './touchGestures.js';
+import { applyMenuBigMode, loadMenuBigMode } from './menuBigMode.js';
 import { createGamepadController, showGamepadToast } from './GamepadController.js';
 import { createGamepadChaos } from './gamepadChaos.js';
 import { createGamepadPsyche } from './gamepadPsyche.js';
@@ -480,7 +483,10 @@ async function start() {
     presetManager.syncCurrentIndexForShader(settings.state.preset);
     const { current, total } = presetManager.getPresetPosition(settings.state.shader);
     transport?.setPresetLabel?.(current, total);
+    phoneBar?.setPresetLabel?.(current, total);
   }
+
+  let phoneBar = null;
 
   const transport = mountTransportBar(settings.gui.domElement, {
     getShaderLabel: () => getShaderLabel(settings.state.shader),
@@ -492,6 +498,7 @@ async function start() {
     onDriftAllToggle: () => {
       const enabled = settings.toggleDriftAll();
       transport?.setDriftAllActive?.(enabled);
+      phoneBar?.setDriftAllActive?.(enabled);
     },
     getAutoCycle: () => presetManager.autoCycle,
     onAutoCycleToggle: () => presetManager.setAutoCycle(!presetManager.autoCycle),
@@ -504,14 +511,44 @@ async function start() {
     onPresetNext,
     onSave: onSavePreset,
     onInfo: () => tutorial.toggle(),
+    onSettings: () => settings.toggleVisible(),
+  });
+
+  phoneBar = mountMobileBar({
+    getShaderLabel: () => getShaderLabel(settings.state.shader),
+    getPresetLabel: () => {
+      const { current, total } = presetManager.getPresetPosition(settings.state.shader);
+      return total > 0 ? `${current}/${total}` : '—';
+    },
+    getDriftAll: () => settings.isDriftAllEnabled(),
+    onDriftAllToggle: () => {
+      const enabled = settings.toggleDriftAll();
+      transport?.setDriftAllActive?.(enabled);
+      phoneBar?.setDriftAllActive?.(enabled);
+    },
+    getAutoCycle: () => presetManager.autoCycle,
+    onAutoCycleToggle: () => presetManager.setAutoCycle(!presetManager.autoCycle),
+    getSmoothTransitions: () => presetManager.smoothTransitions,
+    onSmoothTransitionsToggle: () =>
+      presetManager.setSmoothTransitions(!presetManager.smoothTransitions),
+    onShaderPrev,
+    onShaderNext,
+    onPresetPrev,
+    onPresetNext,
+    onSave: onSavePreset,
+    onInfo: () => tutorial.toggle(),
+    onSettings: () => settings.toggleVisible(),
   });
 
   settings.onDriftStateChange = () => {
-    transport?.setDriftAllActive?.(settings.isDriftAllEnabled());
+    const enabled = settings.isDriftAllEnabled();
+    transport?.setDriftAllActive?.(enabled);
+    phoneBar?.setDriftAllActive?.(enabled);
   };
 
   function flashTransport(id) {
     transport?.flashControl?.(id);
+    phoneBar?.flashControl?.(id);
   }
 
   function refreshGamepadLabels() {
@@ -566,15 +603,19 @@ async function start() {
   );
 
   function refreshShaderTransportLabel(shaderId = settings.state.shader) {
-    transport?.setShaderLabel?.(getShaderLabel(shaderId));
+    const label = getShaderLabel(shaderId);
+    transport?.setShaderLabel?.(label);
+    phoneBar?.setShaderLabel?.(label);
   }
 
   presetManager.subscribe((event, detail) => {
     if (event === 'autoCycleChanged') {
       transport?.setAutocycleActive?.(detail.enabled);
+      phoneBar?.setAutocycleActive?.(detail.enabled);
     }
     if (event === 'smoothTransitionsChanged') {
       transport?.setSmoothTransitionsActive?.(detail.enabled);
+      phoneBar?.setSmoothTransitionsActive?.(detail.enabled);
     }
     if (event === 'activeShaderChanged') {
       refreshShaderTransportLabel(detail.shader);
@@ -735,6 +776,65 @@ async function start() {
     requestAnimationFrame(tick);
   }
 
+  const desktopHint = hint.textContent;
+  const phoneHint = 'Swipe sideways for presets  ·  swipe up or down for shaders  ·  pinch to zoom';
+  const phoneQuery = window.matchMedia('(max-width: 840px), (max-height: 520px) and (pointer: coarse)');
+
+  function measurePhoneBar() {
+    const height = phoneBar?.element && !phoneBar.element.hidden ? phoneBar.element.offsetHeight : 0;
+    document.documentElement.style.setProperty('--phone-bar-h', `${height}px`);
+  }
+
+  function applyPhoneLayout(matches) {
+    document.body.classList.toggle('phone-ui', matches);
+    phoneBar.element.hidden = !matches;
+    if (matches) {
+      settings.gui.domElement.classList.remove('menu-big-mode');
+      hint.textContent = phoneHint;
+      if (!uiHidden) settings.setVisible(false);
+    } else {
+      document.body.classList.remove('phone-sheet');
+      applyMenuBigMode(settings.gui.domElement, loadMenuBigMode());
+      hint.textContent = desktopHint;
+      if (!uiHidden) {
+        settings.setVisible(true);
+        settings.gui.close();
+      }
+    }
+    measurePhoneBar();
+  }
+
+  applyPhoneLayout(phoneQuery.matches);
+  phoneQuery.addEventListener('change', (event) => applyPhoneLayout(event.matches));
+  if (typeof ResizeObserver !== 'undefined') {
+    const barObserver = new ResizeObserver(() => measurePhoneBar());
+    barObserver.observe(phoneBar.element);
+  }
+
+  mountTouchGestures({
+    onSwipe(direction) {
+      if (direction === 'left' || direction === 'right') {
+        flashTransport(direction === 'left' ? 'presetNext' : 'presetPrev');
+        if (direction === 'left') onPresetNext();
+        else onPresetPrev();
+        const next = presetManager.getPresetPosition(settings.state.shader);
+        showGamepadToast(next.total > 0 ? `Preset ${next.current}/${next.total}` : 'No presets');
+        return;
+      }
+      flashTransport(direction === 'up' ? 'shaderNext' : 'shaderPrev');
+      if (direction === 'up') onShaderNext();
+      else onShaderPrev();
+      showGamepadToast(getShaderLabel(settings.state.shader));
+    },
+    onPinch(steps) {
+      psyche.adjustVertical(steps, { silent: true });
+    },
+    onPinchEnd() {
+      const zoom = settings.state.uZoom ?? settings.state.uScale;
+      if (zoom != null) showGamepadToast(`Zoom ${Math.round(zoom)}`);
+    },
+  });
+
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen?.();
@@ -745,7 +845,12 @@ async function start() {
 
   function toggleUI() {
     uiHidden = !uiHidden;
-    settings.setVisible(!uiHidden);
+    document.body.classList.toggle('ui-hidden', uiHidden);
+    if (document.body.classList.contains('phone-ui')) {
+      if (uiHidden) settings.setVisible(false);
+    } else {
+      settings.setVisible(!uiHidden);
+    }
     if (!hintHidden) {
       hint.classList.toggle('hidden', uiHidden);
     }
@@ -815,6 +920,7 @@ async function start() {
     'font-weight:bold;font-size:14px',
     `\nShaders: ${SHADER_IDS.join(', ')}`,
     '\nSpace: settings | Space×2: move menu | ?: tutorial | F: fullscreen | H: hide UI | [ ]: prev/next pack logo | ↑/↓: zoom | ←/→: element counts | Z/C/X/B/V: motion/colors/shapes/party/preset | USB gamepad: see tutorial',
+    '\nPhone: swipe sideways for presets, up/down for shaders, pinch to zoom',
   );
 }
 
