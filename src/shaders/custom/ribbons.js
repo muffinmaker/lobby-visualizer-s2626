@@ -21,6 +21,8 @@ export default {
     uniform float uThickness;
     uniform float uTwistAmount;
     uniform float uZoom;
+    uniform float uPanX;
+    uniform float uPanY;
     uniform float uAspect;
 
     varying vec2 vUv;
@@ -43,6 +45,7 @@ export default {
 
     void main() {
       vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.4 / max(uZoom, 0.2);
+      uv -= vec2(uPanX, uPanY);
       float t = uTime;
       vec3 col = vec3(0.0);
 

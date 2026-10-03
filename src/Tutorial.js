@@ -10,7 +10,7 @@ const SECTIONS = [
     title: 'Phone',
     body: `
       <p>On a phone or touch tablet, a touch bar replaces the desktop menu. The big <strong>Sliders</strong> button at the top opens every settings folder. <strong>‹ ›</strong> around the shader name changes the visual. <strong>‹ ›</strong> around the preset number steps through saved looks.</p>
-      <p><strong>Swipe left or right</strong> on the picture to change presets. <strong>Swipe up or down</strong> to change shaders. <strong>Pinch</strong> to zoom. A normal computer browser keeps the original lobby menu unless the window is phone-narrow.</p>
+      <p><strong>Slide</strong> on the picture to change rotate (or speed). <strong>Pinch</strong> to zoom. <strong>Two-finger drag</strong> looks around by moving the view center. A normal computer browser keeps the original lobby menu unless the window is phone-narrow.</p>
     `,
   },
   {

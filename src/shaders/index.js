@@ -28,6 +28,8 @@ export const SHADERS = {
       uniform float uRotate;
       uniform float uMyTime;
       uniform float uZoom;
+      uniform float uPanX;
+      uniform float uPanY;
       uniform float uRed;
       uniform float uGreen;
       uniform float uBlue;
@@ -147,6 +149,7 @@ export const SHADERS = {
       void main() {
         float t = uTime;
         vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * uScale;
+        uv -= vec2(uPanX, uPanY) * max(uScale, 0.2);
         uv *= exp(uZoom * 0.08);
 
         float minRes = min(uResolution.x, uResolution.y);
@@ -227,6 +230,8 @@ export const SHADERS = {
       uniform float uPointSize;
       uniform float uAspect;
       uniform float uZoom;
+      uniform float uPanX;
+      uniform float uPanY;
       uniform float uPalette;
       uniform float uHueShift;
       uniform float uColorSpeed;
@@ -336,6 +341,7 @@ export const SHADERS = {
         float radial = clamp(length(pos) / max(uScale * 0.45, 0.12), 0.0, 1.35);
         pos.x /= max(uAspect, 0.75);
         pos /= max(pow(uZoom, 0.65) * 0.25, 0.09);
+        pos -= vec2(uPanX, uPanY);
 
         vec2 vel = vec2(
           -R * sin(a) * omega - r * sin(b) * (-k * twist),
@@ -420,6 +426,8 @@ export const SHADERS = {
       uniform float uShape4;
       uniform float uShapeMorph;
       uniform float uZoom;
+      uniform float uPanX;
+      uniform float uPanY;
       uniform vec2 uResolution;
       uniform float uAspect;
 
@@ -573,6 +581,7 @@ export const SHADERS = {
 
       void main() {
         vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0);
+        uv -= vec2(uPanX, uPanY);
         float viewZoom = 2.4 / max(uZoom, 0.2);
         uv *= viewZoom;
 
@@ -622,6 +631,8 @@ export const SHADERS = {
       uniform float uFieldScale;
       uniform float uNoiseScale;
       uniform float uZoom;
+      uniform float uPanX;
+      uniform float uPanY;
       uniform float uPointSize;
       uniform float uParticleCount;
       uniform float uAspect;
@@ -724,6 +735,7 @@ export const SHADERS = {
         pos.x /= aspect;
         float zoom = max(pow(uZoom, 0.55), 0.25);
         pos /= zoom;
+        pos -= vec2(uPanX, uPanY);
 
         float colliderActive = step(0.5, uLogoCollider) * step(0.5, uLogoColliderVisible);
         vec2 halfExt = max(uLogoColliderHalfExtents, vec2(0.02));
@@ -810,6 +822,8 @@ export const SHADERS = {
       uniform float uSoftness;
       uniform float uEdgeGlow;
       uniform float uZoom;
+      uniform float uPanX;
+      uniform float uPanY;
       uniform vec2 uResolution;
       uniform float uAspect;
 
@@ -819,6 +833,7 @@ export const SHADERS = {
 
       void main() {
         vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0 / uZoom;
+        uv -= vec2(uPanX, uPanY);
         float t = uTime;
 
         float field = 0.0;
@@ -875,6 +890,8 @@ export const SHADERS = {
       uniform float uChevronGlow;
       uniform float uTrailShape;
       uniform float uZoom;
+      uniform float uPanX;
+      uniform float uPanY;
       uniform float uPalette;
       uniform float uHueShift;
       uniform float uColorSpeed;
@@ -1093,6 +1110,7 @@ export const SHADERS = {
 
       void main() {
         vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0 / max(uZoom, 0.2);
+        uv -= vec2(uPanX, uPanY);
         float t = uTime * (0.3 + uSpeed * 0.65);
         float travel = t * (0.55 + uTunnelDepth * 0.45);
         float wander = 0.16 + uHorizonGlow * 0.14 + uSwirl * 0.04;

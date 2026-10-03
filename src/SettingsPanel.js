@@ -1037,6 +1037,8 @@ export class SettingsPanel {
       uColorSpread: 'Color Spread',
       uUp: 'Offset X',
       uDown: 'Offset Y',
+      uPanX: 'Look X',
+      uPanY: 'Look Y',
       uScaleY: 'Scale Y',
       uScaleZ: 'Scale Z',
       uWidth: 'Square Width',

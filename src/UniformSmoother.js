@@ -38,6 +38,8 @@ const KEY_SMOOTH_TIMES = {
   uUp: 1.8,
   uDown: 1.8,
   uZoom: 2.5,
+  uPanX: 1.6,
+  uPanY: 1.6,
   uWidth: 1.6,
   uHeight: 1.6,
   uParticleCount: 1.8,

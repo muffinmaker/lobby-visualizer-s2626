@@ -1,33 +1,4 @@
-const DEFAULT_SWIPE = {
-  minDistance: 36,
-  maxDuration: 900,
-  axisRatio: 1.05,
-  horizontalBias: 0.85,
-};
-
 const DEFAULT_PINCH_SENSITIVITY = 24;
-
-export function classifySwipe(
-  { dx, dy, dt },
-  {
-    minDistance = DEFAULT_SWIPE.minDistance,
-    maxDuration = DEFAULT_SWIPE.maxDuration,
-    axisRatio = DEFAULT_SWIPE.axisRatio,
-    horizontalBias = DEFAULT_SWIPE.horizontalBias,
-  } = DEFAULT_SWIPE,
-) {
-  if (!Number.isFinite(dx) || !Number.isFinite(dy) || !Number.isFinite(dt)) return null;
-  if (dt < 0 || dt > maxDuration) return null;
-
-  const ax = Math.abs(dx);
-  const ay = Math.abs(dy);
-  if (Math.max(ax, ay) < minDistance) return null;
-
-  // Prefer left/right when the gesture is mostly horizontal.
-  if (ax >= ay * horizontalBias) return dx < 0 ? 'left' : 'right';
-  if (ay > ax * axisRatio) return dy < 0 ? 'up' : 'down';
-  return null;
-}
 
 export function consumePinch(carry, ratio, sensitivity = DEFAULT_PINCH_SENSITIVITY) {
   if (!Number.isFinite(carry)) carry = 0;
@@ -37,8 +8,23 @@ export function consumePinch(carry, ratio, sensitivity = DEFAULT_PINCH_SENSITIVI
   return { steps, carry: next - steps };
 }
 
+export function classifySwipe() {
+  return null;
+}
+
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function centroid(points) {
+  let x = 0;
+  let y = 0;
+  for (const point of points) {
+    x += point.x;
+    y += point.y;
+  }
+  const n = Math.max(points.length, 1);
+  return { x: x / n, y: y / n };
 }
 
 function isBlockedTarget(target) {
@@ -53,18 +39,17 @@ function isBlockedTarget(target) {
 
 function isGesturePointer(event) {
   if (event.pointerType === 'touch' || event.pointerType === 'pen') return true;
-  // Mouse drag on phone layout helps testing and hybrid devices.
   return event.pointerType === 'mouse' && document.body.classList.contains('phone-ui');
 }
 
-export function mountTouchGestures({ onSwipe, onPinch, onPinchEnd } = {}) {
+export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd } = {}) {
   const pointers = new Map();
-  let swipe = null;
-  let pinch = null;
+  let drag = null;
+  let duo = null;
 
   function resetGesture() {
-    swipe = null;
-    pinch = null;
+    drag = null;
+    duo = null;
   }
 
   function onPointerDown(event) {
@@ -77,29 +62,32 @@ export function mountTouchGestures({ onSwipe, onPinch, onPinchEnd } = {}) {
     });
 
     if (pointers.size === 1 && !blocked) {
-      swipe = {
+      drag = {
         id: event.pointerId,
         x: event.clientX,
         y: event.clientY,
-        t: performance.now(),
+        moved: false,
       };
-      pinch = null;
-          try {
-            event.target?.setPointerCapture?.(event.pointerId);
-          } catch {
-            /* ignore */
-          }
+      duo = null;
+      try {
+        event.target?.setPointerCapture?.(event.pointerId);
+      } catch {
+        /* ignore */
+      }
       return;
     }
 
     if (pointers.size === 2) {
-      swipe = null;
+      drag = null;
       const pts = [...pointers.values()];
-      pinch = {
+      const center = centroid(pts);
+      duo = {
         dist: Math.max(distance(pts[0], pts[1]), 1),
-        carry: 0,
+        x: center.x,
+        y: center.y,
+        pinchCarry: 0,
         blocked: pts.some((point) => point.blocked),
-        changed: false,
+        moved: false,
       };
     }
 
@@ -114,16 +102,37 @@ export function mountTouchGestures({ onSwipe, onPinch, onPinchEnd } = {}) {
     point.x = event.clientX;
     point.y = event.clientY;
 
-    if (pointers.size !== 2 || !pinch || pinch.blocked) return;
+    if (pointers.size === 1 && drag && event.pointerId === drag.id) {
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      drag.x = event.clientX;
+      drag.y = event.clientY;
+      if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
+      drag.moved = true;
+      onDrag?.(dx, dy);
+      return;
+    }
+
+    if (pointers.size !== 2 || !duo || duo.blocked) return;
     const pts = [...pointers.values()];
     const dist = Math.max(distance(pts[0], pts[1]), 1);
-    const ratio = dist / pinch.dist;
-    pinch.dist = dist;
-    const consumed = consumePinch(pinch.carry, ratio);
-    pinch.carry = consumed.carry;
-    if (consumed.steps !== 0) {
-      pinch.changed = true;
-      onPinch?.(consumed.steps);
+    const center = centroid(pts);
+    const ratio = dist / duo.dist;
+    const panDx = center.x - duo.x;
+    const panDy = center.y - duo.y;
+    duo.dist = dist;
+    duo.x = center.x;
+    duo.y = center.y;
+
+    const pinch = consumePinch(duo.pinchCarry, ratio);
+    duo.pinchCarry = pinch.carry;
+    if (pinch.steps !== 0) {
+      duo.moved = true;
+      onPinch?.(pinch.steps);
+    }
+    if (Math.abs(panDx) >= 0.2 || Math.abs(panDy) >= 0.2) {
+      duo.moved = true;
+      onPan?.(panDx, panDy);
     }
   }
 
@@ -132,22 +141,18 @@ export function mountTouchGestures({ onSwipe, onPinch, onPinchEnd } = {}) {
     if (!point) return;
     pointers.delete(event.pointerId);
 
-    if (swipe && event.pointerId === swipe.id && pointers.size === 0) {
-      const direction = classifySwipe({
-        dx: event.clientX - swipe.x,
-        dy: event.clientY - swipe.y,
-        dt: performance.now() - swipe.t,
-      });
-      swipe = null;
-      if (direction) onSwipe?.(direction);
+    if (drag && event.pointerId === drag.id) {
+      const moved = drag.moved;
+      drag = null;
+      if (moved) onGestureEnd?.('drag');
       return;
     }
 
-    if (pinch && pointers.size < 2) {
-      const shouldEnd = !pinch.blocked && pinch.changed;
-      pinch = null;
-      swipe = null;
-      if (shouldEnd) onPinchEnd?.();
+    if (duo && pointers.size < 2) {
+      const moved = !duo.blocked && duo.moved;
+      duo = null;
+      drag = null;
+      if (moved) onGestureEnd?.('duo');
     }
   }
 

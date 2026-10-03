@@ -55,6 +55,8 @@ export const GLOBAL_UNIFORMS = {
   uBrightness: pct(50, 0.2, 2.5),
   uSaturation: pct(67, 0, 1.5),
   uBloom: pct(40, 0, 2),
+  uPanX: center(50, -1.25, 1.25),
+  uPanY: center(50, -1.25, 1.25),
 };
 
 export const SHADER_UNIFORM_TEMPLATES = {

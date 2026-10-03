@@ -777,7 +777,7 @@ async function start() {
   }
 
   const desktopHint = hint.textContent;
-  const phoneHint = 'Swipe left or right for presets  ·  swipe up or down for shaders  ·  pinch to zoom';
+  const phoneHint = 'Slide for rotate/speed  ·  pinch to zoom  ·  two-finger drag to look around';
 
   function isPhoneLayout() {
     const narrow = window.matchMedia('(max-width: 768px)').matches;
@@ -828,27 +828,29 @@ async function start() {
     barObserver.observe(phoneBar.element);
   }
 
+  let pinchZoomLabel = '';
   mountTouchGestures({
-    onSwipe(direction) {
-      if (direction === 'left' || direction === 'right') {
-        flashTransport(direction === 'left' ? 'presetNext' : 'presetPrev');
-        if (direction === 'left') onPresetNext();
-        else onPresetPrev();
-        const next = presetManager.getPresetPosition(settings.state.shader);
-        showGamepadToast(next.total > 0 ? `Preset ${next.current}/${next.total}` : 'No presets');
-        return;
-      }
-      flashTransport(direction === 'up' ? 'shaderNext' : 'shaderPrev');
-      if (direction === 'up') onShaderNext();
-      else onShaderPrev();
-      showGamepadToast(getShaderLabel(settings.state.shader));
+    onDrag(dx, dy) {
+      psyche.adjustSlideDrag(dx, dy);
+    },
+    onPan(dx, dy) {
+      psyche.adjustPan(dx, dy);
     },
     onPinch(steps) {
       psyche.adjustVertical(steps, { silent: true });
-    },
-    onPinchEnd() {
       const zoom = settings.state.uZoom ?? settings.state.uScale;
-      if (zoom != null) showGamepadToast(`Zoom ${Math.round(zoom)}`);
+      if (zoom != null) pinchZoomLabel = `Zoom ${Math.round(zoom)}`;
+    },
+    onGestureEnd(kind) {
+      psyche.resetGestureCarry();
+      if (kind === 'duo') {
+        if (pinchZoomLabel) showGamepadToast(pinchZoomLabel);
+        else psyche.toastLastGesture();
+        pinchZoomLabel = '';
+        return;
+      }
+      pinchZoomLabel = '';
+      psyche.toastLastGesture();
     },
   });
 
@@ -937,7 +939,7 @@ async function start() {
     'font-weight:bold;font-size:14px',
     `\nShaders: ${SHADER_IDS.join(', ')}`,
     '\nSpace: settings | Space×2: move menu | ?: tutorial | F: fullscreen | H: hide UI | [ ]: prev/next pack logo | ↑/↓: zoom | ←/→: element counts | Z/C/X/B/V: motion/colors/shapes/party/preset | USB gamepad: see tutorial',
-    '\nPhone: swipe sideways for presets, up/down for shaders, pinch to zoom',
+    '\nPhone: slide for rotate/speed, pinch to zoom, two-finger drag to look around',
   );
 }
 
