@@ -1088,6 +1088,42 @@ export const PRESETS = [
       uTwistAmount: 89,
     },
   },
+  {
+    name: 'Pond Cross',
+    shader: 'layers',
+    values: {
+      uSpeed: 8,
+      uScale: 48,
+      uComplexity: 40,
+      uBrightness: 58,
+      uSaturation: 80,
+      uBloom: 36,
+      uPalette: 11,
+      uLayerCount: 4,
+      uMix: 55,
+      uLayerScale: 40,
+      uSpeedOffset: 35,
+      uZoom: 50,
+    },
+  },
+  {
+    name: 'Dense Moire',
+    shader: 'layers',
+    values: {
+      uSpeed: 12,
+      uScale: 42,
+      uComplexity: 62,
+      uBrightness: 64,
+      uSaturation: 90,
+      uBloom: 48,
+      uPalette: 20,
+      uLayerCount: 6,
+      uMix: 30,
+      uLayerScale: 62,
+      uSpeedOffset: 70,
+      uZoom: 46,
+    },
+  },
 ];
 
 export class PresetManager {

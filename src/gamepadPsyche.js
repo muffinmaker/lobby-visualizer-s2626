@@ -24,6 +24,9 @@ const PSYCHE_PROFILES = {
   ribbons: {
     horizontal: { key: 'uRibbonCount', label: 'Ribbons' },
   },
+  layers: {
+    horizontal: { key: 'uLayerCount', label: 'Layers' },
+  },
 };
 
 function getZoomEntry(shaderId) {

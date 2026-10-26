@@ -62,7 +62,7 @@ export function applyLiteLimits(shaderId, values) {
   }
 
   const specs = getSpecMap(shaderId);
-  for (const key of ['uSegments', 'uRingCount', 'uBallCount', 'uRibbonCount', 'uChevrons']) {
+  for (const key of ['uSegments', 'uRingCount', 'uBallCount', 'uRibbonCount', 'uChevrons', 'uLayerCount']) {
     if (next[key] === undefined || !specs[key]) continue;
     const max = Math.min(specs[key].max, specs[key].max <= 6 ? specs[key].max : 6);
     next[key] = clamp(next[key], max, specs[key].min ?? 2);
@@ -81,6 +81,7 @@ export function describeModeLoad(shaderId, state = {}) {
   if (shaderId === 'metaballs') bits.push(`${state.uBallCount ?? 0} blobs`);
   if (shaderId === 'wormhole') bits.push(`${state.uChevrons ?? 0} ribs`);
   if (shaderId === 'ribbons') bits.push(`${state.uRibbonCount ?? 0} ribbons · shared controls ×10`);
+  if (shaderId === 'layers') bits.push(`${state.uLayerCount ?? 0} stacked patterns`);
   if ((state.motionTrails ?? 0) > 0 && !state.liteMode) bits.push('motion trails');
   if ((state.uBloom ?? 0) > 55) bits.push('high bloom');
   bits.push(`${Math.round(state.resolutionScale ?? 100)}% resolution`);

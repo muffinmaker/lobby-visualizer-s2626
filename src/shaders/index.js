@@ -1238,6 +1238,92 @@ export const SHADERS = {
       }
     `,
   },
+
+  layers: {
+    label: 'Ripple Layers',
+    uniforms: { ...SHADER_UNIFORM_TEMPLATES.layers },
+    vertex: /* glsl */ `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position, 1.0);
+      }
+    `,
+    fragment: /* glsl */ `
+      uniform float uTime;
+      uniform float uSpeed;
+      uniform float uScale;
+      uniform float uComplexity;
+      uniform float uBrightness;
+      uniform float uSaturation;
+      uniform float uBloom;
+      uniform float uLayerCount;
+      uniform float uMix;
+      uniform float uLayerScale;
+      uniform float uSpeedOffset;
+      uniform float uZoom;
+      uniform float uPanX;
+      uniform float uPanY;
+      uniform float uAspect;
+      uniform float uObjectScale;
+      uniform float uPalette;
+      ${PALETTE_UNIFORMS}
+      ${PALETTE_FN}
+
+      varying vec2 vUv;
+
+      float ripple(vec2 p, float t) {
+        return sin(length(p) * 16.0 - t * 2.6);
+      }
+
+      float interference(vec2 p, float t) {
+        vec2 a = p - vec2(0.32, 0.05);
+        vec2 b = p + vec2(0.28, -0.08);
+        return 0.5 * (sin(length(a) * 20.0 - t * 2.2) + sin(length(b) * 20.0 - t * 1.7));
+      }
+
+      float moire(vec2 p, float t) {
+        return sin(p.x * 26.0 + t * 1.1) * sin(p.y * 24.0 - t * 0.9);
+      }
+
+      float spokes(vec2 p, float t) {
+        float ang = atan(p.y, p.x);
+        return sin(ang * 7.0 + t * 0.8) * sin(length(p) * 12.0 - t * 1.4);
+      }
+
+      void main() {
+        vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0);
+        uv -= vec2(uPanX, uPanY);
+        uv *= (2.1 / max(uZoom, 0.2)) / max(uScale * max(uObjectScale, 0.2), 0.15);
+        float t = uTime;
+        float count = clamp(floor(uLayerCount + 0.5), 2.0, 6.0);
+        vec3 acc = vec3(0.0);
+        float weightSum = 0.0;
+        for (float i = 0.0; i < 6.0; i++) {
+          if (i >= count) break;
+          float fi = i;
+          float lt = t * (1.0 + (0.15 + uSpeedOffset) * fi);
+          vec2 lp = uv * (1.0 + uLayerScale * fi);
+          float kind = mod(fi, 4.0);
+          float sig = ripple(lp, lt);
+          if (kind > 0.5 && kind < 1.5) sig = interference(lp, lt);
+          else if (kind > 1.5 && kind < 2.5) sig = moire(lp, lt);
+          else if (kind > 2.5) sig = spokes(lp, lt);
+          float band = smoothstep(0.05, 0.82, sig * 0.5 + 0.5);
+          vec3 ink = namedPalette(fi * 0.18 + band * 0.35 + uComplexity * 0.05, uPalette);
+          float fade = mix(1.0, 1.0 / (fi + 1.0), clamp(uMix, 0.0, 1.0));
+          acc += ink * (0.28 + band) * fade;
+          weightSum += fade;
+        }
+        vec3 col = acc / max(weightSum, 0.001);
+        float gray = dot(col, vec3(0.299, 0.587, 0.114));
+        col = mix(vec3(gray), col, uSaturation);
+        col *= uBrightness;
+        col += col * uBloom * 0.22;
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+  },
 };
 
 export const SHADER_IDS = Object.keys(SHADERS);

@@ -228,4 +228,13 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uPalette: fullPalette(0),
     uObjectScale: objectScale(),
   },
+  layers: {
+    uPalette: fullPalette(11),
+    uLayerCount: { ...count(4, 2, 6), label: 'Layer count' },
+    uMix: { ...pct(55, 0, 1), label: 'Layer mix' },
+    uLayerScale: { ...pct(40, 0.15, 1.2), label: 'Layer scale' },
+    uSpeedOffset: { ...pct(35, 0, 1.6), label: 'Speed offset' },
+    uZoom: { value: 50, min: 0, max: 400, step: 1, shaderMin: 0.35, shaderMax: 8.95 },
+    uObjectScale: objectScale(),
+  },
 };

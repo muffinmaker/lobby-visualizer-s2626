@@ -28,6 +28,7 @@ const SHADER_MODS = {
   metaballs: ['uEdgeGlow', 'uSoftness'],
   wormhole: ['uTunnelDepth', 'uSwirl', 'uHorizonGlow', 'uColorSpeed'],
   ribbons: ['uTwistAmount', 'uThickness'],
+  layers: ['uMix', 'uSpeedOffset', 'uLayerScale'],
 };
 
 function statusFromError(err, source) {
