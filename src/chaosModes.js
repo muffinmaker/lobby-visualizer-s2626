@@ -21,7 +21,7 @@ function isColorKey(key, spec) {
 }
 
 function isStructureKey(key, spec) {
-  if (spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape' || spec.kind === 'pointShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode' || spec.kind === 'patternType') return true;
+  if (spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape' || spec.kind === 'pointShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode' || spec.kind === 'patternType' || spec.kind === 'fieldShape') return true;
   if (
     key === 'uZoom' ||
     key === 'uIterations' ||
@@ -52,7 +52,8 @@ const MOTION_GLOBAL_KEYS = new Set(['uSpeed', 'uScale', 'uComplexity', 'uBrightn
 function isMotionKey(key, spec) {
   if (spec.rebuild) return false;
   if (isColorKey(key, spec) || isStructureKey(key, spec)) return false;
-  if (key === 'uWarp' || key === 'uTwistAmount' || key === 'uThickness') return true;
+  if (spec.kind === 'flowMotion') return true;
+  if (key === 'uWarp' || key === 'uTwistAmount' || key === 'uThickness' || key === 'uSizeSpread') return true;
   if (MOTION_GLOBAL_KEYS.has(key)) return true;
   if (/Speed|Scale|Bright|Bloom|Complex|Trail|Point|Pulse|Twist|Rotate|Time|Field|Noise|Width|Height|Decay|Alpha|Softness|Glow|Thickness|Iteration|Orbit|Ribbon|Ball|Particle|Rand|Tunnel|Swirl|Horizon|Chevron/i.test(key)) {
     return true;

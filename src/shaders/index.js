@@ -686,6 +686,10 @@ export const SHADERS = {
       uniform float uPanX;
       uniform float uPanY;
       uniform float uPointSize;
+      uniform float uSizeSpread;
+      uniform float uFieldShape;
+      uniform float uShapeSize;
+      uniform float uMotion;
       uniform float uParticleCount;
       uniform float uAspect;
       uniform float uLogoCollider;
@@ -728,6 +732,112 @@ export const SHADERS = {
         float n2 = noise(p * uNoiseScale * 1.7 - t * 0.12);
         float angle = (n1 + n2) * 6.28318 * uComplexity;
         return vec2(cos(angle), sin(angle));
+      }
+
+      vec2 squareToDisk(vec2 p) {
+        vec2 a = abs(p);
+        float m = max(max(a.x, a.y), 1e-4);
+        return p * (m / max(length(p), 1e-4));
+      }
+
+      vec2 toPolygon(vec2 p, float sides) {
+        vec2 d = squareToDisk(p);
+        float ang = atan(d.y, d.x);
+        float sector = 6.2831853 / sides;
+        float local = mod(ang + sector * 0.5, sector) - sector * 0.5;
+        float edge = cos(3.14159265 / sides) / max(cos(local), 0.08);
+        return d * edge;
+      }
+
+      float heartRadius(float a) {
+        float s = -sin(a);
+        float c = cos(a);
+        return 0.25 * (2.0 - 2.0 * s + s * sqrt(abs(c)) / (s + 1.4));
+      }
+
+      vec2 fieldShape(vec2 seed, float shapeId) {
+        float id = floor(shapeId + 0.5);
+        if (id < 0.5) return seed;
+        if (id < 1.5) return squareToDisk(seed);
+        if (id < 2.5) return toPolygon(seed, 3.0);
+        if (id < 3.5) return toPolygon(seed, 4.0);
+        if (id < 4.5) return toPolygon(seed, 6.0);
+        if (id < 5.5) {
+          vec2 d = squareToDisk(seed);
+          float ang = atan(d.y, d.x);
+          float sector = 6.2831853 / 5.0;
+          float spoke = abs(fract(ang / sector + 0.5) - 0.5) * 2.0;
+          return d * mix(1.0, 0.42, spoke);
+        }
+        if (id < 6.5) {
+          vec2 d = squareToDisk(seed);
+          float r = mix(0.58, 1.0, length(d));
+          return normalize(d + vec2(1e-4, 1e-4)) * r;
+        }
+        if (id < 7.5) {
+          vec2 d = squareToDisk(seed);
+          float a = atan(d.y, d.x);
+          float hr = heartRadius(a) / max(heartRadius(1.5707963), 0.05);
+          return normalize(d + vec2(1e-4, 1e-4)) * length(d) * hr;
+        }
+        vec2 a = abs(seed);
+        vec2 c = seed;
+        if (a.x > 0.38 && a.y > 0.38) {
+          if (a.x < a.y) c.x = sign(seed.x) * 0.38 * (0.38 / max(a.x, 1e-4));
+          else c.y = sign(seed.y) * 0.38 * (0.38 / max(a.y, 1e-4));
+        }
+        return c;
+      }
+
+      vec2 moveParticles(vec2 base, vec2 seed, float life, float t) {
+        float motion = floor(uMotion + 0.5);
+        float travel = t * (0.55 + uSpeed * 0.35) + life * 6.2831853;
+        float amp = (0.28 + uComplexity * 0.22) * max(uShapeSize, 0.2);
+        if (motion < 0.5) {
+          vec2 pos = base;
+          for (int i = 0; i < 8; i++) {
+            vec2 dir = flow(pos, t + float(i) * 0.02 + life * 10.0);
+            pos += dir * 0.018 * uScale;
+          }
+          pos *= 1.0 + 0.1 * sin(t * 0.5 + life * 20.0);
+          return pos;
+        }
+        if (motion < 1.5) {
+          return base + vec2(
+            sin(travel + seed.y * 8.0),
+            sin(travel * 0.73 + seed.x * 6.0)
+          ) * amp;
+        }
+        if (motion < 2.5) {
+          float s = fract(travel * 0.12 + life) * 2.0 - 1.0;
+          return base * 0.35 + vec2(s, seed.y * 0.85) * length(base);
+        }
+        if (motion < 3.5) {
+          float sx = abs(fract(travel * 0.12 + life) * 2.0 - 1.0) * 2.0 - 1.0;
+          float sy = abs(fract(travel * 0.07 + seed.x) * 2.0 - 1.0) * 2.0 - 1.0;
+          return base + vec2(sx, sy * 0.65) * amp;
+        }
+        if (motion < 4.5) {
+          float phase = fract(travel * 0.1 + life);
+          vec2 corner = vec2(step(0.5, fract(phase * 2.0)) * 2.0 - 1.0, step(0.5, phase) * 2.0 - 1.0);
+          return base * 0.2 + corner * abs(base);
+        }
+        if (motion < 5.5) {
+          float p = 0.28 + 0.72 * (0.5 + 0.5 * sin(travel));
+          return base * p;
+        }
+        if (motion < 6.5) {
+          float ang = travel + atan(base.y, base.x);
+          return vec2(cos(ang), sin(ang)) * max(length(base), 0.04);
+        }
+        if (motion < 7.5) {
+          float a = travel + life * 4.0;
+          float b = travel * (1.35 + uComplexity * 0.45) + seed.x * 3.0;
+          return vec2(sin(a), sin(b)) * max(length(base), 0.08);
+        }
+        float turns = travel * 1.5 + life * 6.2831853;
+        float rad = fract(travel * 0.08 + life) * max(length(base), 0.08);
+        return vec2(cos(turns), sin(turns)) * rad;
       }
 
       float heartField(vec2 p) {
@@ -781,13 +891,8 @@ export const SHADERS = {
         float life = aSeed.z;
         float aspect = max(uAspect, 0.75);
 
-        vec2 pos = seed * uScale * uFieldScale;
-        for (int i = 0; i < 8; i++) {
-          vec2 dir = flow(pos, t + float(i) * 0.02 + life * 10.0);
-          pos += dir * 0.018 * uScale;
-        }
-
-        pos *= 1.0 + 0.1 * sin(t * 0.5 + life * 20.0);
+        vec2 base = fieldShape(seed, uFieldShape) * uScale * uFieldScale * uShapeSize;
+        vec2 pos = moveParticles(base, seed, life, t);
         pos.x /= aspect;
         float zoom = max(pow(uZoom, 0.55), 0.25);
         pos /= zoom;
@@ -821,8 +926,9 @@ export const SHADERS = {
         vec4 mvPosition = modelViewMatrix * vec4(pos, 0.0, 1.0);
         gl_Position = projectionMatrix * mvPosition;
 
-        float size = uPointSize * (140.0 / -mvPosition.z) * (0.55 + vCover * 0.25);
-        gl_PointSize = clamp(size * max(uObjectScale, 0.05), 1.5, 48.0);
+        float sizeMix = mix(1.0, 0.22 + life * 1.9, clamp(uSizeSpread, 0.0, 1.0));
+        float size = uPointSize * 10.0 * sizeMix * (140.0 / -mvPosition.z) * (0.55 + vCover * 0.25);
+        gl_PointSize = clamp(size * max(uObjectScale, 0.05), 1.5, 480.0);
       }
     `,
     fragment: /* glsl */ `

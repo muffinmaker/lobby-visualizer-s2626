@@ -48,6 +48,30 @@ export const SYMMETRY_OPTIONS = {
   'Mirror array': 3,
 };
 
+export const FIELD_SHAPE_OPTIONS = {
+  Rectangle: 0,
+  Circle: 1,
+  Triangle: 2,
+  Diamond: 3,
+  Hexagon: 4,
+  Star: 5,
+  Ring: 6,
+  Heart: 7,
+  Cross: 8,
+};
+
+export const FLOW_MOTION_OPTIONS = {
+  Flow: 0,
+  Sine: 1,
+  Saw: 2,
+  Triangle: 3,
+  Square: 4,
+  Pulse: 5,
+  Orbit: 6,
+  Lissajous: 7,
+  Spiral: 8,
+};
+
 export const POINT_SHAPE_OPTIONS = {
   Circle: 0,
   Square: 1,

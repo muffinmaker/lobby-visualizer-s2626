@@ -9,7 +9,7 @@ import {
 } from './shaders/index.js';
 import { getSpecMap, mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
 import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
-import { PATTERN_OPTIONS, POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, SPACING_OPTIONS, STAMP_SHAPE_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
+import { FIELD_SHAPE_OPTIONS, FLOW_MOTION_OPTIONS, PATTERN_OPTIONS, POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, SPACING_OPTIONS, STAMP_SHAPE_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
 import { TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
 import { AUDIO_FEATURES } from './MusicMode.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
@@ -1133,6 +1133,26 @@ export class SettingsPanel {
           }
           this.handleValueChange();
         });
+    } else if (spec.kind === 'fieldShape') {
+      controller = folder
+        .add(this.state, key, { ...FIELD_SHAPE_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
+    } else if (spec.kind === 'flowMotion') {
+      controller = folder
+        .add(this.state, key, { ...FLOW_MOTION_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
     } else if (spec.kind === 'pointShape') {
       controller = folder
         .add(this.state, key, { ...POINT_SHAPE_OPTIONS })
@@ -1490,7 +1510,7 @@ export class SettingsPanel {
     const choices = { Off: 'off' };
     for (let i = 0; i < 10; i++) choices[`Channel ${i}`] = String(i);
     for (const [key, spec] of Object.entries(specs)) {
-      if (spec?.max == null || spec.kind === 'toggle' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'pointShape' || spec.kind === 'stampShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode' || spec.kind === 'patternType' || spec.kind === 'trailShape') {
+      if (spec?.max == null || spec.kind === 'toggle' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'pointShape' || spec.kind === 'stampShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode' || spec.kind === 'patternType' || spec.kind === 'trailShape' || spec.kind === 'fieldShape' || spec.kind === 'flowMotion') {
         continue;
       }
       const stored = this.musicMode.assignments[key];
