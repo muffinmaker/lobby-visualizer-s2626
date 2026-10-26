@@ -21,7 +21,7 @@ function isColorKey(key, spec) {
 }
 
 function isStructureKey(key, spec) {
-  if (spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape' || spec.kind === 'pointShape' || spec.kind === 'symmetry') return true;
+  if (spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape' || spec.kind === 'pointShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode') return true;
   if (
     key === 'uZoom' ||
     key === 'uIterations' ||

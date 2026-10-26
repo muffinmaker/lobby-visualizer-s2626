@@ -506,6 +506,8 @@ export const SHADERS = {
       uniform float uBloom;
       uniform float uSegments;
       uniform float uRingCount;
+      uniform float uLineSpacing;
+      uniform float uSpacingMode;
       uniform float uWarp;
       uniform float uLineWidth;
       uniform float uMirrorAngle;
@@ -652,10 +654,26 @@ export const SHADERS = {
         float originFade = smoothstep(0.0, 0.04 + uLineWidth * 1.5, origin);
 
         float rings = 0.0;
+        float spacingMode = floor(uSpacingMode + 0.5);
+        float gap = max(uLineSpacing, 0.01) * ringScale;
+        float ringTotal = max(uRingCount, 1.0);
         for (float i = 0.0; i < 14.0; i++) {
           if (i >= uRingCount) break;
           float fi = i + 1.0;
-          float r = fi * 0.12 * ringScale;
+          float t = fi / ringTotal;
+          float spread = fi;
+          if (spacingMode < 0.5) {
+            spread = fi;
+          } else if (spacingMode < 1.5) {
+            spread = (exp(t * 2.4) - 1.0) / (exp(2.4) - 1.0) * ringTotal;
+          } else if (spacingMode < 2.5) {
+            spread = log(1.0 + t * 9.0) / log(10.0) * ringTotal;
+          } else if (spacingMode < 3.5) {
+            spread = sqrt(t) * ringTotal;
+          } else {
+            spread = fi * (0.55 + 0.7 * (0.5 + 0.5 * sin(fi * 1.7)));
+          }
+          float r = spread * gap;
           float wobble = sin(tp * (0.7 + fi * 0.1) + fi * 1.7) * uWarp * 0.05;
           float ringDist = max(abs(length(p) - r - wobble), 0.012);
           rings += uLineWidth / ringDist;

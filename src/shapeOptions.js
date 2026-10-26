@@ -24,6 +24,14 @@ export const TRAIL_SHAPE_OPTIONS = {
   Smear: 11,
 };
 
+export const SPACING_OPTIONS = {
+  Linear: 0,
+  Exponential: 1,
+  Logarithmic: 2,
+  Radial: 3,
+  Wave: 4,
+};
+
 export const SYMMETRY_OPTIONS = {
   Rotational: 0,
   Mirrored: 1,

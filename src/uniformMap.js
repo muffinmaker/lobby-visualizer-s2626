@@ -19,8 +19,13 @@ function tToUi(t, spec) {
 export function uiToShader(ui, spec) {
   if (spec.kind === 'rgb') return ui / 255;
   if (spec.kind === 'toggle') return ui > 0 ? 1 : 0;
-  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape' || spec.kind === 'pointShape' || spec.kind === 'symmetry') {
+  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape' || spec.kind === 'pointShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode') {
     return Math.round(Number(ui));
+  }
+  if (spec.kind === 'speed') {
+    const t = uiToT(ui, spec);
+    const eased = Math.pow(t, 1.75);
+    return (spec.shaderMin ?? 0) + eased * ((spec.shaderMax ?? 1) - (spec.shaderMin ?? 0));
   }
   if (spec.kind === 'zoom') {
     const t = uiToT(ui, spec);
@@ -44,12 +49,18 @@ export function uiToShader(ui, spec) {
 export function shaderToUi(shader, spec) {
   if (spec.kind === 'rgb') return Math.round(clamp(shader, 0, 1) * 255);
   if (spec.kind === 'toggle') return shader > 0.5 ? 1 : 0;
-  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape' || spec.kind === 'pointShape' || spec.kind === 'symmetry') {
+  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape' || spec.kind === 'pointShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode') {
     return Math.round(clamp(shader, spec.min, spec.max));
   }
   if (spec.kind === 'particles') {
     const t = (shader - spec.shaderMin) / (spec.shaderMax - spec.shaderMin || 1);
     return Math.round(spec.min + clamp(t, 0, 1) * (spec.max - spec.min));
+  }
+  if (spec.kind === 'speed') {
+    const span = (spec.shaderMax ?? 1) - (spec.shaderMin ?? 0) || 1;
+    const eased = Math.max(0, (shader - (spec.shaderMin ?? 0)) / span);
+    const t = Math.pow(eased, 1 / 1.75);
+    return tToUi(t, spec);
   }
   if (spec.kind === 'zoom') {
     const exp = Math.log2(Math.max(shader, 1e-6));

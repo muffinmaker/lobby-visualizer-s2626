@@ -84,7 +84,7 @@ export const SPIRO_COMPLEXITY = {
 
 export const GLOBAL_UNIFORMS = {
   ...BACKGROUND_UNIFORMS,
-  uSpeed: { value: 10, min: 0, max: 400, step: 1, shaderMin: 0, shaderMax: 4.8 },
+  uSpeed: { value: 10, min: 0, max: 400, step: 1, kind: 'speed', shaderMin: 0, shaderMax: 2.4 },
   uScale: { value: 45, min: 0, max: 400, step: 1, shaderMin: 0.3, shaderMax: 9.1 },
   uComplexity: pct(40, 0.2, 3),
   uBrightness: pct(50, 0.2, 2.5),
@@ -152,6 +152,8 @@ export const SHADER_UNIFORM_TEMPLATES = {
   kaleido: {
     uSegments: count(8, 3, 32),
     uRingCount: count(6, 2, 14),
+    uLineSpacing: { ...pct(50, 0.04, 0.2), label: 'Line spacing' },
+    uSpacingMode: { value: 0, min: 0, max: 4, step: 1, kind: 'spacingMode', label: 'Spacing mode' },
     uWarp: pct(30, 0.05, 2),
     uLineWidth: { value: 33, min: 0, max: 400, step: 1, shaderMin: 0.002, shaderMax: 0.2, label: 'Line thickness' },
     uMirrorAngle: { ...center(50, -3.1416, 3.1416), label: 'Mirror angle' },

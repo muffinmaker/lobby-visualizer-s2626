@@ -573,7 +573,7 @@ export class Visualizer {
         flowMaxParticles(this.liteMode),
       );
     }
-    const nextSpeed = Math.max(smoothed.uSpeed ?? 0.05, 0.001);
+    const nextSpeed = Math.max(smoothed.uSpeed ?? 0, 0);
     const prevSpeed = this.lastAnimSpeed ?? nextSpeed;
     this.animPhase = compensateAnimPhase(this.animPhase, shaderId, prevSpeed, nextSpeed);
     this.animPhase += dt * (prevSpeed + nextSpeed) * 0.5;

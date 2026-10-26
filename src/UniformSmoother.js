@@ -14,6 +14,7 @@ const DISCRETE_KEYS = new Set([
   'uStampShape',
   'uPointShape',
   'uSymmetry',
+  'uSpacingMode',
   'uPolygonSides',
   'uIterations',
   'uOrbitCount',

@@ -9,7 +9,7 @@ import {
 } from './shaders/index.js';
 import { getSpecMap, mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
 import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
-import { POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, STAMP_SHAPE_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
+import { POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, SPACING_OPTIONS, STAMP_SHAPE_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
 import { TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
 import { AUDIO_FEATURES } from './MusicMode.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
@@ -1048,6 +1048,16 @@ export class SettingsPanel {
           }
           this.handleValueChange();
         });
+    } else if (spec.kind === 'spacingMode') {
+      controller = folder
+        .add(this.state, key, { ...SPACING_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
     } else if (spec.kind === 'symmetry') {
       controller = folder
         .add(this.state, key, { ...SYMMETRY_OPTIONS })
@@ -1415,7 +1425,7 @@ export class SettingsPanel {
     const choices = { Off: 'off' };
     for (let i = 0; i < 10; i++) choices[`Channel ${i}`] = String(i);
     for (const [key, spec] of Object.entries(specs)) {
-      if (spec?.max == null || spec.kind === 'toggle' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'pointShape' || spec.kind === 'stampShape' || spec.kind === 'symmetry' || spec.kind === 'trailShape') {
+      if (spec?.max == null || spec.kind === 'toggle' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'pointShape' || spec.kind === 'stampShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode' || spec.kind === 'trailShape') {
         continue;
       }
       const stored = this.musicMode.assignments[key];
