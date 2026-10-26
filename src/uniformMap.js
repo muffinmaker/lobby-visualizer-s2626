@@ -3,6 +3,28 @@ import { SHADER_UNIFORM_TEMPLATES, SPIRO_COMPLEXITY } from './uniformSpecs.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
+// Flow points used to clamp at 48px from UI ~28 upward. Keep that size through the
+// default, then open the rest of the slider up to about 10× (480px).
+const FLOW_POINT_ANCHOR_T = 0.28;
+const FLOW_POINT_ANCHOR = 1.85;
+const FLOW_POINT_MAX = 18.5;
+
+function flowPointToShader(t) {
+  if (t <= FLOW_POINT_ANCHOR_T) {
+    return 0.5 + (t / FLOW_POINT_ANCHOR_T) * (FLOW_POINT_ANCHOR - 0.5);
+  }
+  const u = (t - FLOW_POINT_ANCHOR_T) / (1 - FLOW_POINT_ANCHOR_T);
+  return FLOW_POINT_ANCHOR + u * u * (FLOW_POINT_MAX - FLOW_POINT_ANCHOR);
+}
+
+function flowPointToT(shader) {
+  if (shader <= FLOW_POINT_ANCHOR) {
+    return ((shader - 0.5) / (FLOW_POINT_ANCHOR - 0.5)) * FLOW_POINT_ANCHOR_T;
+  }
+  const u = Math.sqrt((shader - FLOW_POINT_ANCHOR) / (FLOW_POINT_MAX - FLOW_POINT_ANCHOR));
+  return FLOW_POINT_ANCHOR_T + u * (1 - FLOW_POINT_ANCHOR_T);
+}
+
 function uiToT(ui, spec) {
   let t = (ui - spec.min) / (spec.max - spec.min || 1);
   t = clamp(t, 0, 1);
@@ -31,6 +53,9 @@ export function uiToShader(ui, spec) {
     const t = uiToT(ui, spec);
     const exp = spec.shaderMin + t * (spec.shaderMax - spec.shaderMin);
     return Math.pow(2, exp);
+  }
+  if (spec.kind === 'flowPoint') {
+    return flowPointToShader(uiToT(ui, spec));
   }
   if (spec.kind === 'particles') {
     const t = (ui - spec.min) / (spec.max - spec.min || 1);
@@ -66,6 +91,9 @@ export function shaderToUi(shader, spec) {
     const exp = Math.log2(Math.max(shader, 1e-6));
     const t = (exp - spec.shaderMin) / (spec.shaderMax - spec.shaderMin || 1);
     return tToUi(t, spec);
+  }
+  if (spec.kind === 'flowPoint') {
+    return tToUi(flowPointToT(shader), spec);
   }
 
   if (spec.shaderMin !== undefined && spec.shaderMax !== undefined) {

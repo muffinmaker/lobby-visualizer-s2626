@@ -172,7 +172,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uObjectScale: objectScale(),
   },
   flow: {
-    uPointSize: { ...pct(28, 0.5, 8), label: 'Point size' },
+    uPointSize: { value: 28, min: 0, max: 100, step: 1, kind: 'flowPoint', label: 'Point size' },
     uSizeSpread: { ...pct(0, 0, 1), label: 'Size mix' },
     uFieldShape: { value: 0, min: 0, max: 8, step: 1, kind: 'fieldShape', label: 'Field shape' },
     uShapeSize: { value: 50, min: 0, max: 100, step: 1, shaderMin: 0.2, shaderMax: 1.8, label: 'Shape size' },

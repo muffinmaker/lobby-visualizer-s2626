@@ -927,7 +927,7 @@ export const SHADERS = {
         gl_Position = projectionMatrix * mvPosition;
 
         float sizeMix = mix(1.0, 0.22 + life * 1.9, clamp(uSizeSpread, 0.0, 1.0));
-        float size = uPointSize * 10.0 * sizeMix * (140.0 / -mvPosition.z) * (0.55 + vCover * 0.25);
+        float size = uPointSize * sizeMix * (140.0 / -mvPosition.z) * (0.55 + vCover * 0.25);
         gl_PointSize = clamp(size * max(uObjectScale, 0.05), 1.5, 480.0);
       }
     `,
