@@ -769,9 +769,20 @@ async function start() {
     }
   });
 
+  let perfFrames = 0;
+  let perfAccum = 0;
+
   function tick() {
     if (!running) return;
     const dt = visualizer.render();
+    perfFrames += 1;
+    perfAccum += dt;
+    if (perfAccum >= 0.5) {
+      const fps = perfFrames / perfAccum;
+      settings.notePerf(fps, 1000 / Math.max(fps, 0.01));
+      perfFrames = 0;
+      perfAccum = 0;
+    }
 
     const driftValues =
       !musicMode.enabled && !presetManager.isTransitioning

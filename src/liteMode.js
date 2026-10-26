@@ -71,6 +71,23 @@ export function applyLiteLimits(shaderId, values) {
   return next;
 }
 
+/** Short, mode-aware note about what is costing the GPU right now. */
+export function describeModeLoad(shaderId, state = {}) {
+  const bits = [];
+  if (shaderId === 'spiro') bits.push(`${state.uOrbitCount ?? 0} orbits`);
+  if (shaderId === 'flow') bits.push(`particle level ${state.uParticleCount ?? 0}`);
+  if (shaderId === 'kaleido') bits.push(`${state.uRingCount ?? 0} rings`);
+  if (shaderId === 'spocks') bits.push(`${state.uIterations ?? 0} layers`);
+  if (shaderId === 'metaballs') bits.push(`${state.uBallCount ?? 0} blobs`);
+  if (shaderId === 'wormhole') bits.push(`${state.uChevrons ?? 0} ribs`);
+  if (shaderId === 'ribbons') bits.push(`${state.uRibbonCount ?? 0} ribbons · shared controls ×10`);
+  if ((state.motionTrails ?? 0) > 0 && !state.liteMode) bits.push('motion trails');
+  if ((state.uBloom ?? 0) > 55) bits.push('high bloom');
+  bits.push(`${Math.round(state.resolutionScale ?? 100)}% resolution`);
+  if (state.liteMode) bits.push('lite caps');
+  return bits.join(' · ');
+}
+
 export function snapshotLiteRestoreFields(values) {
   return {
     resolutionScale: values.resolutionScale,

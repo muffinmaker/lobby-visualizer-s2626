@@ -16,6 +16,7 @@ import { randomBetween, randomizeUniform } from './randomize.js';
 import { canDrift } from './driftUtils.js';
 import {
   applyLiteLimits,
+  describeModeLoad,
   loadLiteMode,
   saveLiteMode,
   snapshotLiteRestoreFields,
@@ -197,6 +198,8 @@ export class SettingsPanel {
       trailsNeverDecay: false,
       resolutionScale: visualizer.resolutionScale ?? defaultResolutionScale(),
       liteMode: loadLiteMode(),
+      performancePreset: loadLiteMode() ? 'lite' : 'full',
+      perfNote: 'Measuring…',
       menuOpacity: 80,
       menuPosition: loadMenuPosition(),
       menuScale: loadMenuScale(),
@@ -408,7 +411,140 @@ export class SettingsPanel {
     this.applyComplexityForShader(this.state.shader);
     this.placeGlobalAtTop();
     this.patchNumberControllers();
+    this.mountMenuSearch();
     this.gui.close();
+  }
+
+  mountMenuSearch() {
+    const bar = document.createElement('div');
+    bar.className = 'menu-search';
+    const input = document.createElement('input');
+    input.type = 'search';
+    input.placeholder = 'Find a control';
+    input.setAttribute('aria-label', 'Find a control');
+    bar.append(input);
+    this.gui.domElement.prepend(bar);
+    this.searchInput = input;
+    this.searchQuery = '';
+    this.searchIndex = 0;
+    input.addEventListener('input', () => this.jumpToSearch(input.value));
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        this.jumpToSearch(input.value, { cycle: !event.shiftKey });
+      }
+    });
+    window.addEventListener('keydown', (event) => {
+      const key = event.key.toLowerCase();
+      if (!(event.metaKey || event.ctrlKey) || key !== 'f') return;
+      if (document.getElementById('notepad-panel')?.classList.contains('is-open')) return;
+      event.preventDefault();
+      this.setVisible(true);
+      this.gui.open();
+      input.focus();
+      input.select();
+    });
+  }
+
+  searchScore(query, label) {
+    const q = query.toLowerCase().trim();
+    const text = String(label || '').toLowerCase();
+    if (!q || !text) return 0;
+    if (text === q) return 200;
+    if (text.includes(q)) return 120 - text.indexOf(q);
+    const words = text.split(/[^a-z0-9]+/).filter(Boolean);
+    let best = 0;
+    for (const word of words) {
+      if (word.includes(q)) best = Math.max(best, 90);
+      const distance = this.editDistance(q, word);
+      const sameStart = q.slice(0, 3) === word.slice(0, 3);
+      if (q.length >= 4 && (distance <= 2 || (distance <= 3 && sameStart))) best = Math.max(best, 70);
+    }
+    return best;
+  }
+
+  editDistance(a, b) {
+    const rows = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= b.length; j++) rows[0][j] = j;
+    for (let i = 1; i <= a.length; i++) {
+      for (let j = 1; j <= b.length; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        rows[i][j] = Math.min(rows[i - 1][j] + 1, rows[i][j - 1] + 1, rows[i - 1][j - 1] + cost);
+      }
+    }
+    return rows[a.length][b.length];
+  }
+
+  collectSearchItems() {
+    const items = [];
+    const pushSpecs = (shaderId, specs) => {
+      for (const [key, spec] of Object.entries(specs || {})) {
+        items.push({ shaderId, key, label: this.labelFor(key, spec) });
+      }
+    };
+    pushSpecs(null, this.globalSpecs);
+    for (const [shaderId, shader] of Object.entries(SHADERS)) {
+      pushSpecs(shaderId, shader.uniforms);
+    }
+    for (const label of [
+      'Quality',
+      'Resolution %',
+      'Motion Trails',
+      'Lite mode (multi-screen)',
+      'Menu size',
+      'Palette editor',
+      'Font',
+      'Animation',
+      'Drift',
+      'Drift speed',
+      'Drift direction',
+    ]) {
+      items.push({ shaderId: null, key: null, label });
+    }
+    return items;
+  }
+
+  jumpToSearch(raw, { cycle = false } = {}) {
+    const query = raw.trim();
+    if (!query) return;
+    const ranked = this.collectSearchItems()
+      .map((item) => ({ item, score: this.searchScore(query, item.label) }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score);
+    if (!ranked.length) return;
+    if (query !== this.searchQuery) {
+      this.searchQuery = query;
+      this.searchIndex = 0;
+    } else if (cycle) {
+      this.searchIndex = (this.searchIndex + 1) % ranked.length;
+    }
+    const { item } = ranked[this.searchIndex] || ranked[0];
+    if (item.shaderId && item.shaderId !== this.state.shader) {
+      this.setShader(item.shaderId);
+    }
+    this.gui.open();
+    requestAnimationFrame(() => this.revealSearchHit(item));
+  }
+
+  revealSearchHit(item) {
+    const root = this.gui.domElement;
+    const names = [...root.querySelectorAll('.controller .name, .lil-gui > .title')];
+    const nameEl = names.find((el) => {
+      const text = el.textContent.replace(/\s+/g, ' ').trim();
+      return text === item.label || text.startsWith(item.label);
+    });
+    const row = nameEl?.closest('.controller, .lil-gui');
+    if (!row) return;
+    let parent = row.parentElement;
+    while (parent && parent !== root) {
+      if (parent.classList?.contains('lil-gui') && parent.classList.contains('closed')) {
+        parent.classList.remove('closed');
+      }
+      parent = parent.parentElement;
+    }
+    root.querySelectorAll('.search-hit').forEach((el) => el.classList.remove('search-hit'));
+    row.classList.add('search-hit');
+    row.scrollIntoView({ block: 'nearest' });
   }
 
   buildLogoSection() {
@@ -631,6 +767,14 @@ export class SettingsPanel {
   buildDisplaySection() {
     const display = this.gui.addFolder('Display');
     this.displayFolder = display;
+    this.qualityCtrl = display
+      .add(this.state, 'performancePreset', { Full: 'full', Balanced: 'balanced', Lite: 'lite' })
+      .name('Quality')
+      .onChange((preset) => {
+        this.setPerformancePreset(preset);
+      });
+    this.perfNoteCtrl = display.add(this.state, 'perfNote').name('Load');
+    this.perfNoteCtrl.disable(true);
     this.liteModeCtrl = display
       .add(this.state, 'liteMode')
       .name('Lite mode (multi-screen)')
@@ -849,6 +993,41 @@ export class SettingsPanel {
     };
   }
 
+  setPerformancePreset(preset) {
+    this.state.performancePreset = preset;
+    if (preset === 'lite') {
+      this.setLiteMode(true);
+      return;
+    }
+    if (this.state.liteMode) this.setLiteMode(false);
+    if (preset === 'balanced') {
+      this.state.resolutionScale = Math.min(this.state.resolutionScale, 65);
+      this.state.motionTrails = Math.min(this.state.motionTrails ?? 100, 30);
+      if (this.state.uBloom != null) this.state.uBloom = Math.min(this.state.uBloom, 35);
+      if (this.state.uOrbitCount != null) this.state.uOrbitCount = Math.min(this.state.uOrbitCount, 24);
+      if (this.state.uParticleCount != null) this.state.uParticleCount = Math.min(this.state.uParticleCount, 18);
+      if (this.state.uRingCount != null) this.state.uRingCount = Math.min(this.state.uRingCount, 6);
+      if (this.state.uIterations != null) this.state.uIterations = Math.min(this.state.uIterations, 60);
+      if (this.state.uRibbonCount != null) this.state.uRibbonCount = Math.min(this.state.uRibbonCount, 4);
+    }
+    if (preset === 'full') {
+      this.state.resolutionScale = 100;
+    }
+    this.visualizer.setResolutionScale(this.state.resolutionScale);
+    this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    this.updateTrailsNeverDecayCtrl();
+    this.syncValuesToVisualizer();
+  }
+
+  notePerf(fps, frameMs) {
+    const load = describeModeLoad(this.state.shader, this.state);
+    const text = `${Math.round(fps)} fps · ${frameMs.toFixed(1)} ms · ${load}`;
+    this.state.perfNote = text;
+    this.perfNoteCtrl?.updateDisplay();
+    const badge = document.getElementById('perf-readout');
+    if (badge) badge.textContent = text;
+  }
+
   setLiteMode(enabled, { silent = false, skipSave = false, init = false } = {}) {
     const next = Boolean(enabled);
     if (next === this.state.liteMode) return;
@@ -858,6 +1037,9 @@ export class SettingsPanel {
     }
 
     this.state.liteMode = next;
+    if (next) this.state.performancePreset = 'lite';
+    else if (this.state.performancePreset === 'lite') this.state.performancePreset = 'full';
+    this.qualityCtrl?.updateDisplay();
     if (!skipSave) saveLiteMode(next);
     this.visualizer.setLiteMode(next);
 
