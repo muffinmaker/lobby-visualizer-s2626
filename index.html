@@ -40,35 +40,6 @@
         justify-content: center;
       }
 
-      .menu-search {
-        position: sticky;
-        top: 0;
-        z-index: 5;
-        padding: 0.35rem 0.4rem 0.2rem;
-        background: rgb(17 17 17 / 0.96);
-      }
-
-      .menu-search input {
-        width: 100%;
-        height: 1.7rem;
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        border-radius: 0.25rem;
-        background: rgba(0, 0, 0, 0.35);
-        color: #fff;
-        font: 500 0.75rem/1 system-ui, sans-serif;
-        padding: 0 0.45rem;
-      }
-
-      .menu-search input:focus {
-        outline: 1px solid rgba(140, 190, 255, 0.7);
-      }
-
-      .lil-gui .controller.search-hit,
-      .lil-gui.search-hit > .title {
-        outline: 1px solid rgba(140, 200, 255, 0.9);
-        background: rgba(80, 140, 220, 0.28);
-      }
-
       #perf-readout {
         position: fixed;
         top: 0.55rem;
@@ -1062,6 +1033,12 @@
         color: rgba(255, 255, 255, 0.9);
       }
 
+      .lil-gui.phone-bar,
+      body:not(.phone-ui) .phone-bar,
+      body:not(.phone-ui) .phone-show-btn {
+        display: none !important;
+      }
+
       .phone-bar {
         display: none;
         position: fixed;
@@ -1084,7 +1061,7 @@
       }
 
       body.phone-ui .phone-bar:not([hidden]) {
-        display: block;
+        display: block !important;
       }
 
       body.phone-ui.ui-hidden .phone-bar {
