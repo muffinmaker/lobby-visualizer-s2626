@@ -220,7 +220,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
   ribbons: {
     uRibbonCount: count(5, 2, 10),
     uThickness: { ...pct(30, 0.01, 0.12), label: 'Line thickness' },
-    uTwistAmount: pct(38, 0, 4),
+    uTwistAmount: { ...center(50, -4, 4), label: 'Twist direction' },
     uZoom: { value: 50, min: 0, max: 400, step: 1, shaderMin: 0.35, shaderMax: 8.95 },
     uPalette: fullPalette(0),
     uObjectScale: objectScale(),

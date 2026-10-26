@@ -11,6 +11,7 @@ import { getSpecMap, mergeShaderDefaults, normalizeUiValues } from './uniformMap
 import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
 import { POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, STAMP_SHAPE_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
 import { TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
+import { AUDIO_FEATURES } from './MusicMode.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
 import { canDrift } from './driftUtils.js';
 import {
@@ -205,6 +206,13 @@ export class SettingsPanel {
       musicResponse: 55,
       musicLevel: 0,
       musicStatus: 'Off',
+      musicKick: 0,
+      musicHihat: 0,
+      musicBass: 0,
+      musicMid: 0,
+      musicHigh: 0,
+      musicBeat: 0,
+      musicBpm: 0,
       ...this.flattenValues(presetManager.currentPreset),
     };
     mergeShaderDefaults(this.state, this.state.shader);
@@ -342,6 +350,34 @@ export class SettingsPanel {
       this.musicLevelCtrl.disable(true);
       this.musicStatusCtrl = music.add(this.state, 'musicStatus').name('Status');
       this.musicStatusCtrl.disable(true);
+
+      const bands = music.addFolder('Bands');
+      this.musicMeters = {};
+      for (const [key, label, max] of [
+        ['musicKick', 'Kick', 100],
+        ['musicHihat', 'Hi-hat', 100],
+        ['musicBass', 'Bass', 100],
+        ['musicMid', 'Mid', 100],
+        ['musicHigh', 'High', 100],
+        ['musicBeat', 'Beat', 100],
+        ['musicBpm', 'BPM', 200],
+      ]) {
+        const ctrl = bands.add(this.state, key, 0, max, 1).name(label);
+        ctrl.disable(true);
+        this.musicMeters[key] = ctrl;
+      }
+
+      const channels = music.addFolder('Channels');
+      for (let i = 0; i < 10; i++) {
+        this.state[`musicCh${i}`] = mm.channels[i] || 'off';
+        channels
+          .add(this.state, `musicCh${i}`, AUDIO_FEATURES)
+          .name(`Channel ${i}`)
+          .onChange((value) => mm.setChannelFeature(i, value));
+      }
+
+      this.audioLinks = music.addFolder('Setting links');
+      this.rebuildAudioLinks();
     }
 
     const cycle = this.gui.addFolder('Auto Cycle');
@@ -370,6 +406,7 @@ export class SettingsPanel {
     this.applyMenuPosition(this.state.menuPosition);
     this.applyMenuScale(this.state.menuScale);
     this.applyComplexityForShader(this.state.shader);
+    this.placeGlobalAtTop();
     this.patchNumberControllers();
     this.gui.close();
   }
@@ -688,11 +725,14 @@ export class SettingsPanel {
     }
   }
 
-  placeShaderFolderAfterGlobal() {
-    if (!this.globalFolder?.domElement || !this.shaderFolder?.domElement) return;
-    const parent = this.globalFolder.domElement.parentElement;
-    if (!parent) return;
-    parent.insertBefore(this.shaderFolder.domElement, this.globalFolder.domElement.nextSibling);
+  placeGlobalAtTop() {
+    const globalEl = this.globalFolder?.domElement;
+    if (!globalEl?.parentElement) return;
+    const parent = globalEl.parentElement;
+    parent.insertBefore(globalEl, parent.firstElementChild);
+    if (this.shaderFolder?.domElement) {
+      parent.insertBefore(this.shaderFolder.domElement, globalEl.nextSibling);
+    }
   }
 
   patchNumberControllers() {
@@ -909,6 +949,7 @@ export class SettingsPanel {
     this.rebuildShaderFolder(shaderId);
     this.applyLiteIfEnabled();
     this.refreshPresetDropdown();
+    this.rebuildAudioLinks();
     pm.syncCurrentIndexForShader(this.state.preset);
     this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
     if (this.musicMode?.enabled) {
@@ -1189,7 +1230,7 @@ export class SettingsPanel {
       }
     }
 
-    this.placeShaderFolderAfterGlobal();
+    this.placeGlobalAtTop();
     this.patchNumberControllers();
     const focusKey = this.navigableItems[this.gamepadFocusIndex]?.key;
     this.refreshGamepadMenuAfterRebuild(focusKey);
@@ -1367,12 +1408,40 @@ export class SettingsPanel {
     }
   }
 
+  rebuildAudioLinks() {
+    if (!this.audioLinks || !this.musicMode) return;
+    [...this.audioLinks.controllers].forEach((controller) => controller.destroy());
+    const specs = getSpecMap(this.state.shader);
+    const choices = { Off: 'off' };
+    for (let i = 0; i < 10; i++) choices[`Channel ${i}`] = String(i);
+    for (const [key, spec] of Object.entries(specs)) {
+      if (spec?.max == null || spec.kind === 'toggle' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'pointShape' || spec.kind === 'stampShape' || spec.kind === 'symmetry' || spec.kind === 'trailShape') {
+        continue;
+      }
+      const stored = this.musicMode.assignments[key];
+      this.state[`audioLink_${key}`] = stored == null ? 'off' : String(stored);
+      this.audioLinks
+        .add(this.state, `audioLink_${key}`, choices)
+        .name(this.labelFor(key, spec))
+        .onChange((value) => this.musicMode.setAssignment(key, value));
+    }
+  }
+
   refreshMusicMeters() {
     if (!this.musicMode) return;
-    this.state.musicLevel = this.musicMode.level;
-    this.state.musicStatus = this.musicMode.status;
+    const mm = this.musicMode;
+    this.state.musicLevel = mm.level;
+    this.state.musicStatus = mm.status;
+    this.state.musicKick = Math.round((mm.smoothed.kick || 0) * 100);
+    this.state.musicHihat = Math.round((mm.smoothed.hihat || 0) * 100);
+    this.state.musicBass = Math.round((mm.smoothed.bass || 0) * 100);
+    this.state.musicMid = Math.round((mm.smoothed.mid || 0) * 100);
+    this.state.musicHigh = Math.round((mm.smoothed.high || mm.smoothed.treble || 0) * 100);
+    this.state.musicBeat = Math.round((mm.smoothed.beat || 0) * 100);
+    this.state.musicBpm = Math.round(mm.bpm || 0);
     this.musicLevelCtrl?.updateDisplay();
     this.musicStatusCtrl?.updateDisplay();
+    Object.values(this.musicMeters || {}).forEach((ctrl) => ctrl.updateDisplay());
   }
 
   setVisible(visible) {

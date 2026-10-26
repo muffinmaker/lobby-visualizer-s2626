@@ -1,5 +1,24 @@
+import { getSpecMap, uiToShader } from './uniformMap.js';
+
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const lerp = (a, b, t) => a + (b - a) * t;
+
+const CHANNEL_KEY = 'lobby-music-channels';
+const ASSIGN_KEY = 'lobby-music-assigns';
+
+export const AUDIO_FEATURES = {
+  Off: 'off',
+  Kick: 'kick',
+  'Hi-hat': 'hihat',
+  Bass: 'bass',
+  Mid: 'mid',
+  High: 'high',
+  Beat: 'beat',
+  BPM: 'bpm',
+};
+
+const DEFAULT_CHANNELS = ['kick', 'hihat', 'bass', 'mid', 'high', 'beat', 'bpm', 'off', 'off', 'off'];
+const SIGNED_SPIN_KEYS = new Set(['uRotate', 'uTwistAmount']);
 
 const SHADER_MODS = {
   spiro: ['uPulse', 'uTwist', 'uZoom'],
@@ -44,10 +63,70 @@ export class MusicMode {
     this.videoTracks = [];
 
     this.baseValues = null;
-    this.smoothed = { bass: 0, mid: 0, treble: 0, energy: 0, beat: 0 };
+    this.smoothed = {
+      bass: 0, mid: 0, treble: 0, high: 0, energy: 0, beat: 0, kick: 0, hihat: 0, bpm: 0,
+    };
     this.beatHold = 0;
     this.peakEnergy = 0.08;
+    this.clock = 0;
+    this.beatTimes = [];
+    this.bpm = 0;
+    this.channels = this.loadChannels();
+    this.assignments = this.loadAssignments();
     this.onDisabled = null;
+  }
+
+  loadChannels() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(CHANNEL_KEY) || '');
+      if (Array.isArray(parsed) && parsed.length === 10) return parsed.map((v) => v || 'off');
+    } catch {
+      /* ignore */
+    }
+    return [...DEFAULT_CHANNELS];
+  }
+
+  loadAssignments() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(ASSIGN_KEY) || '');
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch {
+      /* ignore */
+    }
+    return {};
+  }
+
+  setChannelFeature(index, feature) {
+    const next = Object.values(AUDIO_FEATURES).includes(feature) ? feature : 'off';
+    this.channels[index] = next;
+    try {
+      localStorage.setItem(CHANNEL_KEY, JSON.stringify(this.channels));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  setAssignment(key, channel) {
+    if (channel == null || channel === '' || channel === 'off') delete this.assignments[key];
+    else this.assignments[key] = Number(channel);
+    try {
+      localStorage.setItem(ASSIGN_KEY, JSON.stringify(this.assignments));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  featureLevel(name) {
+    if (!name || name === 'off') return 0;
+    if (name === 'bpm') return clamp(this.bpm / 180, 0, 1);
+    return this.smoothed[name] ?? 0;
+  }
+
+  spinSign(key, ui, spec) {
+    if (!SIGNED_SPIN_KEYS.has(key) || !spec) return 1;
+    const shader = uiToShader(ui ?? spec.value, spec);
+    if (!Number.isFinite(shader) || Math.abs(shader) < 0.04) return 1;
+    return Math.sign(shader);
   }
 
   captureBaseline(values) {
@@ -72,7 +151,11 @@ export class MusicMode {
     this.baseValues = null;
     this.level = 0;
     this.status = 'Off';
-    this.smoothed = { bass: 0, mid: 0, treble: 0, energy: 0, beat: 0 };
+    this.smoothed = {
+      bass: 0, mid: 0, treble: 0, high: 0, energy: 0, beat: 0, kick: 0, hihat: 0, bpm: 0,
+    };
+    this.bpm = 0;
+    this.beatTimes = [];
     return false;
   }
 
@@ -193,27 +276,29 @@ export class MusicMode {
 
   analyze() {
     if (!this.analyser || !this.freqData) {
-      return { bass: 0, mid: 0, treble: 0, energy: 0, beat: 0 };
+      return { bass: 0, mid: 0, treble: 0, high: 0, energy: 0, beat: 0, kick: 0, hihat: 0 };
     }
 
     this.analyser.getByteFrequencyData(this.freqData);
     const len = this.freqData.length;
-    const bassEnd = Math.max(1, Math.floor(len * 0.07));
-    const midEnd = Math.max(bassEnd + 1, Math.floor(len * 0.42));
+    const nyquist = (this.audioContext?.sampleRate || 48000) / 2;
+    const binHz = nyquist / len;
+    const band = (lo, hi) => {
+      const a = clamp(Math.floor(lo / binHz), 0, len - 1);
+      const b = clamp(Math.ceil(hi / binHz), a + 1, len);
+      let sum = 0;
+      for (let i = a; i < b; i++) sum += this.freqData[i];
+      return sum / (b - a) / 255;
+    };
 
-    let bassSum = 0;
-    let midSum = 0;
-    let trebleSum = 0;
+    const kick = band(20, 120);
+    const bass = band(20, 250);
+    const mid = band(250, 2000);
+    const high = band(2000, 8000);
+    const hihat = band(6000, 16000);
+    const treble = high;
     let total = 0;
-
-    for (let i = 0; i < bassEnd; i++) bassSum += this.freqData[i];
-    for (let i = bassEnd; i < midEnd; i++) midSum += this.freqData[i];
-    for (let i = midEnd; i < len; i++) trebleSum += this.freqData[i];
     for (let i = 0; i < len; i++) total += this.freqData[i];
-
-    const bass = bassSum / bassEnd / 255;
-    const mid = midSum / (midEnd - bassEnd) / 255;
-    const treble = trebleSum / (len - midEnd) / 255;
     const energy = total / len / 255;
 
     this.peakEnergy = Math.max(energy * 1.05, this.peakEnergy * 0.9995);
@@ -226,7 +311,7 @@ export class MusicMode {
     }
     if (this.beatHold > 0) this.beatHold -= 0.016;
 
-    return { bass, mid, treble, energy: norm, beat };
+    return { bass, mid, treble, high, energy: norm, beat, kick, hihat };
   }
 
   update(dt) {
@@ -234,10 +319,21 @@ export class MusicMode {
 
     const raw = this.analyze();
     const k = 1 - Math.exp(-dt / (0.05 + (100 - this.response) / 200));
+    this.clock += dt;
+    if (raw.beat > 0.5) {
+      this.beatTimes.push(this.clock);
+      this.beatTimes = this.beatTimes.filter((t) => this.clock - t < 8);
+      if (this.beatTimes.length >= 2) {
+        let sum = 0;
+        for (let i = 1; i < this.beatTimes.length; i++) sum += this.beatTimes[i] - this.beatTimes[i - 1];
+        const avg = sum / (this.beatTimes.length - 1);
+        if (avg > 0.22 && avg < 2) this.bpm = lerp(this.bpm || 60 / avg, 60 / avg, 0.35);
+      }
+    }
 
     for (const key of Object.keys(this.smoothed)) {
-      const target = key === 'beat' ? raw.beat : raw[key];
-      this.smoothed[key] = lerp(this.smoothed[key], target, k);
+      const target = key === 'bpm' ? clamp(this.bpm / 180, 0, 1) : key === 'beat' ? raw.beat : raw[key] ?? 0;
+      this.smoothed[key] = lerp(this.smoothed[key] ?? 0, target, k);
       if (key === 'beat' && this.smoothed.beat < 0.02) this.smoothed.beat = 0;
     }
 
@@ -252,9 +348,11 @@ export class MusicMode {
     if (!this.enabled || !this.baseValues) return null;
 
     const b = this.baseValues;
+    const specs = getSpecMap(this.currentShader);
     const { bass, mid, treble, energy, beat } = this.smoothed;
     const s = this.sensitivity / 100;
     const out = { ...b };
+    const signed = (key, amount) => amount * this.spinSign(key, b[key], specs[key]);
 
     out.uSpeed = clamp(Math.round(b.uSpeed + energy * 38 * s + beat * 22 * s), 0, 400);
     out.uScale = clamp(Math.round(b.uScale + bass * 28 * s - treble * 6 * s), 0, 400);
@@ -275,7 +373,13 @@ export class MusicMode {
       if (key.includes('Pulse') || key.includes('Edge') || key.includes('Warp')) {
         out[key] = clamp(Math.round(b[key] + bass * 30 * s + beat * 20 * s), 0, 100);
       } else if (key.includes('Twist') || key.includes('Rotate') || key.includes('Noise')) {
-        out[key] = clamp(Math.round(b[key] + mid * 28 * s + energy * 10 * s), 0, 100);
+        const push = Math.abs(mid * 28 * s + energy * 10 * s);
+        const spec = specs[key];
+        out[key] = clamp(
+          Math.round(b[key] + signed(key, push)),
+          spec?.min ?? 0,
+          spec?.max ?? 100,
+        );
       } else if (key.includes('Zoom') || key.includes('Field') || key.includes('Scale')) {
         out[key] = clamp(Math.round(b[key] + bass * 24 * s - mid * 8 * s), 0, 400);
       } else if (key.includes('Trail') || key.includes('Alpha') || key.includes('Line')) {
@@ -284,6 +388,20 @@ export class MusicMode {
       } else {
         out[key] = clamp(Math.round(b[key] + energy * 20 * s), 0, 100);
       }
+    }
+
+    for (const [key, channel] of Object.entries(this.assignments)) {
+      const spec = specs[key];
+      if (!spec || !(key in b) || channel == null || channel < 0) continue;
+      const feature = this.channels[channel];
+      if (!feature || feature === 'off') continue;
+      const level = this.featureLevel(feature);
+      const span = (spec.max - spec.min) * 0.4;
+      out[key] = clamp(
+        Math.round(b[key] + signed(key, level * span * s)),
+        spec.min,
+        spec.max,
+      );
     }
 
     return out;
