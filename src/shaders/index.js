@@ -1,4 +1,5 @@
 import { BACKGROUND_UNIFORMS, GLOBAL_UNIFORMS, SHADER_UNIFORM_TEMPLATES } from '../uniformSpecs.js';
+import { PALETTE_FN, PALETTE_UNIFORMS } from '../paletteGlsl.js';
 
 export const SHADERS = {
   spocks: {
@@ -39,6 +40,7 @@ export const SHADERS = {
       uniform float uHeightRand;
       uniform float uDepthPulse;
       uniform float uColorSpeed;
+      uniform float uObjectScale;
       uniform vec2 uResolution;
       uniform float uAspect;
 
@@ -134,9 +136,11 @@ export const SHADERS = {
         return 1.0 - smoothstep(lw * 0.35, lw * 0.35 + lw, d);
       }
 
+      uniform float uPalette;
+      ${PALETTE_UNIFORMS}
+      ${PALETTE_FN}
       vec3 neonPalette(float hue) {
-        vec3 base = 0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + hue * 1.65));
-        return pow(clamp(base, 0.0, 1.0), vec3(0.82)) * 1.35;
+        return namedPalette(hue, uPalette);
       }
 
       vec3 applyTint(vec3 col) {
@@ -170,7 +174,7 @@ export const SHADERS = {
         // ofRotateDeg(time * rotate) — rotate is in degrees per second per layer.
         float ang = radians(t * uRotate);
         vec2 offset = vec2(uUp, uDown) * uScale;
-        vec2 halfSize = vec2(w, h) * 0.5;
+        vec2 halfSize = vec2(w, h) * 0.5 * max(uObjectScale, 0.05);
 
         float edge = 0.0;
         vec3 accCol = vec3(0.0);
@@ -240,6 +244,9 @@ export const SHADERS = {
       uniform float uTintRed;
       uniform float uTintGreen;
       uniform float uTintBlue;
+      uniform float uObjectScale;
+      ${PALETTE_UNIFORMS}
+      ${PALETTE_FN}
 
       attribute float aIndex;
       attribute float aPhase;
@@ -262,6 +269,7 @@ export const SHADERS = {
 
       vec3 palette(float lane, float radial, float t) {
         float p = floor(uPalette + 0.5);
+        if (p > 19.5) return applyTint(customPalette(lane + radial + t * 0.15));
         float hue = lane * 1.45 + radial * 0.65 + t * uColorSpeed * 0.55 + uHueShift;
         vec3 offset = vec3(0.0, 0.33, 0.67);
         float chroma = 1.65;
@@ -390,7 +398,7 @@ export const SHADERS = {
         vec4 mvPosition = modelViewMatrix * vec4(pos, 0.0, 1.0);
         gl_Position = projectionMatrix * mvPosition;
         float size = 34.0 * (220.0 / -mvPosition.z) * (0.85 + lane * 0.15) / 55.0;
-        gl_PointSize = clamp(size, 18.0, 52.0);
+        gl_PointSize = clamp(size * max(uObjectScale, 0.05), 8.0, 90.0);
       }
     `,
     fragment: /* glsl */ `
@@ -515,9 +523,13 @@ export const SHADERS = {
       uniform float uPanY;
       uniform vec2 uResolution;
       uniform float uAspect;
+      uniform float uObjectScale;
+      uniform float uPalette;
 
+      ${PALETTE_UNIFORMS}
+      ${PALETTE_FN}
       vec3 palette(float t) {
-        return 0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + t * 1.2));
+        return namedPalette(t, uPalette);
       }
 
       mat2 rot(float a) {
@@ -606,7 +618,7 @@ export const SHADERS = {
 
       float centerShapeField(vec2 uv, float t) {
         float count = clamp(floor(uShapeCount + 0.5), 1.0, 4.0);
-        float size = uCenterSize * 0.55;
+        float size = uCenterSize * 0.55 * max(uObjectScale, 0.05);
         vec2 cp = rot(t * 0.35 * max(uComplexity, 0.2)) * uv;
 
         float morph = uShapeMorph;
@@ -727,6 +739,10 @@ export const SHADERS = {
       uniform float uLogoColliderVisible;
       uniform vec2 uLogoColliderHalfExtents;
       uniform float uLogoColliderShape;
+      uniform float uObjectScale;
+      uniform float uPalette;
+      ${PALETTE_UNIFORMS}
+      ${PALETTE_FN}
 
       attribute vec3 aSeed;
 
@@ -735,7 +751,7 @@ export const SHADERS = {
       varying float vCover;
 
       vec3 palette(float t) {
-        return 0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + t));
+        return namedPalette(t, uPalette);
       }
 
       float hash(vec2 p) {
@@ -852,7 +868,7 @@ export const SHADERS = {
         gl_Position = projectionMatrix * mvPosition;
 
         float size = uPointSize * (140.0 / -mvPosition.z) * (0.55 + vCover * 0.25);
-        gl_PointSize = clamp(size, 1.5, 14.0);
+        gl_PointSize = clamp(size * max(uObjectScale, 0.05), 1.5, 48.0);
       }
     `,
     fragment: /* glsl */ `
@@ -912,9 +928,12 @@ export const SHADERS = {
       uniform float uPanY;
       uniform vec2 uResolution;
       uniform float uAspect;
-
+      uniform float uObjectScale;
+      uniform float uPalette;
+      ${PALETTE_UNIFORMS}
+      ${PALETTE_FN}
       vec3 palette(float t) {
-        return 0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + t));
+        return namedPalette(t, uPalette);
       }
 
       void main() {
@@ -927,7 +946,7 @@ export const SHADERS = {
           if (i >= uBallCount) break;
           float fi = i + 1.0;
           float angle = t * (0.3 + fi * 0.07 * uComplexity) + fi * 2.094;
-          float radius = uScale * (0.25 + 0.12 * sin(t * 0.5 + fi));
+          float radius = uScale * uObjectScale * (0.25 + 0.12 * sin(t * 0.5 + fi));
           vec2 center = vec2(cos(angle), sin(angle)) * radius;
           center += vec2(sin(t * 0.8 + fi * 1.3), cos(t * 0.6 + fi)) * 0.15 * uComplexity;
           float d = length(uv - center);
@@ -985,6 +1004,7 @@ export const SHADERS = {
       uniform float uTintRed;
       uniform float uTintGreen;
       uniform float uTintBlue;
+      uniform float uObjectScale;
       uniform vec2 uResolution;
       uniform float uAspect;
 
@@ -1021,8 +1041,11 @@ export const SHADERS = {
         return v;
       }
 
+      ${PALETTE_UNIFORMS}
+      ${PALETTE_FN}
       vec3 paletteBase(float t) {
         float p = floor(uPalette + 0.5);
+        if (p > 19.5) return customPalette(t);
         vec3 offset;
         if (p < 0.5) offset = vec3(0.55, 0.12, 0.72);
         else if (p < 1.5) offset = vec3(0.0, 0.42, 0.78);
@@ -1181,7 +1204,7 @@ export const SHADERS = {
       float trailMask(vec2 tdir, float depth, float travel, float shapeId) {
         float sid = floor(shapeId + 0.5);
         float z = depth * 9.0 - travel * 1.5;
-        float density = 0.34 + uRingWidth * 0.1;
+        float density = (0.34 + uRingWidth * 0.1) * max(uObjectScale, 0.05);
 
         if (sid < 0.5) {
           return organicField(tdir, z);

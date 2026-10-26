@@ -81,7 +81,9 @@ export function createGamepadPsyche({ settings, onToast }) {
     const controller = entry.global
       ? settings.gui.controllersRecursive().find((c) => c.property === entry.key)
       : settings.uniformControllers.get(entry.key);
-    controller?.setValue(next);
+    if (!controller) return;
+    controller.setValue(next);
+    controller.updateDisplay();
   }
 
   function nudgeEntry(entry, delta) {

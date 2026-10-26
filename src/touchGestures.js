@@ -41,9 +41,7 @@ function isGesturePointer(event) {
   if (event.pointerType === 'touch' || event.pointerType === 'pen') return true;
   // A real touch already owns the gesture. Skip the mouse pointer some browsers
   // synthesize afterward, or a double-tap is seen as a two-finger pinch.
-  if (event.pointerType === 'mouse' && document.body.classList.contains('phone-ui')) {
-    return !isGesturePointer.sawTouch;
-  }
+  if (event.pointerType === 'mouse') return !isGesturePointer.sawTouch;
   return false;
 }
 

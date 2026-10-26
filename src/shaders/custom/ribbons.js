@@ -1,3 +1,5 @@
+import { PALETTE_FN, PALETTE_UNIFORMS } from '../../paletteGlsl.js';
+
 export default {
   id: 'ribbons',
   label: 'Ribbons',
@@ -24,11 +26,15 @@ export default {
     uniform float uPanX;
     uniform float uPanY;
     uniform float uAspect;
+    uniform float uObjectScale;
+    uniform float uPalette;
+    ${PALETTE_UNIFORMS}
+    ${PALETTE_FN}
 
     varying vec2 vUv;
 
     vec3 palette(float t) {
-      return 0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + t));
+      return namedPalette(t, uPalette);
     }
 
     mat2 rot(float a) {
@@ -40,7 +46,7 @@ export default {
       p = rot(t * 0.2 * uTwistAmount + phase) * p;
       float wave = sin(p.x * 4.0 * uComplexity + t * 1.2 + phase * 3.0);
       float curve = p.y - wave * 0.35 * uScale;
-      return uThickness / (abs(curve) + 0.002);
+      return uThickness * max(uObjectScale, 0.05) / (abs(curve) + 0.002);
     }
 
     void main() {

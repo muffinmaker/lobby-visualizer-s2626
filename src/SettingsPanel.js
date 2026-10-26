@@ -620,10 +620,24 @@ export class SettingsPanel {
 
   buildGlobalSection() {
     this.globalSpecs = Object.fromEntries(
-      Object.entries(GLOBAL_UNIFORMS).filter(([key]) => !(key in BACKGROUND_UNIFORMS)),
+      Object.entries(GLOBAL_UNIFORMS).filter(
+        ([key]) => !(key in BACKGROUND_UNIFORMS) && !key.startsWith('uPal'),
+      ),
     );
     this.globalFolder = this.gui.addFolder('Global');
     this.addUniformControls(this.globalFolder, this.globalSpecs);
+
+    const editor = this.gui.addFolder('Palette editor');
+    const stops = [
+      ['uPal0R', 'uPal0G', 'uPal0B', 'Stop 1'],
+      ['uPal1R', 'uPal1G', 'uPal1B', 'Stop 2'],
+      ['uPal2R', 'uPal2G', 'uPal2B', 'Stop 3'],
+    ];
+    for (const [r, g, b, name] of stops) {
+      editor.add(this.state, r, 0, 255, 1).name(`${name} red`).onChange(() => this.handleValueChange());
+      editor.add(this.state, g, 0, 255, 1).name(`${name} green`).onChange(() => this.handleValueChange());
+      editor.add(this.state, b, 0, 255, 1).name(`${name} blue`).onChange(() => this.handleValueChange());
+    }
   }
 
   placeShaderFolderAfterGlobal() {

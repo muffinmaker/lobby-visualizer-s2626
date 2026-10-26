@@ -47,7 +47,19 @@ export const SPIRO_PALETTE_OPTIONS = {
   Forest: 17,
   Copper: 18,
   Violet: 19,
+  Custom: 20,
 };
+
+const fullPalette = (value = 0) => ({
+  value,
+  min: 0,
+  max: 20,
+  step: 1,
+  kind: 'palette',
+  paletteOptions: 'spiro',
+});
+
+const objectScale = () => ({ ...pct(50, 0.25, 1.75), label: 'Object scale' });
 
 export const BACKGROUND_UNIFORMS = {
   uBgRed: rgb(2),
@@ -67,14 +79,23 @@ export const SPIRO_COMPLEXITY = {
 
 export const GLOBAL_UNIFORMS = {
   ...BACKGROUND_UNIFORMS,
-  uSpeed: pct(10, 0, 1.2),
-  uScale: pct(45, 0.3, 2.5),
+  uSpeed: { value: 10, min: 0, max: 400, step: 1, shaderMin: 0, shaderMax: 4.8 },
+  uScale: { value: 45, min: 0, max: 400, step: 1, shaderMin: 0.3, shaderMax: 9.1 },
   uComplexity: pct(40, 0.2, 3),
   uBrightness: pct(50, 0.2, 2.5),
   uSaturation: pct(67, 0, 1.5),
   uBloom: pct(40, 0, 2),
   uPanX: center(50, -3.75, 3.75),
   uPanY: center(50, -3.75, 3.75),
+  uPal0R: rgb(255),
+  uPal0G: rgb(64),
+  uPal0B: rgb(96),
+  uPal1R: rgb(64),
+  uPal1G: rgb(220),
+  uPal1B: rgb(180),
+  uPal2R: rgb(80),
+  uPal2G: rgb(120),
+  uPal2B: rgb(255),
 };
 
 export const SHADER_UNIFORM_TEMPLATES = {
@@ -89,7 +110,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uPolygonSides: count(6, 3, 12),
     uRotate: center(62, -4, 4),
     uMyTime: pct(48, 0.1, 2),
-    uZoom: { ...center(50, -5, 5), invert: true },
+    uZoom: { ...center(50, -7, 7), invert: true },
     uRed: rgb(0),
     uGreen: rgb(0),
     uBlue: rgb(155),
@@ -100,6 +121,8 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uHeightRand: toggle(0),
     uDepthPulse: toggle(1),
     uColorSpeed: pct(52, 0, 2),
+    uPalette: fullPalette(0),
+    uObjectScale: objectScale(),
     uTrailPersist: toggle(0),
   },
   spiro: {
@@ -111,8 +134,9 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uOrbitCount: count(36, 1, 200),
     uTwist: pct(28, 0, 3),
     uPulse: pct(12, 0, 0.8),
-    uZoom: { value: 64, min: 0, max: 100, step: 1, kind: 'zoom', shaderMin: -1.5, shaderMax: 3, invert: true },
-    uPalette: { value: 0, min: 0, max: 19, step: 1, kind: 'palette', paletteOptions: 'spiro' },
+    uZoom: { value: 64, min: 0, max: 100, step: 1, kind: 'zoom', shaderMin: -3.5, shaderMax: 5, invert: true },
+    uPalette: fullPalette(0),
+    uObjectScale: objectScale(),
     uHueShift: pct(50, 0, 1),
     uColorSpeed: pct(55, 0, 2),
     uColorSpread: pct(72, 0.2, 1.5),
@@ -135,11 +159,13 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uShape3: { value: 5, min: 0, max: 7, step: 1, kind: 'shape' },
     uShape4: { value: 4, min: 0, max: 7, step: 1, kind: 'shape' },
     uShapeMorph: pct(22, 0, 1.5),
-    uZoom: pct(50, 0.35, 2.5),
+    uZoom: { value: 50, min: 0, max: 400, step: 1, shaderMin: 0.35, shaderMax: 8.95 },
+    uPalette: fullPalette(3),
+    uObjectScale: objectScale(),
   },
   flow: {
     uPointSize: pct(28, 0.5, 8),
-    uZoom: { value: 64, min: 0, max: 100, step: 1, kind: 'zoom', shaderMin: -1.5, shaderMax: 3, invert: true },
+    uZoom: { value: 64, min: 0, max: 100, step: 1, kind: 'zoom', shaderMin: -3.5, shaderMax: 5, invert: true },
     uParticleCount: {
       value: 35,
       min: 5,
@@ -155,12 +181,16 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uTrailAlpha: pct(24, 0.02, 0.25),
     uLogoCollider: toggle(0),
     uLogoColliderBounce: pct(48, 0.2, 2.6),
+    uPalette: fullPalette(0),
+    uObjectScale: objectScale(),
   },
   metaballs: {
     uBallCount: count(7, 3, 12),
     uSoftness: pct(35, 0.2, 1.2),
     uEdgeGlow: pct(40, 0, 3),
-    uZoom: pct(40, 0.4, 2.5),
+    uZoom: { value: 40, min: 0, max: 400, step: 1, shaderMin: 0.4, shaderMax: 8.8 },
+    uPalette: fullPalette(0),
+    uObjectScale: objectScale(),
   },
   wormhole: {
     uChevrons: count(8, 4, 16),
@@ -171,8 +201,9 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uHorizonGlow: pct(68, 0, 2.5),
     uChevronGlow: pct(52, 0, 2.2),
     uTrailShape: { value: 0, min: 0, max: 11, step: 1, kind: 'trailShape' },
-    uZoom: pct(50, 0.35, 2.2),
-    uPalette: { value: 3, min: 0, max: 7, step: 1, kind: 'palette' },
+    uZoom: { value: 50, min: 0, max: 400, step: 1, shaderMin: 0.35, shaderMax: 7.75 },
+    uPalette: fullPalette(3),
+    uObjectScale: objectScale(),
     uHueShift: pct(50, 0, 2),
     uColorSpeed: pct(42, 0, 1.6),
     uColorSpread: pct(72, 0.15, 1.8),
@@ -184,6 +215,8 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uRibbonCount: count(5, 2, 10),
     uThickness: pct(30, 0.01, 0.12),
     uTwistAmount: pct(38, 0, 4),
-    uZoom: pct(50, 0.35, 2.5),
+    uZoom: { value: 50, min: 0, max: 400, step: 1, shaderMin: 0.35, shaderMax: 8.95 },
+    uPalette: fullPalette(0),
+    uObjectScale: objectScale(),
   },
 };

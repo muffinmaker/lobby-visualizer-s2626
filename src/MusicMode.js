@@ -256,8 +256,8 @@ export class MusicMode {
     const s = this.sensitivity / 100;
     const out = { ...b };
 
-    out.uSpeed = clamp(Math.round(b.uSpeed + energy * 38 * s + beat * 22 * s), 0, 100);
-    out.uScale = clamp(Math.round(b.uScale + bass * 28 * s - treble * 6 * s), 0, 100);
+    out.uSpeed = clamp(Math.round(b.uSpeed + energy * 38 * s + beat * 22 * s), 0, 400);
+    out.uScale = clamp(Math.round(b.uScale + bass * 28 * s - treble * 6 * s), 0, 400);
     const complexityMin = this.currentShader === 'spiro' ? -50 : 0;
     const complexityMax = this.currentShader === 'spiro' ? 20 : 100;
     out.uComplexity = clamp(
@@ -277,7 +277,7 @@ export class MusicMode {
       } else if (key.includes('Twist') || key.includes('Rotate') || key.includes('Noise')) {
         out[key] = clamp(Math.round(b[key] + mid * 28 * s + energy * 10 * s), 0, 100);
       } else if (key.includes('Zoom') || key.includes('Field') || key.includes('Scale')) {
-        out[key] = clamp(Math.round(b[key] + bass * 24 * s - mid * 8 * s), 0, 100);
+        out[key] = clamp(Math.round(b[key] + bass * 24 * s - mid * 8 * s), 0, 400);
       } else if (key.includes('Trail') || key.includes('Alpha') || key.includes('Line')) {
         const lineMax = key === 'uLineWidth' && this.currentShader === 'kaleido' ? 400 : 100;
         out[key] = clamp(Math.round(b[key] + treble * 25 * s + energy * 15 * s), 0, lineMax);

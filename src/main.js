@@ -798,7 +798,7 @@ async function start() {
   }
 
   const desktopHint = 'Double-click · menu  |  Space · settings  |  ? · tutorial  |  F · fullscreen  |  H · hide UI';
-  const phoneHint = 'Double-tap for the menu  ·  slide for rotate/speed  ·  pinch to zoom  ·  two-finger drag to look around';
+  const phoneHint = 'Drag to look around  ·  double-tap for the menu  ·  pinch to zoom';
 
   function isPhoneLayout() {
     const narrow = window.matchMedia('(max-width: 768px)').matches;
@@ -876,7 +876,7 @@ async function start() {
       showMenu();
     },
     onDrag(dx, dy) {
-      psyche.adjustSlideDrag(dx, dy);
+      psyche.adjustPan(dx, dy);
     },
     onPan(dx, dy) {
       psyche.adjustPan(dx, dy);
