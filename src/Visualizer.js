@@ -96,7 +96,7 @@ function createPointGeometry(count, extraAttributes = {}) {
   return geometry;
 }
 
-const SPIRO_MAX_ORBITS = 10;
+const SPIRO_MAX_ORBITS = 200;
 
 function createSpiroGeometry(count = SPIRO_MAX_ORBITS) {
   const indices = new Float32Array(count);
@@ -288,7 +288,7 @@ export class Visualizer {
       transparent: trailBlended,
       depthTest: false,
       depthWrite: false,
-      blending: points ? THREE.AdditiveBlending : THREE.NormalBlending,
+      blending: id === 'flow' ? THREE.AdditiveBlending : THREE.NormalBlending,
     });
     if (id === 'flow') {
       material.uniforms.uLogoColliderVisible = { value: 0 };
@@ -474,9 +474,6 @@ export class Visualizer {
     const trailStrength = Math.max(0, Math.min(1, this.motionTrails / 100));
     const minDecay = 0.68 + (1 - trailStrength) * 0.22;
     let decay = minDecay + (baseDecay - minDecay) * trailStrength;
-    if (this.currentShaderId === 'spiro') {
-      decay += 0.028 * trailStrength;
-    }
     const persistTrails = this.currentShaderId === 'spocks' && (values.uTrailPersist ?? 0) > 0.5;
     if (persistTrails) {
       decay = 1;
@@ -484,7 +481,7 @@ export class Visualizer {
     if (this.trailsNeverDecay) {
       decay = Math.min(decay, 0.93);
     } else {
-      const decayCap = this.currentShaderId === 'spiro' ? 0.99 : 0.96;
+      const decayCap = this.currentShaderId === 'spiro' ? 0.998 : 0.96;
       decay = Math.min(decay, decayCap);
     }
     this.trailMaterial.uniforms.uDecay.value = decay;

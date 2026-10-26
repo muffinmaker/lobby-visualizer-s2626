@@ -39,13 +39,23 @@ function isBlockedTarget(target) {
 
 function isGesturePointer(event) {
   if (event.pointerType === 'touch' || event.pointerType === 'pen') return true;
-  return event.pointerType === 'mouse' && document.body.classList.contains('phone-ui');
+  // A real touch already owns the gesture. Skip the mouse pointer some browsers
+  // synthesize afterward, or a double-tap is seen as a two-finger pinch.
+  if (event.pointerType === 'mouse' && document.body.classList.contains('phone-ui')) {
+    return !isGesturePointer.sawTouch;
+  }
+  return false;
 }
 
-export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd } = {}) {
+const DOUBLE_TAP_MS = 350;
+const DOUBLE_TAP_SLOP = 28;
+const TAP_MOVE_SLOP = 18;
+
+export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd, onDoubleTap } = {}) {
   const pointers = new Map();
   let drag = null;
   let duo = null;
+  let lastTap = null;
 
   function resetGesture() {
     drag = null;
@@ -53,6 +63,7 @@ export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd } = {}
   }
 
   function onPointerDown(event) {
+    if (event.pointerType === 'touch' || event.pointerType === 'pen') isGesturePointer.sawTouch = true;
     if (!isGesturePointer(event)) return;
     const blocked = isBlockedTarget(event.target);
     pointers.set(event.pointerId, {
@@ -66,6 +77,8 @@ export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd } = {}
         id: event.pointerId,
         x: event.clientX,
         y: event.clientY,
+        originX: event.clientX,
+        originY: event.clientY,
         moved: false,
       };
       duo = null;
@@ -108,7 +121,8 @@ export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd } = {}
       drag.x = event.clientX;
       drag.y = event.clientY;
       if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
-      drag.moved = true;
+      const travel = Math.hypot(event.clientX - drag.originX, event.clientY - drag.originY);
+      if (travel > TAP_MOVE_SLOP) drag.moved = true;
       onDrag?.(dx, dy);
       return;
     }
@@ -144,7 +158,24 @@ export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd } = {}
     if (drag && event.pointerId === drag.id) {
       const moved = drag.moved;
       drag = null;
-      if (moved) onGestureEnd?.('drag');
+      if (moved || point.blocked) {
+        lastTap = null;
+        if (moved) onGestureEnd?.('drag');
+        return;
+      }
+      const now = performance.now();
+      const x = event.clientX;
+      const y = event.clientY;
+      if (
+        lastTap &&
+        now - lastTap.time <= DOUBLE_TAP_MS &&
+        Math.hypot(x - lastTap.x, y - lastTap.y) <= DOUBLE_TAP_SLOP
+      ) {
+        lastTap = null;
+        onDoubleTap?.();
+        return;
+      }
+      lastTap = { time: now, x, y };
       return;
     }
 

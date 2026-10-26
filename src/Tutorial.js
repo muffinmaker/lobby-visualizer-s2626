@@ -9,7 +9,7 @@ const SECTIONS = [
   {
     title: 'Phone',
     body: `
-      <p>On a phone or touch tablet, a compact bar matching the desktop sliders menu replaces the corner controls. <strong>Sliders</strong> opens every settings folder. <strong>Hide</strong> puts the bar away; tap <strong>Menu</strong> to bring it back. <strong>◀ ▶</strong> around the shader name changes the visual. The preset number steps through saved looks.</p>
+      <p>On a phone or touch tablet, a compact bar matching the desktop menu replaces the corner controls. <strong>Double-tap</strong> the picture to open every settings folder (double-click does the same on a computer). <strong>Hide</strong> puts the bar away; tap <strong>Menu</strong> to bring it back. <strong>◀ ▶</strong> around the shader name changes the visual. Tap the preset number to cycle saved looks.</p>
       <p><strong>Slide</strong> on the picture to change rotate (or speed). <strong>Pinch</strong> to zoom. <strong>Two-finger drag</strong> looks around by moving the view center. A normal computer browser keeps the original lobby menu unless the window is phone-narrow.</p>
     `,
   },
@@ -24,7 +24,7 @@ const SECTIONS = [
     title: 'Auto Cycle',
     body: `
       <p>When <strong>⟳ Auto-cycle</strong> (transport bar) or <strong>Auto Cycle → Enabled</strong> is on, the app automatically moves through presets on a timer.</p>
-      <p>It is <strong>off by default</strong> — presets only change when you pick one or use the transport bar’s <strong>▲ ▼</strong> buttons beside the preset number.</p>
+      <p>It is <strong>off by default</strong> — presets only change when you pick one or tap the preset number on the transport bar.</p>
       <p>Turn it on if you want unattended lobby playback. Adjust <strong>Interval</strong> and <strong>Transition</strong> for cross-fade timing. <strong>Randomize Presets</strong> randomizes values each time it cycles.</p>
       <p><strong>∿ Smooth transitions</strong> (transport bar, before ⟳) or <strong>Auto Cycle → Smooth transitions</strong> cross-fades slider values when changing presets. Turn it off for instant preset switches.</p>
     `,
@@ -37,7 +37,7 @@ const SECTIONS = [
         <li><kbd>F</kbd> Fullscreen</li>
         <li><kbd>H</kbd> Hide settings UI</li>
         <li><strong>◀ ▶</strong> (transport bar, around shader name) Previous / next shader — changes which slider set is shown</li>
-        <li><strong>▲ ▼</strong> (transport bar, beside preset number) Previous / next preset for the current shader</li>
+        <li><strong>Preset number</strong> (transport bar) Cycle to the next preset for the current shader</li>
         <li><kbd>↑</kbd> Zoom in · <kbd>↓</kbd> Zoom out (all shaders)</li>
         <li><kbd>←</kbd> <kbd>→</kbd> Spirograph: rotate · others: fewer / more elements (orbits, mirrors, particles…)</li>
         <li><strong>↻ Drift all</strong> (transport bar) Toggle slow random drift on every slider (global + shader)</li>

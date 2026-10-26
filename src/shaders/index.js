@@ -228,6 +228,7 @@ export const SHADERS = {
       uniform float uTwist;
       uniform float uPulse;
       uniform float uPointSize;
+      uniform float uPointRotation;
       uniform float uAspect;
       uniform float uZoom;
       uniform float uPanX;
@@ -300,9 +301,41 @@ export const SHADERS = {
         } else if (p < 10.5) {
           offset = vec3(0.0, 0.08, 0.18);
           chroma = 1.55;
-        } else {
+        } else if (p < 11.5) {
           chroma = 2.25;
           hue += sin(t * 0.42 + radial * 3.0) * 0.14;
+        } else if (p < 12.5) {
+          offset = vec3(0.85, 0.05, 0.55);
+          chroma = 0.55;
+          gain = 1.15;
+        } else if (p < 13.5) {
+          offset = vec3(0.28, 0.85, 0.22);
+          chroma = 0.45;
+          gain = 1.12;
+        } else if (p < 14.5) {
+          offset = vec3(0.12, 0.42, 0.95);
+          chroma = 0.35;
+          gain = 1.2;
+        } else if (p < 15.5) {
+          offset = vec3(0.55, 0.72, 0.95);
+          chroma = 0.4;
+          gain = 1.15;
+        } else if (p < 16.5) {
+          offset = vec3(0.95, 0.25, 0.55);
+          chroma = 1.1;
+          gain = 1.2;
+        } else if (p < 17.5) {
+          offset = vec3(0.18, 0.55, 0.22);
+          chroma = 0.5;
+          gain = 1.05;
+        } else if (p < 18.5) {
+          offset = vec3(0.08, 0.38, 0.72);
+          chroma = 0.42;
+          gain = 1.1;
+        } else {
+          offset = vec3(0.62, 0.22, 0.92);
+          chroma = 0.55;
+          gain = 1.15;
         }
 
         vec3 col = neonPalette(hue, chroma, offset, gain);
@@ -322,9 +355,11 @@ export const SHADERS = {
         float t = uTime + aPhase * 0.15;
         float lane = (orbit + 0.5) / orbitCount;
 
-        float R = uScale * 0.5 * (0.45 + 0.55 * lane);
-        float r = R * (0.14 + 0.1 * lane + uComplexity * 0.04);
-        float k = 1.15 + orbit * 0.28 + uComplexity * 0.18;
+        float orbitScale = clamp(uPointSize, 0.2, 3.2);
+        float complexity = clamp(uComplexity, -50.0, 20.0);
+        float R = uScale * 0.5 * (0.45 + 0.55 * lane) * orbitScale;
+        float r = R * max(0.04, 0.14 + 0.1 * lane + complexity * 0.004);
+        float k = 1.15 + orbit * 0.28 + complexity * 0.035;
         float twist = 1.0 + uTwist * 0.45;
 
         float omega = 1.35 + orbit * 0.12;
@@ -347,25 +382,77 @@ export const SHADERS = {
           -R * sin(a) * omega - r * sin(b) * (-k * twist),
           R * cos(a) * omega + r * cos(b) * (-k * twist)
         );
-        vPenAngle = atan(vel.y, vel.x);
+        vPenAngle = atan(vel.y, vel.x) + uPointRotation;
         vPenAspect = 0.55 + lane * 0.25;
         float laneHue = orbit / max(orbitCount - 1.0, 1.0);
         vColor = palette(laneHue, radial + sin(t * 0.65 + orbit * 0.35) * 0.12, t);
 
         vec4 mvPosition = modelViewMatrix * vec4(pos, 0.0, 1.0);
         gl_Position = projectionMatrix * mvPosition;
-        float size = uPointSize * (220.0 / -mvPosition.z) * (0.85 + lane * 0.2);
-        gl_PointSize = clamp(size, 12.0, 120.0);
+        float size = 34.0 * (220.0 / -mvPosition.z) * (0.85 + lane * 0.15) / 55.0;
+        gl_PointSize = clamp(size, 18.0, 52.0);
       }
     `,
     fragment: /* glsl */ `
       uniform float uBrightness;
       uniform float uSaturation;
       uniform float uBloom;
+      uniform float uPointShape;
+      uniform float uTransparency;
 
       varying vec3 vColor;
       varying float vPenAngle;
       varying float vPenAspect;
+
+      float sdBox(vec2 p, vec2 b) {
+        vec2 q = abs(p) - b;
+        return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+      }
+
+      float sdEquilateral(vec2 p, float r) {
+        const float k = 1.7320508;
+        p.x = abs(p.x) - r;
+        p.y = p.y + r / k;
+        if (p.x + k * p.y > 0.0) p = vec2(p.x - k * p.y, -k * p.x - p.y) / 2.0;
+        p.x -= clamp(p.x, -2.0 * r, 0.0);
+        return -length(p) * sign(p.y);
+      }
+
+      float sdHex(vec2 p, float r) {
+        const vec3 k = vec3(-0.8660254, 0.5, 0.5773503);
+        p = abs(p);
+        p -= 2.0 * min(dot(k.xy, p), 0.0) * k.xy;
+        p -= vec2(clamp(p.x, -k.z * r, k.z * r), r);
+        return length(p) * sign(p.y);
+      }
+
+      float sdStar(vec2 p, float r) {
+        float an = 6.28318 / 5.0;
+        float en = 6.28318 / 10.0;
+        vec2 acs = vec2(cos(an), sin(an));
+        vec2 ecs = vec2(cos(en), sin(en));
+        float bn = mod(atan(p.y, p.x), 2.0 * an) - an;
+        p = length(p) * vec2(cos(bn), abs(sin(bn)));
+        p -= r * acs;
+        p += ecs * clamp(-dot(p, ecs), 0.0, r * acs.y / ecs.y);
+        return length(p) * sign(p.x);
+      }
+
+      float shapeField(vec2 p, float shapeId) {
+        float id = floor(shapeId + 0.5);
+        float d;
+        if (id < 0.5) d = length(p) - 0.32;
+        else if (id < 1.5) d = sdBox(p, vec2(0.28));
+        else if (id < 2.5) d = sdEquilateral(p, 0.34);
+        else if (id < 3.5) d = sdBox(mat2(0.7071, -0.7071, 0.7071, 0.7071) * p, vec2(0.24));
+        else if (id < 4.5) d = sdStar(p, 0.36);
+        else if (id < 5.5) d = sdHex(p, 0.32);
+        else if (id < 6.5) d = abs(length(p) - 0.24) - 0.07;
+        else if (id < 7.5) d = min(sdBox(p, vec2(0.28, 0.08)), sdBox(p, vec2(0.08, 0.28)));
+        else if (id < 8.5) d = max(sdBox(p - vec2(0.0, 0.06), vec2(0.26, 0.1)), -p.y);
+        else d = length(p * vec2(1.15, 0.72)) - 0.28;
+        return 1.0 - smoothstep(0.0, 0.035, d);
+      }
 
       void main() {
         vec2 uv = gl_PointCoord - 0.5;
@@ -374,22 +461,18 @@ export const SHADERS = {
         uv = mat2(c, -s, s, c) * uv;
         uv.x *= vPenAspect;
 
-        vec2 halfSize = vec2(0.34, 0.2);
-        vec2 q = abs(uv) - halfSize;
-        float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
-        float edge = 1.0 - smoothstep(0.0, 0.04, abs(d));
-        float fill = 1.0 - smoothstep(0.0, 0.02, d);
-        float stamp = max(edge, fill * 0.92);
-        float halo = exp(-d * d * 14.0) * uBloom * 0.72;
+        float stamp = shapeField(uv, uPointShape);
+        if (stamp < 0.02) discard;
 
-        vec3 col = vColor * stamp;
+        vec3 col = vColor;
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(gray), col, uSaturation);
-        col *= uBrightness * (0.88 + stamp * 0.42);
-        col += vColor * halo * 0.55;
+        float peak = max(max(col.r, col.g), col.b);
+        if (peak > 0.92) col *= 0.92 / peak;
+        col *= uBrightness * 0.85;
+        col += vColor * stamp * uBloom * 0.08;
 
-        float alpha = clamp(stamp * 0.98 + halo * 0.48, 0.0, 1.0);
-        if (alpha < 0.02) discard;
+        float alpha = clamp(stamp * uTransparency, 0.0, 1.0);
         gl_FragColor = vec4(col, alpha);
       }
     `,

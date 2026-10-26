@@ -8,7 +8,7 @@ import { createTutorial } from './Tutorial.js';
 import { mountTransportBar } from './TransportBar.js';
 import { mountMobileBar } from './MobileBar.js';
 import { mountTouchGestures } from './touchGestures.js';
-import { applyMenuBigMode, loadMenuBigMode } from './menuBigMode.js';
+import { applyMenuScale, loadMenuScale } from './menuBigMode.js';
 import { createGamepadController, showGamepadToast } from './GamepadController.js';
 import { createGamepadChaos } from './gamepadChaos.js';
 import { createGamepadPsyche } from './gamepadPsyche.js';
@@ -511,7 +511,6 @@ async function start() {
     onPresetNext,
     onSave: onSavePreset,
     onInfo: () => tutorial.toggle(),
-    onSettings: () => settings.toggleVisible(),
   });
 
   phoneBar = mountMobileBar({
@@ -537,7 +536,6 @@ async function start() {
     onPresetNext,
     onSave: onSavePreset,
     onInfo: () => tutorial.toggle(),
-    onSettings: () => settings.toggleVisible(),
     onHide: () => setUiHidden(true),
     onShow: () => setUiHidden(false),
   });
@@ -794,8 +792,8 @@ async function start() {
     requestAnimationFrame(tick);
   }
 
-  const desktopHint = hint.textContent;
-  const phoneHint = 'Slide for rotate/speed  ·  pinch to zoom  ·  two-finger drag to look around';
+  const desktopHint = 'Double-click · menu  |  Space · settings  |  ? · tutorial  |  F · fullscreen  |  H · hide UI';
+  const phoneHint = 'Double-tap for the menu  ·  slide for rotate/speed  ·  pinch to zoom  ·  two-finger drag to look around';
 
   function isPhoneLayout() {
     const narrow = window.matchMedia('(max-width: 768px)').matches;
@@ -822,13 +820,14 @@ async function start() {
     document.body.classList.toggle('phone-ui', matches);
     phoneBar.element.hidden = !matches;
     if (matches) {
-      settings.gui.domElement.classList.remove('menu-big-mode');
+      settings.setMenuScaleAvailable(false);
       hint.textContent = phoneHint;
       if (!uiHidden) settings.setVisible(false);
       phoneBar?.setBarVisible?.(!uiHidden);
     } else {
       document.body.classList.remove('phone-sheet');
-      applyMenuBigMode(settings.gui.domElement, loadMenuBigMode());
+      settings.setMenuScaleAvailable(true);
+      applyMenuScale(settings.gui.domElement, loadMenuScale());
       hint.textContent = desktopHint;
       phoneBar?.setBarVisible?.(true);
       if (!uiHidden) {
@@ -852,8 +851,25 @@ async function start() {
     barObserver.observe(phoneBar.element);
   }
 
+  function showMenu() {
+    if (uiHidden) setUiHidden(false);
+    settings.setVisible(true);
+    settings.openPanel();
+  }
+
+  function isMenuGestureTarget(target) {
+    if (document.querySelector('.tutorial:not(.hidden)')) return false;
+    if (document.getElementById('notepad-panel')?.classList.contains('is-open')) return false;
+    return !target?.closest?.(
+      '.phone-bar, .lil-gui, .tutorial, .notepad-card, button, a, input, textarea, select, label, .phone-show-btn',
+    );
+  }
+
   let pinchZoomLabel = '';
   mountTouchGestures({
+    onDoubleTap() {
+      showMenu();
+    },
     onDrag(dx, dy) {
       psyche.adjustSlideDrag(dx, dy);
     },
@@ -892,6 +908,12 @@ async function start() {
 
   const DOUBLE_SPACE_MS = 400;
   let lastSpacePressAt = 0;
+
+  window.addEventListener('dblclick', (event) => {
+    if (document.body.classList.contains('phone-ui')) return;
+    if (!isMenuGestureTarget(event.target)) return;
+    showMenu();
+  });
 
   window.addEventListener('keydown', (e) => {
     const notepadOpen = notepadPanel?.classList.contains('is-open');
@@ -954,7 +976,7 @@ async function start() {
     'font-weight:bold;font-size:14px',
     `\nShaders: ${SHADER_IDS.join(', ')}`,
     '\nSpace: settings | Space×2: move menu | ?: tutorial | F: fullscreen | H: hide UI | [ ]: prev/next pack logo | ↑/↓: zoom | ←/→: element counts | Z/C/X/B/V: motion/colors/shapes/party/preset | USB gamepad: see tutorial',
-    '\nPhone: slide for rotate/speed, pinch to zoom, two-finger drag to look around',
+    '\nDouble-click (desktop) or double-tap (phone) opens the menu. Phone: slide for rotate/speed, pinch to zoom, two-finger drag to look around',
   );
 }
 

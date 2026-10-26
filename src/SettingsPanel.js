@@ -7,9 +7,9 @@ import {
   SHADER_IDS,
   getShaderChoices,
 } from './shaders/index.js';
-import { mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
+import { getSpecMap, mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
 import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
-import { SHAPE_OPTIONS, STAMP_SHAPE_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
+import { POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, STAMP_SHAPE_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
 import { canDrift } from './driftUtils.js';
 import {
@@ -27,7 +27,7 @@ import {
   nextMenuPosition,
   saveMenuPosition,
 } from './menuPosition.js';
-import { applyMenuBigMode, loadMenuBigMode, saveMenuBigMode } from './menuBigMode.js';
+import { applyMenuScale, loadMenuScale, saveMenuScale, MENU_SCALE_MIN, MENU_SCALE_MAX } from './menuBigMode.js';
 import {
   LOGO_PACK_CHOICES,
   getPackSymbolChoices,
@@ -173,7 +173,7 @@ export class SettingsPanel {
       liteMode: loadLiteMode(),
       menuOpacity: 80,
       menuPosition: loadMenuPosition(),
-      menuBigMode: loadMenuBigMode(),
+      menuScale: loadMenuScale(),
       musicEnabled: false,
       musicSource: 'mic',
       musicSensitivity: 65,
@@ -186,6 +186,7 @@ export class SettingsPanel {
 
     this.gui = new GUI({ title: '', width: 360 });
     this.presetController = null;
+    this.complexityByShader = { [this.state.shader]: this.state.uComplexity };
     this.build();
 
     this.presetManager.subscribe((event, detail) => {
@@ -342,7 +343,8 @@ export class SettingsPanel {
 
     this.applyMenuOpacity(this.state.menuOpacity);
     this.applyMenuPosition(this.state.menuPosition);
-    this.applyMenuBigMode(this.state.menuBigMode);
+    this.applyMenuScale(this.state.menuScale);
+    this.applyComplexityForShader(this.state.shader);
     this.patchNumberControllers();
     this.gui.close();
   }
@@ -544,11 +546,11 @@ export class SettingsPanel {
       .onChange((position) => {
         this.setMenuPosition(position);
       });
-    display
-      .add(this.state, 'menuBigMode')
-      .name('Big menu (distance view)')
-      .onChange((enabled) => {
-        this.setMenuBigMode(enabled);
+    this.menuScaleCtrl = display
+      .add(this.state, 'menuScale', MENU_SCALE_MIN, MENU_SCALE_MAX, 5)
+      .name('Menu size')
+      .onChange((scale) => {
+        this.setMenuScale(scale);
       });
     display
       .add(this.state, 'menuOpacity', 30, 100, 1)
@@ -620,7 +622,47 @@ export class SettingsPanel {
   }
 
   patchNumberControllers() {
-    this.gui.controllersRecursive().forEach((controller) => configureNumberController(controller));
+    this.gui.controllersRecursive().forEach((controller) => {
+      configureNumberController(controller);
+      this.attachSliderClicks(controller);
+    });
+  }
+
+  attachSliderClicks(controller) {
+    const slider = controller?.domElement?.querySelector?.('.slider');
+    if (!slider || slider.dataset.sliderClicks === '1') return;
+    slider.dataset.sliderClicks = '1';
+    let clicks = 0;
+    let timer = 0;
+    slider.addEventListener('click', () => {
+      clicks += 1;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const count = clicks;
+        clicks = 0;
+        if (count < 2) return;
+        const key = controller.property;
+        const spec = this.getSpecForKey(key);
+        const min = spec?.min ?? controller._min;
+        const max = spec?.max ?? controller._max;
+        if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+        const presetValues = this.presetManager.currentPreset?.values ?? {};
+        let next;
+        if (count >= 3) {
+          next = (min + max) / 2;
+        } else if (Object.prototype.hasOwnProperty.call(presetValues, key)) {
+          next = presetValues[key];
+        } else if (spec?.value != null) {
+          next = spec.value;
+        } else {
+          next = (min + max) / 2;
+        }
+        const step = spec?.step ?? controller._step ?? 1;
+        if (step) next = Math.round(next / step) * step;
+        next = Math.min(max, Math.max(min, next));
+        controller.setValue(next);
+      }, 320);
+    });
   }
 
   applyMenuOpacity(percent) {
@@ -645,14 +687,27 @@ export class SettingsPanel {
     return this.setMenuPosition(nextMenuPosition(this.state.menuPosition));
   }
 
-  applyMenuBigMode(enabled) {
-    applyMenuBigMode(this.gui.domElement, enabled);
+  applyMenuScale(scale) {
+    applyMenuScale(this.gui.domElement, scale);
   }
 
-  setMenuBigMode(enabled) {
-    this.state.menuBigMode = Boolean(enabled);
-    this.applyMenuBigMode(this.state.menuBigMode);
-    saveMenuBigMode(this.state.menuBigMode);
+  setMenuScale(scale) {
+    const next = Math.max(MENU_SCALE_MIN, Math.min(MENU_SCALE_MAX, Math.round(scale)));
+    this.state.menuScale = next;
+    this.applyMenuScale(next);
+    saveMenuScale(next);
+  }
+
+  setMenuScaleAvailable(available) {
+    if (!this.menuScaleCtrl) return;
+    if (available) this.menuScaleCtrl.show();
+    else this.menuScaleCtrl.hide();
+    if (!available) {
+      this.gui.domElement.classList.remove('menu-big-mode');
+      this.gui.domElement.style.removeProperty('--menu-scale');
+    } else {
+      this.applyMenuScale(this.state.menuScale);
+    }
   }
 
   updateTrailsNeverDecayCtrl() {
@@ -736,12 +791,37 @@ export class SettingsPanel {
     this.onLogoChange?.(value);
   }
 
+  rememberComplexity(shaderId = this.state.shader) {
+    this.complexityByShader[shaderId] = this.state.uComplexity;
+  }
+
+  fitComplexityControl(shaderId = this.state.shader) {
+    const spec = getSpecMap(shaderId).uComplexity;
+    if (!spec) return;
+    if (this.state.uComplexity < spec.min || this.state.uComplexity > spec.max) {
+      this.state.uComplexity = spec.value;
+    }
+    const ctrl = this.uniformControllers.get('uComplexity');
+    ctrl?.min(spec.min).max(spec.max).step(spec.step ?? 1);
+    ctrl?.updateDisplay();
+    this.rememberComplexity(shaderId);
+  }
+
+  applyComplexityForShader(shaderId = this.state.shader) {
+    if (this.complexityByShader[shaderId] !== undefined) {
+      this.state.uComplexity = this.complexityByShader[shaderId];
+    }
+    this.fitComplexityControl(shaderId);
+  }
+
   setShader(shaderId) {
     if (!shaderId || shaderId === this.state.shader) return shaderId;
 
     const pm = this.presetManager;
+    this.rememberComplexity(this.state.shader);
     mergeShaderDefaults(this.state, shaderId);
     this.state.shader = shaderId;
+    this.applyComplexityForShader(shaderId);
     this.driftManager.setShader(shaderId);
     if (!this.state.liteMode && TRAIL_SHADERS.has(shaderId)) {
       this.state.motionTrails = 100;
@@ -846,6 +926,16 @@ export class SettingsPanel {
     } else if (spec.kind === 'trailShape') {
       controller = folder
         .add(this.state, key, { ...TRAIL_SHAPE_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
+    } else if (spec.kind === 'pointShape') {
+      controller = folder
+        .add(this.state, key, { ...POINT_SHAPE_OPTIONS })
         .name(label)
         .onChange(() => {
           if (this.driftManager.isEnabled(key)) {
@@ -1016,12 +1106,14 @@ export class SettingsPanel {
     }
 
     this.placeShaderFolderAfterGlobal();
+    this.patchNumberControllers();
     const focusKey = this.navigableItems[this.gamepadFocusIndex]?.key;
     this.refreshGamepadMenuAfterRebuild(focusKey);
     this.notifyDriftStateChange();
   }
 
   labelFor(key, spec) {
+    if (spec?.label) return spec.label;
     const names = {
       uSegments: 'Mirrors',
       uCenterShape: 'Center Shape',
@@ -1169,6 +1261,7 @@ export class SettingsPanel {
       Object.assign(this.state, values);
       this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
     }
+    this.fitComplexityControl(this.state.shader);
 
     if (display) {
       this.applyDisplaySettings(display);
@@ -1262,11 +1355,7 @@ export class SettingsPanel {
   }
 
   getSpecForKey(key) {
-    if (GLOBAL_UNIFORMS[key]) return GLOBAL_UNIFORMS[key];
-    if (BACKGROUND_UNIFORMS[key]) return BACKGROUND_UNIFORMS[key];
-    const shader = SHADERS[this.state.shader];
-    if (shader?.uniforms[key]) return shader.uniforms[key];
-    return null;
+    return getSpecMap(this.state.shader)[key] ?? null;
   }
 
   collectNavigableItems(gui = this.gui) {

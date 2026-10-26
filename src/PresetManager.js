@@ -49,6 +49,7 @@ function isDiscreteUniform(spec) {
     spec?.kind === 'palette' ||
     spec?.kind === 'shape' ||
     spec?.kind === 'stampShape' ||
+    spec?.kind === 'pointShape' ||
     spec?.kind === 'trailShape' ||
     spec?.kind === 'toggle'
   );
@@ -134,7 +135,7 @@ export const PRESETS = [
     values: {
       uSpeed: 11,
       uScale: 50,
-      uComplexity: 36,
+      uComplexity: 6,
       uBrightness: 58,
       uSaturation: 72,
       uBloom: 32,
@@ -230,7 +231,7 @@ export const PRESETS = [
     values: {
       uSpeed: 16,
       uScale: 46,
-      uComplexity: 68,
+      uComplexity: 11,
       uBrightness: 62,
       uSaturation: 83,
       uBloom: 48,
@@ -519,7 +520,7 @@ export const PRESETS = [
     values: {
       uSpeed: 8,
       uScale: 52,
-      uComplexity: 32,
+      uComplexity: 5,
       uBrightness: 54,
       uSaturation: 68,
       uBloom: 38,
@@ -543,7 +544,7 @@ export const PRESETS = [
     values: {
       uSpeed: 12,
       uScale: 44,
-      uComplexity: 55,
+      uComplexity: 9,
       uBrightness: 65,
       uSaturation: 88,
       uBloom: 72,
@@ -567,7 +568,7 @@ export const PRESETS = [
     values: {
       uSpeed: 9,
       uScale: 50,
-      uComplexity: 42,
+      uComplexity: 7,
       uBrightness: 48,
       uSaturation: 45,
       uBloom: 28,

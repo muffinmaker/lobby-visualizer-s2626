@@ -1,3 +1,5 @@
+import { SAVE_ICON_SVG } from './saveIcon.js';
+
 const FLASH_MS = 1000;
 
 function refitTransportBar(titleEl) {
@@ -47,13 +49,14 @@ function flashButton(btn) {
   flashButton._timers.set(btn, timer);
 }
 
-function createBtn(label, title, className = 'transport-btn') {
+function createBtn(label, title, className = 'transport-btn', { html = false } = {}) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = className;
   btn.setAttribute('aria-label', title);
   btn.setAttribute('title', title);
-  btn.textContent = label;
+  if (html) btn.innerHTML = label;
+  else btn.textContent = label;
   btn.addEventListener('click', (e) => e.stopPropagation());
   btn.addEventListener('pointerdown', (e) => e.stopPropagation());
   return btn;
@@ -132,16 +135,12 @@ export function mountTransportBar(guiElement, handlers) {
     size: 'primary',
     labelPosition: 'between',
   });
-  const presetNav = createNavGroup({
-    label: handlers.getPresetLabel?.() ?? '—',
-    prevTitle: 'Previous preset',
-    nextTitle: 'Next preset',
-    onPrev: handlers.onPresetPrev,
-    onNext: handlers.onPresetNext,
-    labelClassName: 'transport-preset-label',
-    size: 'secondary',
-    orientation: 'vertical',
-  });
+  const presetBtn = createBtn(
+    handlers.getPresetLabel?.() ?? '—',
+    'Cycle preset',
+    'transport-btn transport-preset-btn',
+  );
+  bindBtn(presetBtn, handlers.onPresetNext);
 
   const driftAll = createBtn(
     '↻',
@@ -167,14 +166,14 @@ export function mountTransportBar(guiElement, handlers) {
   autocycle.setAttribute('aria-pressed', 'false');
   bindBtn(autocycle, handlers.onAutoCycleToggle);
 
-  const save = createBtn('💾', 'Save preset', 'transport-btn save-btn');
+  const save = createBtn(SAVE_ICON_SVG, 'Save preset', 'transport-btn save-btn', { html: true });
   const info = createBtn('i', 'Tutorial', 'transport-btn info-btn');
 
   bindBtn(save, handlers.onSave);
   bindBtn(info, handlers.onInfo);
 
   actions.append(save, info);
-  transport.append(shaderNav.group, presetNav.group, driftAll, smoothTransitions, autocycle, actions);
+  transport.append(shaderNav.group, presetBtn, driftAll, smoothTransitions, autocycle, actions);
   transport.addEventListener('click', (e) => e.stopPropagation());
   transport.addEventListener('pointerdown', (e) => e.stopPropagation());
   actions.addEventListener('click', (e) => e.stopPropagation());
@@ -215,17 +214,18 @@ export function mountTransportBar(guiElement, handlers) {
 
   function setPresetLabel(current, total) {
     const text = total > 0 ? `${current}/${total}` : '—';
-    const title = total > 0 ? `Preset ${current} of ${total}` : 'No presets for this shader';
-    presetNav.groupLabel.textContent = text;
-    presetNav.groupLabel.setAttribute('title', title);
+    const title = total > 0 ? `Preset ${current} of ${total}. Click to cycle.` : 'No presets for this shader';
+    presetBtn.textContent = text;
+    presetBtn.title = title;
+    presetBtn.setAttribute('aria-label', title);
+    presetBtn.disabled = total <= 0;
     refit();
   }
 
   const controls = {
     shaderPrev: shaderNav.prev,
     shaderNext: shaderNav.next,
-    presetPrev: presetNav.prev,
-    presetNext: presetNav.next,
+    presetNext: presetBtn,
     driftAll,
     smoothTransitions,
     autocycle,

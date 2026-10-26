@@ -39,12 +39,30 @@ export const SPIRO_PALETTE_OPTIONS = {
   Aurora: 9,
   Sunset: 10,
   Vivid: 11,
+  Magenta: 12,
+  Lime: 13,
+  Gold: 14,
+  Ice: 15,
+  Candy: 16,
+  Forest: 17,
+  Copper: 18,
+  Violet: 19,
 };
 
 export const BACKGROUND_UNIFORMS = {
   uBgRed: rgb(2),
   uBgGreen: rgb(2),
   uBgBlue: rgb(8),
+};
+
+/** Spiro Flow only. Other shaders keep the 0–100 global Complexity slider. */
+export const SPIRO_COMPLEXITY = {
+  value: 0,
+  min: -50,
+  max: 20,
+  step: 1,
+  shaderMin: -50,
+  shaderMax: 20,
 };
 
 export const GLOBAL_UNIFORMS = {
@@ -55,8 +73,8 @@ export const GLOBAL_UNIFORMS = {
   uBrightness: pct(50, 0.2, 2.5),
   uSaturation: pct(67, 0, 1.5),
   uBloom: pct(40, 0, 2),
-  uPanX: center(50, -1.25, 1.25),
-  uPanY: center(50, -1.25, 1.25),
+  uPanX: center(50, -3.75, 3.75),
+  uPanY: center(50, -3.75, 3.75),
 };
 
 export const SHADER_UNIFORM_TEMPLATES = {
@@ -85,13 +103,16 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uTrailPersist: toggle(0),
   },
   spiro: {
-    uPointSize: pct(64, 2, 14),
-    uTrailDecay: pct(96, 0.9, 0.992),
-    uOrbitCount: count(6, 2, 10),
+    uPointSize: { ...pct(48, 0.35, 2.8), label: 'Orbit size' },
+    uPointShape: { value: 1, min: 0, max: 9, step: 1, kind: 'pointShape', label: 'Point shape' },
+    uPointRotation: { ...center(50, -3.1416, 3.1416), label: 'Point rotation' },
+    uTransparency: { ...pct(8, 1, 0.08), label: 'Transparency' },
+    uTrailDecay: pct(98, 0.94, 0.998),
+    uOrbitCount: count(36, 1, 200),
     uTwist: pct(28, 0, 3),
     uPulse: pct(12, 0, 0.8),
     uZoom: { value: 64, min: 0, max: 100, step: 1, kind: 'zoom', shaderMin: -1.5, shaderMax: 3, invert: true },
-    uPalette: { value: 0, min: 0, max: 11, step: 1, kind: 'palette', paletteOptions: 'spiro' },
+    uPalette: { value: 0, min: 0, max: 19, step: 1, kind: 'palette', paletteOptions: 'spiro' },
     uHueShift: pct(50, 0, 1),
     uColorSpeed: pct(55, 0, 2),
     uColorSpread: pct(72, 0.2, 1.5),

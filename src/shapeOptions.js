@@ -24,6 +24,19 @@ export const TRAIL_SHAPE_OPTIONS = {
   Smear: 11,
 };
 
+export const POINT_SHAPE_OPTIONS = {
+  Circle: 0,
+  Square: 1,
+  Triangle: 2,
+  Diamond: 3,
+  Star: 4,
+  Hexagon: 5,
+  Ring: 6,
+  Cross: 7,
+  Chevron: 8,
+  Petal: 9,
+};
+
 export const STAMP_SHAPE_OPTIONS = {
   Rectangle: 0,
   Polygon: 1,

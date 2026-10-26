@@ -54,7 +54,7 @@ export function applyLiteLimits(shaderId, values) {
   if (next.uPointSize !== undefined) {
     next.uPointSize = clamp(next.uPointSize, LITE_LIMITS.pointSizeMax);
   }
-  if (next.uComplexity !== undefined) {
+  if (next.uComplexity !== undefined && shaderId !== 'spiro') {
     next.uComplexity = clamp(next.uComplexity, LITE_LIMITS.complexityMax);
   }
   if (next.uBrightness !== undefined) {

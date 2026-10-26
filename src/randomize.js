@@ -21,7 +21,7 @@ const SPOCKS_DRIFT_UI_RANGES = {
 };
 
 const SPIRO_DRIFT_UI_RANGES = {
-  uOrbitCount: [3, 8],
+  uOrbitCount: [8, 80],
   uTwist: [12, 55],
   uPulse: [4, 45],
   uZoom: [48, 78],

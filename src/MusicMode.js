@@ -258,7 +258,13 @@ export class MusicMode {
 
     out.uSpeed = clamp(Math.round(b.uSpeed + energy * 38 * s + beat * 22 * s), 0, 100);
     out.uScale = clamp(Math.round(b.uScale + bass * 28 * s - treble * 6 * s), 0, 100);
-    out.uComplexity = clamp(Math.round(b.uComplexity + mid * 32 * s + treble * 10 * s), 0, 100);
+    const complexityMin = this.currentShader === 'spiro' ? -50 : 0;
+    const complexityMax = this.currentShader === 'spiro' ? 20 : 100;
+    out.uComplexity = clamp(
+      Math.round(b.uComplexity + mid * 32 * s + treble * 10 * s),
+      complexityMin,
+      complexityMax,
+    );
     out.uBrightness = clamp(Math.round(b.uBrightness + treble * 30 * s + energy * 12 * s), 0, 100);
     out.uSaturation = clamp(Math.round(b.uSaturation + mid * 22 * s + beat * 8 * s), 0, 100);
     out.uBloom = clamp(Math.round(b.uBloom + treble * 35 * s + beat * 28 * s), 0, 100);

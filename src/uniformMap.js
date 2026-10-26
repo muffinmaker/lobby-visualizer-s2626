@@ -1,5 +1,5 @@
 import { SHADERS, GLOBAL_UNIFORMS } from './shaders/index.js';
-import { SHADER_UNIFORM_TEMPLATES } from './uniformSpecs.js';
+import { SHADER_UNIFORM_TEMPLATES, SPIRO_COMPLEXITY } from './uniformSpecs.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
@@ -19,7 +19,7 @@ function tToUi(t, spec) {
 export function uiToShader(ui, spec) {
   if (spec.kind === 'rgb') return ui / 255;
   if (spec.kind === 'toggle') return ui > 0 ? 1 : 0;
-  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape') {
+  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape' || spec.kind === 'pointShape') {
     return Math.round(Number(ui));
   }
   if (spec.kind === 'zoom') {
@@ -44,7 +44,7 @@ export function uiToShader(ui, spec) {
 export function shaderToUi(shader, spec) {
   if (spec.kind === 'rgb') return Math.round(clamp(shader, 0, 1) * 255);
   if (spec.kind === 'toggle') return shader > 0.5 ? 1 : 0;
-  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape') {
+  if (spec.kind === 'count' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'trailShape' || spec.kind === 'stampShape' || spec.kind === 'pointShape') {
     return Math.round(clamp(shader, spec.min, spec.max));
   }
   if (spec.kind === 'particles') {
@@ -66,10 +66,12 @@ export function shaderToUi(shader, spec) {
 }
 
 export function getSpecMap(shaderId) {
-  return {
+  const specs = {
     ...GLOBAL_UNIFORMS,
     ...(SHADERS[shaderId]?.uniforms ?? SHADER_UNIFORM_TEMPLATES[shaderId] ?? {}),
   };
+  if (shaderId === 'spiro') specs.uComplexity = SPIRO_COMPLEXITY;
+  return specs;
 }
 
 export function mergeShaderDefaults(state, shaderId) {
