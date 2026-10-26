@@ -24,6 +24,15 @@ export const TRAIL_SHAPE_OPTIONS = {
   Smear: 11,
 };
 
+export const PATTERN_OPTIONS = {
+  'Concentric ripples': 0,
+  'Double-slit': 1,
+  'Single-slit': 2,
+  'Grid moiré': 3,
+  Interference: 4,
+  Spokes: 5,
+};
+
 export const SPACING_OPTIONS = {
   Linear: 0,
   Exponential: 1,

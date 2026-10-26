@@ -1257,6 +1257,9 @@ export const SHADERS = {
       uniform float uBrightness;
       uniform float uSaturation;
       uniform float uBloom;
+      uniform float uPatternA;
+      uniform float uPatternB;
+      uniform float uPatternC;
       uniform float uLayerCount;
       uniform float uMix;
       uniform float uLayerScale;
@@ -1291,6 +1294,31 @@ export const SHADERS = {
         return sin(ang * 7.0 + t * 0.8) * sin(length(p) * 12.0 - t * 1.4);
       }
 
+      float doubleSlit(vec2 p, float t) {
+        float x = p.x * 22.0;
+        float sinc = sin(x) / max(abs(x), 0.18);
+        float envelope = sinc * sinc;
+        float fringes = pow(cos(x * 1.65 + sin(t * 0.35) * 0.4), 2.0);
+        float along = 0.55 + 0.45 * sin(p.y * 6.0 - t * 0.6);
+        return envelope * fringes * along;
+      }
+
+      float singleSlit(vec2 p, float t) {
+        float x = p.x * 14.0 + sin(t * 0.25) * 0.4;
+        float sinc = sin(x) / max(abs(x), 0.16);
+        return sinc * sinc * (0.6 + 0.4 * sin(p.y * 5.0 + t * 0.4));
+      }
+
+      float patternSignal(vec2 p, float t, float id) {
+        float kind = floor(id + 0.5);
+        if (kind < 0.5) return ripple(p, t);
+        if (kind < 1.5) return doubleSlit(p, t) * 2.0 - 1.0;
+        if (kind < 2.5) return singleSlit(p, t) * 2.0 - 1.0;
+        if (kind < 3.5) return moire(p, t);
+        if (kind < 4.5) return interference(p, t);
+        return spokes(p, t);
+      }
+
       void main() {
         vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0);
         uv -= vec2(uPanX, uPanY);
@@ -1304,11 +1332,11 @@ export const SHADERS = {
           float fi = i;
           float lt = t * (1.0 + (0.15 + uSpeedOffset) * fi);
           vec2 lp = uv * (1.0 + uLayerScale * fi);
-          float kind = mod(fi, 4.0);
-          float sig = ripple(lp, lt);
-          if (kind > 0.5 && kind < 1.5) sig = interference(lp, lt);
-          else if (kind > 1.5 && kind < 2.5) sig = moire(lp, lt);
-          else if (kind > 2.5) sig = spokes(lp, lt);
+          float slot = mod(fi, 3.0);
+          float patternId = uPatternA;
+          if (slot > 0.5 && slot < 1.5) patternId = uPatternB;
+          else if (slot > 1.5) patternId = uPatternC;
+          float sig = patternSignal(lp, lt, patternId);
           float band = smoothstep(0.05, 0.82, sig * 0.5 + 0.5);
           vec3 ink = namedPalette(fi * 0.18 + band * 0.35 + uComplexity * 0.05, uPalette);
           float fade = mix(1.0, 1.0 / (fi + 1.0), clamp(uMix, 0.0, 1.0));
