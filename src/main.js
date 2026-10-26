@@ -49,6 +49,11 @@ import {
   loadStoredTextPosition,
   loadStoredTextSize,
   loadStoredTextFont,
+  loadStoredTextEffect,
+  loadStoredTextEffectSpeed,
+  loadStoredTextDrift,
+  loadStoredTextDriftSpeed,
+  loadStoredTextDriftDirection,
 } from './textOverlay.js';
 import { LITE_MODE_KEY } from './liteMode.js';
 
@@ -356,6 +361,11 @@ async function start() {
     initialTextAutoFit: loadStoredTextAutoFit(),
     initialTextLineHeight: loadStoredTextLineHeight(),
     initialTextFont: loadStoredTextFont(),
+    initialTextEffect: loadStoredTextEffect(),
+    initialTextEffectSpeed: loadStoredTextEffectSpeed(),
+    initialTextDrift: loadStoredTextDrift(),
+    initialTextDriftSpeed: loadStoredTextDriftSpeed(),
+    initialTextDriftDirection: loadStoredTextDriftDirection(),
     onTextEnabledChange: (value) => {
       textOverlay.setEnabled(value);
     },
@@ -379,6 +389,21 @@ async function start() {
     },
     onTextFontChange: (value) => {
       textOverlay.setFont(value);
+    },
+    onTextEffectChange: (value) => {
+      textOverlay.setEffect(value);
+    },
+    onTextEffectSpeedChange: (value) => {
+      textOverlay.setEffectSpeed(value);
+    },
+    onTextDriftChange: (value) => {
+      textOverlay.setDrift(value);
+    },
+    onTextDriftSpeedChange: (value) => {
+      textOverlay.setDriftSpeed(value);
+    },
+    onTextDriftDirectionChange: (value) => {
+      textOverlay.setDriftDirection(value);
     },
     onOpenNotepad: () => {
       textOverlay.openNotepad();

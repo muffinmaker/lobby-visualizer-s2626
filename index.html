@@ -476,9 +476,7 @@
         left: 50%;
         width: min(92vw, 56rem);
         padding: 0 1.5rem;
-        transform: translateX(-50%) scale(calc(var(--text-size, 1) * var(--text-fit-scale, 1)));
         transform-origin: center center;
-        opacity: var(--text-opacity, 1);
         color: #fff;
         font-family: var(--text-font, system-ui, -apple-system, sans-serif);
         font-size: clamp(1.1rem, 3.2vw, 2.4rem);
@@ -499,7 +497,6 @@
 
       #hero-text[data-position='center'] {
         top: 50%;
-        transform: translate(-50%, -50%) scale(calc(var(--text-size, 1) * var(--text-fit-scale, 1)));
       }
 
       #hero-text[data-position='bottom'] {

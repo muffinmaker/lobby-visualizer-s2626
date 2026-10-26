@@ -10,7 +10,7 @@ import {
 import { getSpecMap, mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
 import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
 import { POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, STAMP_SHAPE_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
-import { TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
+import { TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
 import { canDrift } from './driftUtils.js';
 import {
@@ -97,6 +97,11 @@ export class SettingsPanel {
     initialTextAutoFit = true,
     initialTextLineHeight = 135,
     initialTextFont = 'System',
+    initialTextEffect = 'none',
+    initialTextEffectSpeed = 45,
+    initialTextDrift = false,
+    initialTextDriftSpeed = 30,
+    initialTextDriftDirection = 'right',
     onTextEnabledChange,
     onTextSizeChange,
     onTextOpacityChange,
@@ -105,6 +110,11 @@ export class SettingsPanel {
     onTextAutoFitChange,
     onTextLineHeightChange,
     onTextFontChange,
+    onTextEffectChange,
+    onTextEffectSpeedChange,
+    onTextDriftChange,
+    onTextDriftSpeedChange,
+    onTextDriftDirectionChange,
     onOpenNotepad,
   }) {
     this.presetManager = presetManager;
@@ -132,6 +142,11 @@ export class SettingsPanel {
     this.onTextAutoFitChange = onTextAutoFitChange;
     this.onTextLineHeightChange = onTextLineHeightChange;
     this.onTextFontChange = onTextFontChange;
+    this.onTextEffectChange = onTextEffectChange;
+    this.onTextDriftChange = onTextDriftChange;
+    this.onTextEffectSpeedChange = onTextEffectSpeedChange;
+    this.onTextDriftSpeedChange = onTextDriftSpeedChange;
+    this.onTextDriftDirectionChange = onTextDriftDirectionChange;
     this.onOpenNotepad = onOpenNotepad;
     this.visible = true;
     this.gamepadMenuActive = false;
@@ -163,6 +178,11 @@ export class SettingsPanel {
       textAutoFit: initialTextAutoFit,
       textLineHeight: initialTextLineHeight,
       textFont: initialTextFont,
+      textEffect: initialTextEffect,
+      textEffectSpeed: initialTextEffectSpeed,
+      textDrift: initialTextDrift,
+      textDriftSpeed: initialTextDriftSpeed,
+      textDriftDirection: initialTextDriftDirection,
       autoCycle: presetManager.autoCycle,
       cycleInterval: presetManager.cycleInterval,
       transitionDuration: presetManager.transitionDuration,
@@ -540,6 +560,34 @@ export class SettingsPanel {
       .name('Line spacing %')
       .onChange((value) => {
         this.onTextLineHeightChange?.(value);
+      });
+
+    text
+      .add(this.state, 'textEffect', TEXT_EFFECTS)
+      .name('Animation')
+      .onChange((value) => {
+        this.onTextEffectChange?.(value);
+      });
+    text
+      .add(this.state, 'textEffectSpeed', 0, 100, 1)
+      .name('Animation speed')
+      .onChange((value) => {
+        this.onTextEffectSpeedChange?.(value);
+      });
+    text.add(this.state, 'textDrift').name('Drift').onChange((value) => {
+      this.onTextDriftChange?.(value);
+    });
+    text
+      .add(this.state, 'textDriftSpeed', 0, 100, 1)
+      .name('Drift speed')
+      .onChange((value) => {
+        this.onTextDriftSpeedChange?.(value);
+      });
+    text
+      .add(this.state, 'textDriftDirection', TEXT_DRIFT_DIRECTIONS)
+      .name('Drift direction')
+      .onChange((value) => {
+        this.onTextDriftDirectionChange?.(value);
       });
   }
 

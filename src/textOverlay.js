@@ -7,6 +7,11 @@ const POSITION_KEY = 'lobby-viz-text-position';
 const AUTOFIT_KEY = 'lobby-viz-text-autofit';
 const LINE_HEIGHT_KEY = 'lobby-viz-text-line-height';
 const FONT_KEY = 'lobby-viz-text-font';
+const EFFECT_KEY = 'lobby-viz-text-effect';
+const EFFECT_SPEED_KEY = 'lobby-viz-text-effect-speed';
+const DRIFT_KEY = 'lobby-viz-text-drift';
+const DRIFT_SPEED_KEY = 'lobby-viz-text-drift-speed';
+const DRIFT_DIRECTION_KEY = 'lobby-viz-text-drift-direction';
 
 export const TEXT_SIZE_MIN = 40;
 export const TEXT_SIZE_MAX = 1200;
@@ -22,6 +27,30 @@ export const TEXT_FONTS = {
   Trebuchet: '"Trebuchet MS", sans-serif',
   Impact: 'Impact, Haettenschweiler, sans-serif',
   Hand: '"Comic Sans MS", "Segoe Print", cursive',
+};
+
+export const TEXT_EFFECTS = {
+  None: 'none',
+  Scale: 'scale',
+  Wobble: 'wobble',
+  Rotate: 'rotate',
+  Pulse: 'pulse',
+  Bounce: 'bounce',
+  Shake: 'shake',
+  Fade: 'fade',
+  Wave: 'wave',
+  Skew: 'skew',
+  Orbit: 'orbit',
+  Glitch: 'glitch',
+};
+
+export const TEXT_DRIFT_DIRECTIONS = {
+  Right: 'right',
+  Left: 'left',
+  Up: 'up',
+  Down: 'down',
+  Diagonal: 'diagonal',
+  Wander: 'wander',
 };
 
 export const TEXT_POSITIONS = {
@@ -166,6 +195,90 @@ export function saveTextFont(font) {
   }
 }
 
+function loadEnum(key, allowed, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    return allowed.includes(value) ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function loadStoredTextEffect() {
+  return loadEnum(EFFECT_KEY, Object.values(TEXT_EFFECTS), 'none');
+}
+
+export function saveTextEffect(effect) {
+  const next = Object.values(TEXT_EFFECTS).includes(effect) ? effect : 'none';
+  try {
+    localStorage.setItem(EFFECT_KEY, next);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadStoredTextEffectSpeed() {
+  try {
+    const n = Number(localStorage.getItem(EFFECT_SPEED_KEY));
+    return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 45;
+  } catch {
+    return 45;
+  }
+}
+
+export function saveTextEffectSpeed(speed) {
+  try {
+    localStorage.setItem(EFFECT_SPEED_KEY, String(speed));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadStoredTextDrift() {
+  try {
+    return localStorage.getItem(DRIFT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveTextDrift(enabled) {
+  try {
+    localStorage.setItem(DRIFT_KEY, enabled ? '1' : '0');
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadStoredTextDriftSpeed() {
+  try {
+    const n = Number(localStorage.getItem(DRIFT_SPEED_KEY));
+    return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 30;
+  } catch {
+    return 30;
+  }
+}
+
+export function saveTextDriftSpeed(speed) {
+  try {
+    localStorage.setItem(DRIFT_SPEED_KEY, String(speed));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadStoredTextDriftDirection() {
+  return loadEnum(DRIFT_DIRECTION_KEY, Object.values(TEXT_DRIFT_DIRECTIONS), 'right');
+}
+
+export function saveTextDriftDirection(direction) {
+  try {
+    localStorage.setItem(DRIFT_DIRECTION_KEY, direction);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function loadStoredTextLineHeight() {
   try {
     const raw = localStorage.getItem(LINE_HEIGHT_KEY);
@@ -200,6 +313,17 @@ export function createTextOverlayController() {
   let autoFit = loadStoredTextAutoFit();
   let lineHeight = loadStoredTextLineHeight();
   let font = loadStoredTextFont();
+  let effect = loadStoredTextEffect();
+  let effectSpeed = loadStoredTextEffectSpeed();
+  let drift = loadStoredTextDrift();
+  let driftSpeed = loadStoredTextDriftSpeed();
+  let driftDirection = loadStoredTextDriftDirection();
+  let driftX = 0;
+  let driftY = 0;
+  let wanderAngle = 0.4;
+  let motionTime = 0;
+  let lastFrame = 0;
+  let frame = 0;
 
   function applyAutoFit() {
     if (!el) return;
@@ -222,22 +346,117 @@ export function createTextOverlayController() {
     }
   }
 
+  function fitScale() {
+    const raw = el.style.getPropertyValue('--text-fit-scale');
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  }
+
+  function motionActive() {
+    return effect !== 'none' || drift;
+  }
+
+  function paintMotion(time = motionTime) {
+    if (!el) return;
+    const amp = Math.max(0.15, effectSpeed / 100);
+    const t = time;
+    let tx = driftX;
+    let ty = driftY;
+    let rot = 0;
+    let skew = 0;
+    let sc = (size / 100) * fitScale();
+    let op = opacity / 100;
+
+    if (effect === 'scale') sc *= 1 + 0.22 * amp * Math.sin(t * 2.2);
+    if (effect === 'wobble') rot = Math.sin(t * 3.4) * 10 * amp;
+    if (effect === 'rotate') rot = (t * 48 * amp) % 360;
+    if (effect === 'pulse') {
+      sc *= 1 + 0.14 * amp * Math.sin(t * 4);
+      op *= 0.72 + 0.28 * (0.5 + 0.5 * Math.sin(t * 4));
+    }
+    if (effect === 'bounce') ty -= Math.abs(Math.sin(t * 3.1)) * 36 * amp;
+    if (effect === 'shake') {
+      tx += Math.sin(t * 47) * 7 * amp;
+      ty += Math.cos(t * 53) * 5 * amp;
+    }
+    if (effect === 'fade') op *= 0.15 + 0.85 * (0.5 + 0.5 * Math.sin(t * 2.4 * amp));
+    if (effect === 'wave') tx += Math.sin(t * 2.1) * 42 * amp;
+    if (effect === 'skew') skew = Math.sin(t * 1.7) * 16 * amp;
+    if (effect === 'orbit') {
+      tx += Math.cos(t * (0.6 + amp)) * 48 * amp;
+      ty += Math.sin(t * (0.6 + amp)) * 32 * amp;
+    }
+    if (effect === 'glitch') {
+      const hit = Math.sin(t * 9) > 0.72;
+      if (hit) {
+        tx += Math.sin(t * 80) * 16 * amp;
+        el.style.textShadow = `${6 * amp}px 0 #f3c, ${-6 * amp}px 0 #3cf`;
+      } else {
+        el.style.textShadow = '';
+      }
+    } else {
+      el.style.textShadow = '';
+    }
+
+    const anchor = position === 'center' ? 'translate(-50%, -50%)' : 'translateX(-50%)';
+    el.style.transform = `${anchor} translate(${tx}px, ${ty}px) rotate(${rot}deg) skewX(${skew}deg) scale(${sc})`;
+    el.style.opacity = String(Math.max(0, Math.min(1, op)));
+  }
+
+  function stepMotion(now) {
+    if (!motionActive() || !enabled || !content.trim()) return;
+    const dt = lastFrame ? Math.min(0.05, (now - lastFrame) / 1000) : 0.016;
+    lastFrame = now;
+    motionTime += dt * (0.35 + effectSpeed / 70);
+    if (drift) {
+      const px = (driftSpeed / 100) * 90 * dt;
+      if (driftDirection === 'wander') {
+        wanderAngle += dt * 0.35;
+        driftX += Math.cos(wanderAngle) * px;
+        driftY += Math.sin(wanderAngle * 0.7) * px;
+      } else if (driftDirection === 'left') driftX -= px;
+      else if (driftDirection === 'up') driftY -= px;
+      else if (driftDirection === 'down') driftY += px;
+      else if (driftDirection === 'diagonal') {
+        driftX += px * 0.7;
+        driftY += px * 0.45;
+      } else driftX += px;
+      const limit = Math.max(window.innerWidth, window.innerHeight) * 0.55;
+      if (Math.abs(driftX) > limit) driftX = -Math.sign(driftX) * limit;
+      if (Math.abs(driftY) > limit) driftY = -Math.sign(driftY) * limit;
+    }
+    paintMotion();
+    frame = requestAnimationFrame(stepMotion);
+  }
+
+  function syncMotion() {
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+    lastFrame = 0;
+    if (motionActive() && enabled && content.trim()) {
+      frame = requestAnimationFrame(stepMotion);
+    } else {
+      paintMotion(0);
+    }
+  }
+
   function applyStyles() {
     if (!el) return;
-    el.style.setProperty('--text-size', `${size / 100}`);
     el.style.setProperty('--text-font', TEXT_FONTS[font] || TEXT_FONTS.System);
     if (textarea) textarea.style.fontFamily = TEXT_FONTS[font] || TEXT_FONTS.System;
     el.style.setProperty('--text-line-height', `${lineHeight / 100}`);
-    el.style.setProperty('--text-opacity', String(opacity / 100));
     el.dataset.color = color;
     el.dataset.position = position;
     el.textContent = content;
     el.classList.toggle('is-hidden', !enabled || !content.trim());
     if (!enabled || !content.trim()) {
       el.style.setProperty('--text-fit-scale', '1');
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
       return;
     }
     applyAutoFit();
+    syncMotion();
   }
 
   function setEnabled(next) {
@@ -288,6 +507,37 @@ export function createTextOverlayController() {
     applyStyles();
   }
 
+  function setEffect(next) {
+    effect = Object.values(TEXT_EFFECTS).includes(next) ? next : 'none';
+    saveTextEffect(effect);
+    syncMotion();
+  }
+
+  function setEffectSpeed(percent) {
+    effectSpeed = Math.max(0, Math.min(100, percent));
+    saveTextEffectSpeed(effectSpeed);
+  }
+
+  function setDrift(next) {
+    drift = Boolean(next);
+    saveTextDrift(drift);
+    if (!drift) {
+      driftX = 0;
+      driftY = 0;
+    }
+    syncMotion();
+  }
+
+  function setDriftSpeed(percent) {
+    driftSpeed = Math.max(0, Math.min(100, percent));
+    saveTextDriftSpeed(driftSpeed);
+  }
+
+  function setDriftDirection(next) {
+    driftDirection = Object.values(TEXT_DRIFT_DIRECTIONS).includes(next) ? next : 'right';
+    saveTextDriftDirection(driftDirection);
+  }
+
   function setLineHeight(percent) {
     lineHeight = Math.max(90, Math.min(220, percent));
     saveTextLineHeight(lineHeight);
@@ -334,6 +584,11 @@ export function createTextOverlayController() {
     setAutoFit,
     setLineHeight,
     setFont,
+    setEffect,
+    setEffectSpeed,
+    setDrift,
+    setDriftSpeed,
+    setDriftDirection,
     openNotepad,
     closeNotepad,
     getEnabled: () => enabled,
