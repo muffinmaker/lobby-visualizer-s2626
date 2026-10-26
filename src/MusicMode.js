@@ -279,7 +279,8 @@ export class MusicMode {
       } else if (key.includes('Zoom') || key.includes('Field') || key.includes('Scale')) {
         out[key] = clamp(Math.round(b[key] + bass * 24 * s - mid * 8 * s), 0, 100);
       } else if (key.includes('Trail') || key.includes('Alpha') || key.includes('Line')) {
-        out[key] = clamp(Math.round(b[key] + treble * 25 * s + energy * 15 * s), 0, 100);
+        const lineMax = key === 'uLineWidth' && this.currentShader === 'kaleido' ? 400 : 100;
+        out[key] = clamp(Math.round(b[key] + treble * 25 * s + energy * 15 * s), 0, lineMax);
       } else {
         out[key] = clamp(Math.round(b[key] + energy * 20 * s), 0, 100);
       }

@@ -13,6 +13,7 @@ const DISCRETE_KEYS = new Set([
   'uTrailShape',
   'uStampShape',
   'uPointShape',
+  'uSymmetry',
   'uPolygonSides',
   'uIterations',
   'uOrbitCount',

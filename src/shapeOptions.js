@@ -24,6 +24,12 @@ export const TRAIL_SHAPE_OPTIONS = {
   Smear: 11,
 };
 
+export const SYMMETRY_OPTIONS = {
+  Rotational: 0,
+  Mirrored: 1,
+  'Double mirror': 2,
+};
+
 export const POINT_SHAPE_OPTIONS = {
   Circle: 0,
   Square: 1,

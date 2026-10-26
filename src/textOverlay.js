@@ -6,6 +6,23 @@ const COLOR_KEY = 'lobby-viz-text-color';
 const POSITION_KEY = 'lobby-viz-text-position';
 const AUTOFIT_KEY = 'lobby-viz-text-autofit';
 const LINE_HEIGHT_KEY = 'lobby-viz-text-line-height';
+const FONT_KEY = 'lobby-viz-text-font';
+
+export const TEXT_SIZE_MIN = 40;
+export const TEXT_SIZE_MAX = 1200;
+
+export const TEXT_FONTS = {
+  System: 'system-ui, -apple-system, sans-serif',
+  Sans: 'Arial, Helvetica, sans-serif',
+  Serif: 'Georgia, serif',
+  Times: '"Times New Roman", Times, serif',
+  Palatino: 'Palatino, "Palatino Linotype", serif',
+  Mono: '"Courier New", Courier, monospace',
+  Verdana: 'Verdana, Geneva, sans-serif',
+  Trebuchet: '"Trebuchet MS", sans-serif',
+  Impact: 'Impact, Haettenschweiler, sans-serif',
+  Hand: '"Comic Sans MS", "Segoe Print", cursive',
+};
 
 export const TEXT_POSITIONS = {
   Top: 'top',
@@ -50,7 +67,7 @@ export function loadStoredTextSize() {
     const raw = localStorage.getItem(SIZE_KEY);
     if (raw == null) return 100;
     const n = Number(raw);
-    return Number.isFinite(n) ? Math.max(40, Math.min(240, n)) : 100;
+    return Number.isFinite(n) ? Math.max(TEXT_SIZE_MIN, Math.min(TEXT_SIZE_MAX, n)) : 100;
   } catch {
     return 100;
   }
@@ -132,6 +149,23 @@ export function saveTextAutoFit(enabled) {
   }
 }
 
+export function loadStoredTextFont() {
+  try {
+    const stored = localStorage.getItem(FONT_KEY);
+    return stored && TEXT_FONTS[stored] ? stored : 'System';
+  } catch {
+    return 'System';
+  }
+}
+
+export function saveTextFont(font) {
+  try {
+    localStorage.setItem(FONT_KEY, TEXT_FONTS[font] ? font : 'System');
+  } catch {
+    /* ignore */
+  }
+}
+
 export function loadStoredTextLineHeight() {
   try {
     const raw = localStorage.getItem(LINE_HEIGHT_KEY);
@@ -165,6 +199,7 @@ export function createTextOverlayController() {
   let position = loadStoredTextPosition();
   let autoFit = loadStoredTextAutoFit();
   let lineHeight = loadStoredTextLineHeight();
+  let font = loadStoredTextFont();
 
   function applyAutoFit() {
     if (!el) return;
@@ -190,6 +225,8 @@ export function createTextOverlayController() {
   function applyStyles() {
     if (!el) return;
     el.style.setProperty('--text-size', `${size / 100}`);
+    el.style.setProperty('--text-font', TEXT_FONTS[font] || TEXT_FONTS.System);
+    if (textarea) textarea.style.fontFamily = TEXT_FONTS[font] || TEXT_FONTS.System;
     el.style.setProperty('--text-line-height', `${lineHeight / 100}`);
     el.style.setProperty('--text-opacity', String(opacity / 100));
     el.dataset.color = color;
@@ -216,7 +253,7 @@ export function createTextOverlayController() {
   }
 
   function setSize(percent) {
-    size = Math.max(40, Math.min(240, percent));
+    size = Math.max(TEXT_SIZE_MIN, Math.min(TEXT_SIZE_MAX, percent));
     saveTextSize(size);
     applyStyles();
   }
@@ -242,6 +279,12 @@ export function createTextOverlayController() {
   function setAutoFit(next) {
     autoFit = Boolean(next);
     saveTextAutoFit(autoFit);
+    applyStyles();
+  }
+
+  function setFont(next) {
+    font = TEXT_FONTS[next] ? next : 'System';
+    saveTextFont(font);
     applyStyles();
   }
 
@@ -290,6 +333,7 @@ export function createTextOverlayController() {
     setPosition,
     setAutoFit,
     setLineHeight,
+    setFont,
     openNotepad,
     closeNotepad,
     getEnabled: () => enabled,
@@ -300,5 +344,6 @@ export function createTextOverlayController() {
     getPosition: () => position,
     getAutoFit: () => autoFit,
     getLineHeight: () => lineHeight,
+    getFont: () => font,
   };
 }

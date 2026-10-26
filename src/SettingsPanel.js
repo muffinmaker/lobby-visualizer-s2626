@@ -9,7 +9,8 @@ import {
 } from './shaders/index.js';
 import { getSpecMap, mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
 import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
-import { POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, STAMP_SHAPE_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
+import { POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, STAMP_SHAPE_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
+import { TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
 import { canDrift } from './driftUtils.js';
 import {
@@ -95,6 +96,7 @@ export class SettingsPanel {
     initialTextPosition = 'center',
     initialTextAutoFit = true,
     initialTextLineHeight = 135,
+    initialTextFont = 'System',
     onTextEnabledChange,
     onTextSizeChange,
     onTextOpacityChange,
@@ -102,6 +104,7 @@ export class SettingsPanel {
     onTextPositionChange,
     onTextAutoFitChange,
     onTextLineHeightChange,
+    onTextFontChange,
     onOpenNotepad,
   }) {
     this.presetManager = presetManager;
@@ -128,6 +131,7 @@ export class SettingsPanel {
     this.onTextPositionChange = onTextPositionChange;
     this.onTextAutoFitChange = onTextAutoFitChange;
     this.onTextLineHeightChange = onTextLineHeightChange;
+    this.onTextFontChange = onTextFontChange;
     this.onOpenNotepad = onOpenNotepad;
     this.visible = true;
     this.gamepadMenuActive = false;
@@ -158,6 +162,7 @@ export class SettingsPanel {
       textPosition: initialTextPosition,
       textAutoFit: initialTextAutoFit,
       textLineHeight: initialTextLineHeight,
+      textFont: initialTextFont,
       autoCycle: presetManager.autoCycle,
       cycleInterval: presetManager.cycleInterval,
       transitionDuration: presetManager.transitionDuration,
@@ -492,7 +497,14 @@ export class SettingsPanel {
     text.add(textActions, 'openNotepad').name('Open notepad');
 
     text
-      .add(this.state, 'textSize', 40, 240, 1)
+      .add(this.state, 'textFont', Object.fromEntries(Object.keys(TEXT_FONTS).map((name) => [name, name])))
+      .name('Font')
+      .onChange((value) => {
+        this.onTextFontChange?.(value);
+      });
+
+    text
+      .add(this.state, 'textSize', TEXT_SIZE_MIN, TEXT_SIZE_MAX, 1)
       .name('Text size %')
       .onChange((value) => {
         this.onTextSizeChange?.(value);
@@ -926,6 +938,16 @@ export class SettingsPanel {
     } else if (spec.kind === 'trailShape') {
       controller = folder
         .add(this.state, key, { ...TRAIL_SHAPE_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
+    } else if (spec.kind === 'symmetry') {
+      controller = folder
+        .add(this.state, key, { ...SYMMETRY_OPTIONS })
         .name(label)
         .onChange(() => {
           if (this.driftManager.isEnabled(key)) {

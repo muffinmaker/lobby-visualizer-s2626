@@ -500,6 +500,8 @@ export const SHADERS = {
       uniform float uRingCount;
       uniform float uWarp;
       uniform float uLineWidth;
+      uniform float uMirrorAngle;
+      uniform float uSymmetry;
       uniform float uCenterShape;
       uniform float uCenterSize;
       uniform float uCenterStrength;
@@ -523,12 +525,13 @@ export const SHADERS = {
         return mat2(c, -s, s, c);
       }
 
-      vec2 kaleidoscope(vec2 p, float seg) {
-        float angle = atan(p.y, p.x);
+      vec2 kaleidoscope(vec2 p, float seg, float angleOffset, float symmetry) {
+        float angle = atan(p.y, p.x) + angleOffset;
         float radius = length(p);
         float slice = 6.28318 / max(seg, 3.0);
         angle = mod(angle, slice);
-        angle = abs(angle - slice * 0.5);
+        if (symmetry > 0.5) angle = abs(angle - slice * 0.5);
+        if (symmetry > 1.5) angle = abs(angle - slice * 0.25);
         return vec2(cos(angle), sin(angle)) * radius;
       }
 
@@ -675,7 +678,7 @@ export const SHADERS = {
         float centerField = centerShapeField(uv, t * anim);
         float centerAmt = clamp(centerField / max(uCenterStrength, 0.35), 0.0, 1.0);
 
-        vec2 p = kaleidoscope(uv, floor(uSegments + 0.5));
+        vec2 p = kaleidoscope(uv, floor(uSegments + 0.5), uMirrorAngle, uSymmetry);
         p *= 1.0 + 0.1 * sin(t * anim + length(uv) * (3.0 + detail * 2.0)) * uWarp;
 
         float patternVal = pattern(p, t, anim);

@@ -48,6 +48,7 @@ import {
   loadStoredTextLineHeight,
   loadStoredTextPosition,
   loadStoredTextSize,
+  loadStoredTextFont,
 } from './textOverlay.js';
 import { LITE_MODE_KEY } from './liteMode.js';
 
@@ -354,6 +355,7 @@ async function start() {
     initialTextPosition: loadStoredTextPosition(),
     initialTextAutoFit: loadStoredTextAutoFit(),
     initialTextLineHeight: loadStoredTextLineHeight(),
+    initialTextFont: loadStoredTextFont(),
     onTextEnabledChange: (value) => {
       textOverlay.setEnabled(value);
     },
@@ -374,6 +376,9 @@ async function start() {
     },
     onTextLineHeightChange: (value) => {
       textOverlay.setLineHeight(value);
+    },
+    onTextFontChange: (value) => {
+      textOverlay.setFont(value);
     },
     onOpenNotepad: () => {
       textOverlay.openNotepad();

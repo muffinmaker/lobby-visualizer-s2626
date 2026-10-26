@@ -50,6 +50,7 @@ function isDiscreteUniform(spec) {
     spec?.kind === 'shape' ||
     spec?.kind === 'stampShape' ||
     spec?.kind === 'pointShape' ||
+    spec?.kind === 'symmetry' ||
     spec?.kind === 'trailShape' ||
     spec?.kind === 'toggle'
   );
