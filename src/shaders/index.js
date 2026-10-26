@@ -269,84 +269,9 @@ export const SHADERS = {
 
       vec3 palette(float lane, float radial, float t) {
         float p = floor(uPalette + 0.5);
-        if (p > 19.5) return applyTint(namedPalette(lane + radial + t * 0.15, uPalette));
         float hue = lane * 1.45 + radial * 0.65 + t * uColorSpeed * 0.55 + uHueShift;
-        vec3 offset = vec3(0.0, 0.33, 0.67);
-        float chroma = 1.65;
-        float gain = 1.35;
-
-        if (p < 0.5) {
-          // Classic rainbow
-        } else if (p < 1.5) {
-          offset = vec3(0.05, 0.12, 0.22);
-          chroma = 1.15;
-        } else if (p < 2.5) {
-          offset = vec3(0.52, 0.62, 0.72);
-          chroma = 1.35;
-        } else if (p < 3.5) {
-          chroma = 2.1;
-        } else if (p < 4.5) {
-          offset = vec3(0.12, 0.28, 0.42);
-          chroma = 0.95;
-          gain = 1.12;
-        } else if (p < 5.5) {
-          offset = vec3(0.0, 0.18, 0.38);
-          chroma = 1.25;
-        } else if (p < 6.5) {
-          offset = vec3(0.42, 0.54, 0.66);
-          chroma = 1.4;
-        } else if (p < 7.5) {
-          vec3 vivid = neonPalette(hue, 1.65, vec3(0.0, 0.33, 0.67), 1.35);
-          float mono = dot(vivid, vec3(0.299, 0.587, 0.114));
-          return applyTint(mix(vec3(0.5), vec3(mono), uColorSpread));
-        } else if (p < 8.5) {
-          chroma = 2.45;
-          hue *= 1.35;
-        } else if (p < 9.5) {
-          offset = vec3(0.35, 0.55, 0.75);
-          chroma = 1.9;
-          hue += sin(t * 0.55 + lane * 4.2) * 0.1;
-        } else if (p < 10.5) {
-          offset = vec3(0.0, 0.08, 0.18);
-          chroma = 1.55;
-        } else if (p < 11.5) {
-          chroma = 2.25;
-          hue += sin(t * 0.42 + radial * 3.0) * 0.14;
-        } else if (p < 12.5) {
-          offset = vec3(0.85, 0.05, 0.55);
-          chroma = 0.55;
-          gain = 1.15;
-        } else if (p < 13.5) {
-          offset = vec3(0.28, 0.85, 0.22);
-          chroma = 0.45;
-          gain = 1.12;
-        } else if (p < 14.5) {
-          offset = vec3(0.12, 0.42, 0.95);
-          chroma = 0.35;
-          gain = 1.2;
-        } else if (p < 15.5) {
-          offset = vec3(0.55, 0.72, 0.95);
-          chroma = 0.4;
-          gain = 1.15;
-        } else if (p < 16.5) {
-          offset = vec3(0.95, 0.25, 0.55);
-          chroma = 1.1;
-          gain = 1.2;
-        } else if (p < 17.5) {
-          offset = vec3(0.18, 0.55, 0.22);
-          chroma = 0.5;
-          gain = 1.05;
-        } else if (p < 18.5) {
-          offset = vec3(0.08, 0.38, 0.72);
-          chroma = 0.42;
-          gain = 1.1;
-        } else {
-          offset = vec3(0.62, 0.22, 0.92);
-          chroma = 0.55;
-          gain = 1.15;
-        }
-
-        vec3 col = neonPalette(hue, chroma, offset, gain);
+        vec3 col = namedPalette(hue, uPalette);
+        if (p > 6.5 && p < 7.5) return applyTint(col);
         col = mix(vec3(0.55), col, uColorSpread);
         return applyTint(col);
       }
@@ -1078,20 +1003,7 @@ export const SHADERS = {
       ${PALETTE_UNIFORMS}
       ${PALETTE_FN}
       vec3 paletteBase(float t) {
-        float p = floor(uPalette + 0.5);
-        if (p > 19.5) return namedPalette(t, uPalette);
-        vec3 offset;
-        if (p < 0.5) offset = vec3(0.55, 0.12, 0.72);
-        else if (p < 1.5) offset = vec3(0.0, 0.42, 0.78);
-        else if (p < 2.5) offset = vec3(0.12, 0.55, 0.82);
-        else if (p < 3.5) offset = vec3(0.0, 0.33, 0.67);
-        else if (p < 4.5) offset = vec3(0.82, 0.35, 0.08);
-        else if (p < 5.5) offset = vec3(0.18, 0.62, 0.88);
-        else if (p < 6.5) offset = vec3(0.68, 0.08, 0.55);
-        else offset = vec3(0.05, 0.15, 0.35);
-        vec3 base = 0.5 + 0.5 * cos(6.28318 * (offset + t));
-        vec3 floorCol = vec3(0.06, 0.07, 0.12);
-        return mix(floorCol, base, uColorSpread);
+        return namedPalette(t + uHueShift, uPalette);
       }
 
       vec3 palette(float t) {

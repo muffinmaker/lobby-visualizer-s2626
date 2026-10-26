@@ -31,71 +31,88 @@ vec3 customPalette(float hue) {
   return mix(fromColor, toColor, f);
 }
 
+vec3 spiroNeon(float hue, float chroma, vec3 offset, float gain) {
+  vec3 base = 0.5 + 0.5 * cos(6.28318 * (offset + hue * chroma));
+  return pow(clamp(base, 0.0, 1.0), vec3(0.82)) * gain;
+}
+
 vec3 namedPalette(float hue, float paletteId) {
   float p = floor(paletteId + 0.5);
   if (p > 24.5) return customPalette(hue);
   vec3 offset = vec3(0.0, 0.33, 0.67);
-  float chroma = 1.35;
-  float gain = 1.1;
+  float chroma = 1.65;
+  float gain = 1.35;
+  float h = hue;
+
   if (p < 0.5) {
-    chroma = 1.35;
+    // Classic
   } else if (p < 1.5) {
-    offset = vec3(0.02, 0.12, 0.22);
-    chroma = 0.95;
-  } else if (p < 2.5) {
-    offset = vec3(0.52, 0.62, 0.78);
+    offset = vec3(0.05, 0.12, 0.22);
     chroma = 1.15;
+  } else if (p < 2.5) {
+    offset = vec3(0.52, 0.62, 0.72);
+    chroma = 1.35;
   } else if (p < 3.5) {
-    chroma = 1.9;
-    gain = 1.25;
+    chroma = 2.1;
   } else if (p < 4.5) {
     offset = vec3(0.12, 0.28, 0.42);
-    chroma = 0.75;
-    gain = 1.05;
+    chroma = 0.95;
+    gain = 1.12;
   } else if (p < 5.5) {
-    offset = vec3(0.0, 0.16, 0.36);
-    chroma = 1.2;
-  } else if (p < 6.5) {
-    offset = vec3(0.42, 0.55, 0.7);
+    offset = vec3(0.0, 0.18, 0.38);
     chroma = 1.25;
+  } else if (p < 6.5) {
+    offset = vec3(0.42, 0.54, 0.66);
+    chroma = 1.4;
   } else if (p < 7.5) {
-    chroma = 0.2;
-    gain = 1.35;
+    vec3 vivid = spiroNeon(h, 1.65, vec3(0.0, 0.33, 0.67), 1.35);
+    float mono = dot(vivid, vec3(0.299, 0.587, 0.114));
+    return mix(vec3(0.5), vec3(mono), 0.85);
   } else if (p < 8.5) {
-    chroma = 2.15;
+    chroma = 2.45;
+    h *= 1.35;
   } else if (p < 9.5) {
     offset = vec3(0.35, 0.55, 0.75);
-    chroma = 1.7;
+    chroma = 1.9;
+    h += sin(h * 2.2) * 0.1;
   } else if (p < 10.5) {
     offset = vec3(0.0, 0.08, 0.18);
-    chroma = 1.45;
+    chroma = 1.55;
   } else if (p < 11.5) {
-    chroma = 2.05;
-    gain = 1.3;
+    chroma = 2.25;
+    h += sin(h * 1.7) * 0.14;
   } else if (p < 12.5) {
     offset = vec3(0.85, 0.05, 0.55);
-    chroma = 0.5;
+    chroma = 0.55;
+    gain = 1.15;
   } else if (p < 13.5) {
-    offset = vec3(0.28, 0.82, 0.22);
-    chroma = 0.42;
+    offset = vec3(0.28, 0.85, 0.22);
+    chroma = 0.45;
+    gain = 1.12;
   } else if (p < 14.5) {
-    offset = vec3(0.12, 0.42, 0.92);
+    offset = vec3(0.12, 0.42, 0.95);
     chroma = 0.35;
+    gain = 1.2;
   } else if (p < 15.5) {
     offset = vec3(0.55, 0.72, 0.95);
     chroma = 0.4;
+    gain = 1.15;
   } else if (p < 16.5) {
     offset = vec3(0.95, 0.25, 0.55);
-    chroma = 1.05;
+    chroma = 1.1;
+    gain = 1.2;
   } else if (p < 17.5) {
-    offset = vec3(0.16, 0.52, 0.22);
-    chroma = 0.48;
-  } else if (p < 18.5) {
-    offset = vec3(0.08, 0.36, 0.72);
-    chroma = 0.4;
-  } else if (p < 19.5) {
-    offset = vec3(0.62, 0.2, 0.92);
+    offset = vec3(0.18, 0.55, 0.22);
     chroma = 0.5;
+    gain = 1.05;
+  } else if (p < 18.5) {
+    offset = vec3(0.08, 0.38, 0.72);
+    chroma = 0.42;
+    gain = 1.1;
+  } else if (p < 19.5) {
+    offset = vec3(0.62, 0.22, 0.92);
+    chroma = 0.55;
+    gain = 1.15;
   } else if (p < 20.5) {
     offset = vec3(0.95, 0.15, 0.55);
     chroma = 0.12;
@@ -112,14 +129,12 @@ vec3 namedPalette(float hue, float paletteId) {
     offset = vec3(0.02, 0.42, 0.95);
     chroma = 0.12;
     gain = 1.5;
-  } else if (p < 24.5) {
+  } else {
     offset = vec3(0.72, 0.95, 0.15);
     chroma = 0.12;
     gain = 1.5;
-  } else {
-    return customPalette(hue);
   }
-  vec3 base = 0.5 + 0.5 * cos(6.28318 * (offset + hue * chroma));
-  return pow(clamp(base, 0.0, 1.0), vec3(0.9)) * gain;
+
+  return spiroNeon(h, chroma, offset, gain);
 }
 `;
