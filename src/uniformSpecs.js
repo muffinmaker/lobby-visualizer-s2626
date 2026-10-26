@@ -47,13 +47,18 @@ export const SPIRO_PALETTE_OPTIONS = {
   Forest: 17,
   Copper: 18,
   Violet: 19,
-  Custom: 20,
+  'Neon Pink': 20,
+  'Neon Cyan': 21,
+  'Neon Lime': 22,
+  'Neon Orange': 23,
+  'Neon Violet': 24,
+  Custom: 25,
 };
 
 const fullPalette = (value = 0) => ({
   value,
   min: 0,
-  max: 20,
+  max: 25,
   step: 1,
   kind: 'palette',
   paletteOptions: 'spiro',

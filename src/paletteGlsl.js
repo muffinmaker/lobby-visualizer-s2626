@@ -33,7 +33,7 @@ vec3 customPalette(float hue) {
 
 vec3 namedPalette(float hue, float paletteId) {
   float p = floor(paletteId + 0.5);
-  if (p > 19.5) return customPalette(hue);
+  if (p > 24.5) return customPalette(hue);
   vec3 offset = vec3(0.0, 0.33, 0.67);
   float chroma = 1.35;
   float gain = 1.1;
@@ -93,9 +93,31 @@ vec3 namedPalette(float hue, float paletteId) {
   } else if (p < 18.5) {
     offset = vec3(0.08, 0.36, 0.72);
     chroma = 0.4;
-  } else {
+  } else if (p < 19.5) {
     offset = vec3(0.62, 0.2, 0.92);
     chroma = 0.5;
+  } else if (p < 20.5) {
+    offset = vec3(0.95, 0.15, 0.55);
+    chroma = 0.12;
+    gain = 1.55;
+  } else if (p < 21.5) {
+    offset = vec3(0.55, 0.05, 0.95);
+    chroma = 0.1;
+    gain = 1.5;
+  } else if (p < 22.5) {
+    offset = vec3(0.25, 0.95, 0.15);
+    chroma = 0.1;
+    gain = 1.5;
+  } else if (p < 23.5) {
+    offset = vec3(0.02, 0.42, 0.95);
+    chroma = 0.12;
+    gain = 1.5;
+  } else if (p < 24.5) {
+    offset = vec3(0.72, 0.95, 0.15);
+    chroma = 0.12;
+    gain = 1.5;
+  } else {
+    return customPalette(hue);
   }
   vec3 base = 0.5 + 0.5 * cos(6.28318 * (offset + hue * chroma));
   return pow(clamp(base, 0.0, 1.0), vec3(0.9)) * gain;

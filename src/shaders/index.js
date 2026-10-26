@@ -269,7 +269,7 @@ export const SHADERS = {
 
       vec3 palette(float lane, float radial, float t) {
         float p = floor(uPalette + 0.5);
-        if (p > 19.5) return applyTint(customPalette(lane + radial + t * 0.15));
+        if (p > 19.5) return applyTint(namedPalette(lane + radial + t * 0.15, uPalette));
         float hue = lane * 1.45 + radial * 0.65 + t * uColorSpeed * 0.55 + uHueShift;
         vec3 offset = vec3(0.0, 0.33, 0.67);
         float chroma = 1.65;
@@ -1046,7 +1046,7 @@ export const SHADERS = {
       ${PALETTE_FN}
       vec3 paletteBase(float t) {
         float p = floor(uPalette + 0.5);
-        if (p > 19.5) return customPalette(t);
+        if (p > 19.5) return namedPalette(t, uPalette);
         vec3 offset;
         if (p < 0.5) offset = vec3(0.55, 0.12, 0.72);
         else if (p < 1.5) offset = vec3(0.0, 0.42, 0.78);
