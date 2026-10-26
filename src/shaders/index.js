@@ -197,19 +197,20 @@ export const SHADERS = {
           float localRadial = clamp(length(local) * scalePow.x / max(uScale * 0.75, 0.15), 0.0, 1.35);
           float hueT = layerDepth * 1.45 + radial * 0.55 + localRadial * 0.35
             + t * uColorSpeed * 0.55;
-          vec3 layerCol = applyTint(neonPalette(hueT));
+          vec3 layerCol = applyTint(neonPalette(hueT + layerDepth * 0.8));
 
           accCol += layerCol * layerEdge;
           accW += layerEdge;
           edge = max(edge, layerEdge);
         }
 
-        vec3 col = accW > 1e-5 ? (accCol / accW) * edge * uBrightness : vec3(0.0);
+        vec3 col = accW > 1e-5 ? (accCol / accW) * edge * uBrightness * 1.35 : vec3(0.0);
+        col += accW > 1e-5 ? (accCol / accW) * edge * uBloom * 0.35 : vec3(0.0);
 
         if (uDepthPulse > 0.5) {
-          float percent = cos(t * 0.5) * 0.5 + 0.5;
-          col = mix(col, vec3(0.0), percent);
-          edge *= 1.0 - percent;
+          float percent = cos(t * 0.7) * 0.5 + 0.5;
+          col = mix(col, col * 0.25, percent * 0.65);
+          edge *= 1.0 - percent * 0.45;
         }
 
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
@@ -402,8 +403,8 @@ export const SHADERS = {
         col = mix(vec3(gray), col, uSaturation);
         float peak = max(max(col.r, col.g), col.b);
         if (peak > 0.92) col *= 0.92 / peak;
-        col *= uBrightness * 0.85;
-        col += vColor * stamp * uBloom * 0.08;
+        col *= uBrightness * 1.15;
+        col += vColor * stamp * uBloom * 0.35;
 
         float alpha = clamp(stamp * uTransparency, 0.0, 1.0);
         gl_FragColor = vec4(col, alpha);
@@ -843,12 +844,12 @@ export const SHADERS = {
         vec3 col = vColor * stamp;
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(gray), col, uSaturation);
-        col *= uBrightness * (0.55 + stamp * 0.35) * vCover;
+        col *= uBrightness * (0.85 + stamp * 0.55) * vCover;
 
-        float halo = exp(-d * d * 8.0) * uBloom * 0.18 * vCover;
-        col += col * halo;
+        float halo = exp(-d * d * 6.0) * uBloom * 0.45 * vCover;
+        col += vColor * halo;
 
-        alpha = clamp(alpha * 0.72, 0.0, 0.55);
+        alpha = clamp(alpha * 0.95 + halo * 0.25, 0.0, 0.9);
         if (alpha < 0.01) discard;
         gl_FragColor = vec4(col, alpha);
       }
@@ -898,10 +899,10 @@ export const SHADERS = {
         for (float i = 0.0; i < 12.0; i++) {
           if (i >= uBallCount) break;
           float fi = i + 1.0;
-          float angle = t * (0.3 + fi * 0.07 * uComplexity) + fi * 2.094;
-          float radius = uScale * uObjectScale * (0.25 + 0.12 * sin(t * 0.5 + fi));
+          float angle = t * (0.55 + fi * 0.09 * uComplexity) + fi * 2.094;
+          float radius = uScale * uObjectScale * (0.22 + 0.2 * sin(t * 0.9 + fi));
           vec2 center = vec2(cos(angle), sin(angle)) * radius;
-          center += vec2(sin(t * 0.8 + fi * 1.3), cos(t * 0.6 + fi)) * 0.15 * uComplexity;
+          center += vec2(sin(t * 1.3 + fi * 1.3), cos(t * 1.1 + fi)) * 0.22 * uComplexity;
           float d = length(uv - center);
           field += uSoftness / (d * d + 0.002);
         }
@@ -909,9 +910,9 @@ export const SHADERS = {
         float edge = smoothstep(0.95, 1.05, field);
         float glow = exp(-abs(field - 1.0) * 3.0) * uEdgeGlow;
 
-        vec3 col = palette(field * 0.08 + t * 0.05 + length(uv));
-        col *= edge * uBrightness + glow * uBloom;
-        col = mix(col, vec3(1.0), glow * 0.15);
+        vec3 col = palette(field * 0.22 + t * 0.18 + length(uv) * 0.8);
+        col *= edge * uBrightness * 1.3 + glow * uBloom * 1.4;
+        col += palette(field * 0.1 + 0.35) * glow * 0.45;
 
         float gray = dot(col, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(gray), col, uSaturation);
@@ -1209,7 +1210,7 @@ export const SHADERS = {
         float colorPhase = depth * 0.24 + structure * 0.72 + r * 0.38 + colorDrift + uHueShift;
 
         vec3 col = palette(colorPhase);
-        col *= 0.2 + structure * 1.45 * wallShade;
+        col *= 0.28 + structure * 1.85 * wallShade;
         col = mix(col, palette(colorPhase + 0.38 + rib * 0.15), rib * uChevronGlow * 0.62 * flow);
 
         vec3 starCol = palette(travel * 0.1 + uHueShift + sin(t * 0.48) * 0.1);
@@ -1333,9 +1334,9 @@ export const SHADERS = {
           else if (slot > 1.5) patternId = uPatternC;
           float sig = patternSignal(lp, lt, patternId);
           float band = smoothstep(0.05, 0.82, sig * 0.5 + 0.5);
-          vec3 ink = namedPalette(fi * 0.18 + band * 0.35 + uComplexity * 0.05, uPalette);
+          vec3 ink = namedPalette(fi * 0.37 + band * 0.9 + lt * 0.08 + uComplexity * 0.05, uPalette);
           float fade = mix(1.0, 1.0 / (fi + 1.0), clamp(uMix, 0.0, 1.0));
-          acc += ink * (0.28 + band) * fade;
+          acc += ink * (0.15 + band * 1.35) * fade;
           weightSum += fade;
         }
         vec3 col = acc / max(weightSum, 0.001);

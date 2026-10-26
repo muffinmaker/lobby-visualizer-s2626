@@ -38,9 +38,11 @@ export default {
 
     float ribbon(vec2 p, float phase, float t) {
       p = rot(t * 0.2 * uTwistAmount + phase) * p;
-      float wave = sin(p.x * 4.0 * uComplexity + t * 1.2 + phase * 3.0);
+      float wave = sin(p.x * 4.0 * uComplexity + t * 1.6 + phase * 3.0);
       float curve = p.y - wave * 0.35 * uScale;
-      return uThickness / (abs(curve) + 0.002);
+      float line = uThickness / (abs(curve) + 0.002);
+      float glow = exp(-abs(curve) * 28.0) * 0.45;
+      return line + glow;
     }
 
     void main() {
@@ -54,13 +56,13 @@ export default {
         float fi = i + 1.0;
         float phase = fi * 1.618;
         vec2 p = uv;
-        p.x += sin(t * 0.3 + fi) * 0.15;
+        p.x += sin(t * 0.55 + fi) * 0.22;
         float r = ribbon(p, phase, t);
-        col += palette(fi * 0.11 + t * 0.07) * r;
+        col += palette(fi * 0.17 + t * 0.16) * r;
       }
 
-      col *= uBrightness;
-      col += col * uBloom * 0.25;
+      col *= uBrightness * 1.15;
+      col += col * uBloom * 0.4;
       float gray = dot(col, vec3(0.299, 0.587, 0.114));
       col = mix(vec3(gray), col, uSaturation);
 
