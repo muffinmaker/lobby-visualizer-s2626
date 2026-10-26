@@ -20,7 +20,7 @@ varying vec2 vUv;
 
 void main() {
   vec4 prev = texture2D(uPrev, vUv);
-  if (uTrailPersist > 0.5) {
+  if (uTrailPersist > 0.5 || uDecay > 0.9995) {
     gl_FragColor = prev;
     return;
   }
@@ -480,9 +480,6 @@ export class Visualizer {
     }
     if (this.trailsNeverDecay) {
       decay = Math.min(decay, 0.93);
-    } else {
-      const decayCap = this.currentShaderId === 'spiro' ? 0.998 : 0.96;
-      decay = Math.min(decay, decayCap);
     }
     this.trailMaterial.uniforms.uDecay.value = decay;
     this.trailMaterial.uniforms.uPreserveHue.value = usesFeedbackTrails(this.currentShaderId) ? 1 : 0;
