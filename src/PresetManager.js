@@ -224,7 +224,7 @@ export const PRESETS = [
       uBloom: 50,
       uRibbonCount: 6,
       uThickness: 30,
-      uTwistAmount: 73,
+      uTwistAmount: 45,
     },
   },
 {
@@ -1040,7 +1040,7 @@ export const PRESETS = [
       uBloom: 55,
       uRibbonCount: 7,
       uThickness: 28,
-      uTwistAmount: 81,
+      uTwistAmount: 62,
     },
   },
 {
@@ -1055,7 +1055,7 @@ export const PRESETS = [
       uBloom: 42,
       uRibbonCount: 9,
       uThickness: 22,
-      uTwistAmount: 68,
+      uTwistAmount: 35,
     },
   },
 {
@@ -1070,7 +1070,7 @@ export const PRESETS = [
       uBloom: 35,
       uRibbonCount: 4,
       uThickness: 42,
-      uTwistAmount: 61,
+      uTwistAmount: 22,
     },
   },
 {
@@ -1085,7 +1085,7 @@ export const PRESETS = [
       uBloom: 52,
       uRibbonCount: 6,
       uThickness: 26,
-      uTwistAmount: 89,
+      uTwistAmount: 78,
     },
   },
   {

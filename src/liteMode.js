@@ -80,7 +80,7 @@ export function describeModeLoad(shaderId, state = {}) {
   if (shaderId === 'spocks') bits.push(`${state.uIterations ?? 0} layers`);
   if (shaderId === 'metaballs') bits.push(`${state.uBallCount ?? 0} blobs`);
   if (shaderId === 'wormhole') bits.push(`${state.uChevrons ?? 0} ribs`);
-  if (shaderId === 'ribbons') bits.push(`${state.uRibbonCount ?? 0} ribbons · shared controls ×10`);
+  if (shaderId === 'ribbons') bits.push(`${state.uRibbonCount ?? 0} ribbons`);
   if (shaderId === 'layers') bits.push(`${state.uLayerCount ?? 0} stacked patterns`);
   if ((state.motionTrails ?? 0) > 0 && !state.liteMode) bits.push('motion trails');
   if ((state.uBloom ?? 0) > 55) bits.push('high bloom');

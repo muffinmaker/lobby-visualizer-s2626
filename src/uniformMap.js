@@ -95,27 +95,13 @@ export function mergeShaderDefaults(state, shaderId) {
   return state;
 }
 
-const RIBBON_GLOBAL_KEYS = new Set([
-  'uSpeed',
-  'uScale',
-  'uZoom',
-  'uPanX',
-  'uPanY',
-  'uComplexity',
-  'uBrightness',
-  'uSaturation',
-  'uBloom',
-]);
-
 export function toShaderValues(uiValues, shaderId) {
   const specs = getSpecMap(shaderId);
   const out = {};
 
   for (const [key, spec] of Object.entries(specs)) {
     const ui = key in uiValues ? uiValues[key] : spec.value;
-    let value = uiToShader(ui, spec);
-    if (shaderId === 'ribbons' && RIBBON_GLOBAL_KEYS.has(key)) value *= 10;
-    out[key] = value;
+    out[key] = uiToShader(ui, spec);
   }
 
   return out;
