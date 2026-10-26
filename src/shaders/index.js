@@ -456,9 +456,9 @@ export const SHADERS = {
       ${PALETTE_UNIFORMS}
       ${PALETTE_FN}
       vec3 palette(float t) {
-        vec3 ink = namedPalette(0.08, uPalette);
-        vec3 varied = namedPalette(t * 0.35, uPalette);
-        return mix(ink, varied, 0.28);
+        vec3 ink = namedPalette(0.02, uPalette);
+        vec3 varied = namedPalette(t, uPalette);
+        return mix(ink, varied, 0.72);
       }
 
       mat2 rot(float a) {
@@ -468,14 +468,14 @@ export const SHADERS = {
 
       vec2 kaleidoscope(vec2 p, float seg, float angleOffset, float symmetry) {
         if (symmetry > 2.5) {
-          // Three mirrors in an equilateral triangle — a toy kaleidoscope chamber.
-          float tilt = angleOffset;
-          p = rot(tilt) * p;
-          vec2 n = vec2(0.5, 0.8660254);
-          for (int k = 0; k < 4; k++) {
+          // Triangular mirror chamber, then a tighter wedge so the array reads as a toy kaleidoscope.
+          p = rot(angleOffset) * p;
+          float wedge = 3.14159265 / max(seg, 3.0);
+          vec2 n = vec2(sin(wedge), cos(wedge));
+          for (int k = 0; k < 6; k++) {
             p.x = abs(p.x);
             p -= n * min(dot(p, n), 0.0) * 2.0;
-            p = rot(2.094395) * p;
+            p = rot(wedge * 2.0) * p;
           }
           p.x = abs(p.x);
           return p;
@@ -591,48 +591,43 @@ export const SHADERS = {
         float detail = max(uComplexity, 0.15);
         float ringScale = max(uScale, 0.15);
         float origin = length(p);
-        float originFade = smoothstep(0.0, 0.04 + uLineWidth * 1.5, origin);
+        float originFade = smoothstep(0.0, 0.02 + uLineWidth * 0.4, origin);
+        float thick = max(uLineWidth * 18.0, 0.004);
 
         float rings = 0.0;
         float spacingMode = floor(uSpacingMode + 0.5);
-        float gap = max(uLineSpacing, 0.01) * ringScale;
+        float gap = max(uLineSpacing, 0.01) * ringScale * 1.35;
         float ringTotal = max(uRingCount, 1.0);
         for (float i = 0.0; i < 14.0; i++) {
           if (i >= uRingCount) break;
           float fi = i + 1.0;
-          float t = fi / ringTotal;
+          float along = fi / ringTotal;
           float spread = fi;
           if (spacingMode < 0.5) {
             spread = fi;
           } else if (spacingMode < 1.5) {
-            spread = (exp(t * 2.4) - 1.0) / (exp(2.4) - 1.0) * ringTotal;
+            spread = (exp(along * 2.4) - 1.0) / (exp(2.4) - 1.0) * ringTotal;
           } else if (spacingMode < 2.5) {
-            spread = log(1.0 + t * 9.0) / log(10.0) * ringTotal;
+            spread = log(1.0 + along * 9.0) / log(10.0) * ringTotal;
           } else if (spacingMode < 3.5) {
-            spread = sqrt(t) * ringTotal;
+            spread = sqrt(along) * ringTotal;
           } else {
-            spread = fi * (0.55 + 0.7 * (0.5 + 0.5 * sin(fi * 1.7)));
+            spread = fi * (0.45 + 0.9 * (0.5 + 0.5 * sin(fi * 1.7 + tp * 0.6)));
           }
           float r = spread * gap;
-          float wobble = sin(tp * (0.7 + fi * 0.1) + fi * 1.7) * uWarp * 0.05;
-          float ringDist = max(abs(length(p) - r - wobble), 0.012);
-          rings += uLineWidth / ringDist;
+          float wobble = sin(tp * (0.9 + fi * 0.15) + fi) * uWarp * 0.12;
+          float ringDist = abs(length(p) - r - wobble);
+          rings += thick / max(ringDist, 0.004);
+          float bead = smoothstep(0.045, 0.0, length(p - vec2(cos(fi + tp), sin(fi * 1.3 - tp)) * r * 0.55));
+          rings += bead * (1.4 + uWarp);
         }
 
-        float spokes = 0.0;
-        float spokeCount = floor(clamp(detail * 3.5, 2.0, 12.0));
-        for (float j = 0.0; j < 12.0; j++) {
-          if (j >= spokeCount) break;
-          float fj = j + 1.0;
-          float ang = fj * (0.35 + 0.08 * detail) + tp * 0.45 * detail;
-          vec2 dir = vec2(cos(ang), sin(ang));
-          float spokeDist = max(abs(dot(p, dir)), 0.01);
-          spokes += uLineWidth * 0.5 / spokeDist;
-        }
-
-        float field = sin(p.x * (8.0 + detail * 14.0) + tp)
-                    * sin(p.y * (8.0 + detail * 14.0) - tp * 0.7);
-        return (rings + spokes) * originFade + field * (0.05 + detail * 0.06);
+        float ang = atan(p.y, p.x);
+        float spokes = pow(abs(sin(ang * max(detail, 1.0) * 3.0 + tp * 0.8)), 10.0) * thick * 40.0;
+        float petals = smoothstep(0.08, 0.0, abs(length(p) - 0.35 * ringScale - 0.08 * sin(ang * 5.0 + tp)));
+        float lattice = sin(p.x * (10.0 + detail * 8.0) + tp) * sin(p.y * (10.0 + detail * 6.0) - tp * 0.8);
+        lattice = pow(abs(lattice), 1.4);
+        return (rings * 0.55 + spokes + petals * 2.2 + lattice * 1.6) * originFade;
       }
 
       void main() {
@@ -649,14 +644,14 @@ export const SHADERS = {
         float centerAmt = clamp(centerField / max(uCenterStrength, 0.35), 0.0, 1.0);
 
         vec2 p = kaleidoscope(uv, floor(uSegments + 0.5), uMirrorAngle, uSymmetry);
-        p *= 1.0 + 0.1 * sin(t * anim + length(uv) * (3.0 + detail * 2.0)) * uWarp;
+        p *= 1.0 + 0.22 * sin(t * anim * 0.7 + length(uv) * 4.0) * max(uWarp, 0.15);
 
         float patternVal = pattern(p, t, anim);
-        float intensity = tanh(patternVal * 0.14);
+        float intensity = tanh(patternVal * 0.45);
 
-        float hue = intensity * 4.0 + t * anim * 0.12 + length(uv) * 0.35;
+        float hue = atan(p.y, p.x) * 0.4 + length(p) * 1.6 + intensity * 1.4 + t * anim * 0.2;
         vec3 col = palette(hue);
-        col *= intensity * uBrightness * 2.2;
+        col *= (0.18 + intensity) * uBrightness * 2.4;
 
         float centerHue = t * anim * 0.18 + uCenterShape * 0.42 + centerAmt * 0.35;
         vec3 centerCol = palette(centerHue);
