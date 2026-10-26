@@ -62,6 +62,7 @@ const fullPalette = (value = 0) => ({
   step: 1,
   kind: 'palette',
   paletteOptions: 'spiro',
+  label: 'Colors (palette)',
 });
 
 const objectScale = () => ({ ...pct(50, 0.25, 1.75), label: 'Object scale' });
@@ -157,7 +158,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uWarp: pct(30, 0.05, 2),
     uLineWidth: { value: 33, min: 0, max: 400, step: 1, shaderMin: 0.002, shaderMax: 0.2, label: 'Line thickness' },
     uMirrorAngle: { ...center(50, -3.1416, 3.1416), label: 'Mirror angle' },
-    uSymmetry: { value: 1, min: 0, max: 2, step: 1, kind: 'symmetry', label: 'Symmetry' },
+    uSymmetry: { value: 1, min: 0, max: 3, step: 1, kind: 'symmetry', label: 'Symmetry' },
     uCenterShape: { value: 1, min: 0, max: 7, step: 1, kind: 'shape' },
     uCenterSize: pct(42, 0.1, 0.75),
     uCenterStrength: pct(65, 0.3, 3),

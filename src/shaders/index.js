@@ -531,7 +531,9 @@ export const SHADERS = {
       ${PALETTE_UNIFORMS}
       ${PALETTE_FN}
       vec3 palette(float t) {
-        return namedPalette(t, uPalette);
+        vec3 ink = namedPalette(0.08, uPalette);
+        vec3 varied = namedPalette(t * 0.35, uPalette);
+        return mix(ink, varied, 0.28);
       }
 
       mat2 rot(float a) {
@@ -540,6 +542,19 @@ export const SHADERS = {
       }
 
       vec2 kaleidoscope(vec2 p, float seg, float angleOffset, float symmetry) {
+        if (symmetry > 2.5) {
+          // Three mirrors in an equilateral triangle — a toy kaleidoscope chamber.
+          float tilt = angleOffset;
+          p = rot(tilt) * p;
+          vec2 n = vec2(0.5, 0.8660254);
+          for (int k = 0; k < 4; k++) {
+            p.x = abs(p.x);
+            p -= n * min(dot(p, n), 0.0) * 2.0;
+            p = rot(2.094395) * p;
+          }
+          p.x = abs(p.x);
+          return p;
+        }
         float angle = atan(p.y, p.x) + angleOffset;
         float radius = length(p);
         float slice = 6.28318 / max(seg, 3.0);

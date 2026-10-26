@@ -36,6 +36,7 @@ export const SYMMETRY_OPTIONS = {
   Rotational: 0,
   Mirrored: 1,
   'Double mirror': 2,
+  'Mirror array': 3,
 };
 
 export const POINT_SHAPE_OPTIONS = {

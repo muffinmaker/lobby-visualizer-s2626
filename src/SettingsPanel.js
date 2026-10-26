@@ -1166,6 +1166,12 @@ export class SettingsPanel {
   }
 
   addUniformControls(folder, specs) {
+    const rows = Object.entries(specs);
+    for (const [key, spec] of rows.filter(([, spec]) => spec.kind === 'palette')) {
+      if (specs === SHADERS.flow?.uniforms && FLOW_LOGO_COLLIDER_KEYS.has(key)) continue;
+      this.addUniformRow(folder, key, spec);
+    }
+
     const driftAllKey = `driftAll_${this.folderDriftActions.length}`;
     const driftAllState = { [driftAllKey]: false };
     const driftAllCtrl = folder.add(driftAllState, driftAllKey).name('↻ Drift all');
@@ -1183,7 +1189,7 @@ export class SettingsPanel {
       }
     });
 
-    for (const [key, spec] of Object.entries(specs)) {
+    for (const [key, spec] of rows.filter(([, spec]) => spec.kind !== 'palette')) {
       if (specs === SHADERS.flow?.uniforms && FLOW_LOGO_COLLIDER_KEYS.has(key)) continue;
       this.addUniformRow(folder, key, spec);
     }
@@ -1203,7 +1209,7 @@ export class SettingsPanel {
         : BASE_PALETTE_OPTIONS;
       controller = folder
         .add(this.state, key, { ...paletteOptions })
-        .name('Palette')
+        .name(spec.label || 'Colors (palette)')
         .onChange(() => {
           if (this.driftManager.isEnabled(key)) {
             this.driftManager.resetFrom(key, this.state[key]);
