@@ -1412,6 +1412,8 @@ export class PresetManager {
     if (randomize) {
       values = randomizeUniforms(this.activeShader, values);
     }
+    values.uPanX = 50;
+    values.uPanY = 50;
     return {
       shader: this.activeShader,
       values,

@@ -690,6 +690,7 @@ async function start() {
     presetName,
     { updateGui = true, changeShader = false, syncSmooth = false } = {},
   ) {
+    values = { ...values, uPanX: 50, uPanY: 50 };
     const trailSettings = {
       motionTrails: settings.state.motionTrails,
       trailsNeverDecay: settings.state.trailsNeverDecay,
