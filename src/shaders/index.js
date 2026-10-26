@@ -993,6 +993,7 @@ export const SHADERS = {
       uniform float uSwirl;
       uniform float uHorizonGlow;
       uniform float uChevronGlow;
+      uniform float uLineThickness;
       uniform float uTrailShape;
       uniform float uZoom;
       uniform float uPanX;
@@ -1244,13 +1245,14 @@ export const SHADERS = {
         float twistPhase = depth * uSwirl * 0.28 + t * uSwirl * 0.12;
         vec2 tdir = rot(twistPhase) * dir;
         float ribs = clamp(floor(uChevrons + 0.5), 4.0, 16.0);
+        float stroke = max(uLineThickness, 0.05);
         float ribWave = 0.5 + 0.5 * cos(ribs * (tdir.x * 3.05 + tdir.y * 1.85));
-        float rib = smoothstep(0.52 - uRingWidth * 0.12, 0.98, ribWave);
+        float rib = smoothstep(0.52 - uRingWidth * 0.12 * stroke, 0.98, ribWave);
 
         float flow = sin(depth * (4.5 + uComplexity * 1.8) + tdir.x * ribs * 0.35);
         flow = pow(flow * 0.5 + 0.5, 1.2 + uRingWidth * 0.35);
 
-        float rings = (sin(depth * (2.8 + ribs * 0.15) - t * 0.4) * 0.5 + 0.5) * 0.1 * uRingWidth;
+        float rings = (sin(depth * (2.8 + ribs * 0.15) - t * 0.4) * 0.5 + 0.5) * 0.1 * uRingWidth * stroke;
 
         vec2 np = vec2(tdir.x * (1.8 + uComplexity * 0.35), depth * (1.6 + uRingWidth * 0.4));
         float surface = fbm(np);
