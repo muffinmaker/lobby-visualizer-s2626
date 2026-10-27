@@ -18,6 +18,7 @@ export const SHADERS = {
       uniform float uScale;
       uniform float uBrightness;
       uniform float uSaturation;
+      uniform float uBloom;
       uniform float uUp;
       uniform float uDown;
       uniform float uScaleY;
@@ -648,7 +649,8 @@ export const SHADERS = {
         p *= 1.0 + 0.22 * sin(t * anim * 0.7 + length(uv) * 4.0) * max(uWarp, 0.15);
 
         float patternVal = pattern(p, t, anim);
-        float intensity = tanh(patternVal * 0.45);
+        float soft = patternVal * 0.45;
+        float intensity = soft / (1.0 + abs(soft));
 
         float hue = atan(p.y, p.x) * 0.4 + length(p) * 1.6 + intensity * 1.4 + t * anim * 0.2;
         vec3 col = palette(hue);

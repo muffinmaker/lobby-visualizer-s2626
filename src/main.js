@@ -688,7 +688,7 @@ async function start() {
   function applyPresetState(
     { shader, values, display },
     presetName,
-    { updateGui = true, changeShader = false, syncSmooth = false } = {},
+    { updateGui = true, changeShader = false, syncSmooth = false, clearTrails = true } = {},
   ) {
     values = { ...values, uPanX: 50, uPanY: 50 };
     const trailSettings = {
@@ -700,6 +700,7 @@ async function start() {
       presetManager.setActiveShader(shader);
     }
     visualizer.applyValues({ ...values, ...trailSettings }, { syncSmooth });
+    if (clearTrails) visualizer.clearTrailBuffers();
     if (updateGui) {
       settings.applyExternalState({
         ...(changeShader && shader ? { shader } : {}),
@@ -736,7 +737,7 @@ async function start() {
       applyPresetState(
         { values: detail.values, display: detail.preset?.display },
         detail.preset.name,
-        { syncSmooth: true },
+        { syncSmooth: true, clearTrails: false },
       );
     }
     if (event === 'preset') {
