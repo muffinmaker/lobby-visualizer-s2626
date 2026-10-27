@@ -42,6 +42,29 @@ import { TEXT_POSITIONS } from './textOverlay.js';
 const TRAIL_SHADERS = new Set(['spocks', 'spiro', 'flow']);
 const FLOW_LOGO_COLLIDER_KEYS = new Set(['uLogoCollider', 'uLogoColliderBounce']);
 
+const COLOR_KEYS = new Set([
+  'uPalette',
+  'uWhiteness',
+  'uBlackness',
+  'uSaturation',
+  'uHueShift',
+  'uColorSpeed',
+  'uColorSpread',
+  'uTintRed',
+  'uTintGreen',
+  'uTintBlue',
+  'uRed',
+  'uGreen',
+  'uBlue',
+  'uBgRed',
+  'uBgGreen',
+  'uBgBlue',
+]);
+
+function isColorKey(key) {
+  return COLOR_KEYS.has(key) || key.startsWith('uPal');
+}
+
 function formatDisplayValue(value) {
   const rounded = Math.round(value * 10) / 10;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
@@ -287,6 +310,7 @@ export class SettingsPanel {
     this.buildDisplaySection();
     this.buildDriftSection(dm);
     this.buildGlobalSection();
+    this.buildColorSection();
     this.rebuildShaderFolder(this.state.shader);
 
     this.gui.add(this.state, 'shader', getShaderChoices()).name('Shader').onChange((id) => {
@@ -413,8 +437,9 @@ export class SettingsPanel {
     this.applyMenuPosition(this.state.menuPosition);
     this.applyMenuScale(this.state.menuScale);
     this.applyComplexityForShader(this.state.shader);
-    this.placeGlobalAtTop();
+    this.placeMenuOrder();
     this.patchNumberControllers();
+    this.closeAllFolders();
     this.gui.close();
   }
 
@@ -695,7 +720,6 @@ export class SettingsPanel {
       .onChange(() => this.handleValueChange());
     this.trailsNeverDecayCtrl.domElement.dataset.help = tipFor('trailsNeverDecay');
     this.updateTrailsNeverDecayCtrl();
-    this.addUniformControls(display, BACKGROUND_UNIFORMS);
   }
 
   buildDriftSection(dm) {
@@ -737,33 +761,51 @@ export class SettingsPanel {
   buildGlobalSection() {
     this.globalSpecs = Object.fromEntries(
       Object.entries(GLOBAL_UNIFORMS).filter(
-        ([key]) => !(key in BACKGROUND_UNIFORMS) && !key.startsWith('uPal'),
+        ([key]) => !isColorKey(key),
       ),
     );
     this.globalFolder = this.gui.addFolder('Global');
     this.addUniformControls(this.globalFolder, this.globalSpecs);
+  }
 
-    const editor = this.gui.addFolder('Palette editor');
+  buildColorSection() {
+    this.colorFolder = this.gui.addFolder('Colors');
+    this.modeColorControllers = [];
+    const shared = Object.fromEntries(
+      Object.entries({ ...BACKGROUND_UNIFORMS, ...GLOBAL_UNIFORMS }).filter(([key]) => isColorKey(key)),
+    );
+    this.colorSpecs = shared;
+    this.addUniformControls(this.colorFolder, shared);
+
     const stops = [
       ['uPal0R', 'uPal0G', 'uPal0B', 'Stop 1'],
       ['uPal1R', 'uPal1G', 'uPal1B', 'Stop 2'],
       ['uPal2R', 'uPal2G', 'uPal2B', 'Stop 3'],
     ];
     for (const [r, g, b, name] of stops) {
-      editor.add(this.state, r, 0, 255, 1).name(`${name} red`).onChange(() => this.handleValueChange());
-      editor.add(this.state, g, 0, 255, 1).name(`${name} green`).onChange(() => this.handleValueChange());
-      editor.add(this.state, b, 0, 255, 1).name(`${name} blue`).onChange(() => this.handleValueChange());
+      this.colorFolder.add(this.state, r, 0, 255, 1).name(`${name} red`).onChange(() => this.handleValueChange());
+      this.colorFolder.add(this.state, g, 0, 255, 1).name(`${name} green`).onChange(() => this.handleValueChange());
+      this.colorFolder.add(this.state, b, 0, 255, 1).name(`${name} blue`).onChange(() => this.handleValueChange());
     }
   }
 
-  placeGlobalAtTop() {
-    const globalEl = this.globalFolder?.domElement;
-    if (!globalEl?.parentElement) return;
-    const parent = globalEl.parentElement;
-    parent.insertBefore(globalEl, parent.firstElementChild);
-    if (this.shaderFolder?.domElement) {
-      parent.insertBefore(this.shaderFolder.domElement, globalEl.nextSibling);
+  placeMenuOrder() {
+    const anchor = this.displayFolder?.domElement;
+    const parent = anchor?.parentElement;
+    if (!parent) return;
+    const order = [this.displayFolder, this.globalFolder, this.shaderFolder, this.colorFolder];
+    let cursor = null;
+    for (const folder of order) {
+      const el = folder?.domElement;
+      if (!el) continue;
+      if (!cursor) parent.insertBefore(el, parent.firstElementChild);
+      else parent.insertBefore(el, cursor.nextSibling);
+      cursor = el;
     }
+  }
+
+  closeAllFolders() {
+    this.gui.foldersRecursive().forEach((folder) => folder.close());
   }
 
   patchNumberControllers() {
@@ -1054,7 +1096,7 @@ export class SettingsPanel {
 
   addUniformControls(folder, specs) {
     const rows = Object.entries(specs);
-    for (const [key, spec] of rows.filter(([, spec]) => spec.kind === 'palette')) {
+    for (const [key, spec] of rows.filter(([key, spec]) => spec.kind === 'palette' && !isColorKey(key))) {
       if (specs === SHADERS.flow?.uniforms && FLOW_LOGO_COLLIDER_KEYS.has(key)) continue;
       this.addUniformRow(folder, key, spec);
     }
@@ -1076,7 +1118,7 @@ export class SettingsPanel {
       }
     });
 
-    for (const [key, spec] of rows.filter(([, spec]) => spec.kind !== 'palette')) {
+    for (const [key, spec] of rows.filter(([key, spec]) => spec.kind !== 'palette' && !isColorKey(key))) {
       if (specs === SHADERS.flow?.uniforms && FLOW_LOGO_COLLIDER_KEYS.has(key)) continue;
       this.addUniformRow(folder, key, spec);
     }
@@ -1313,6 +1355,24 @@ export class SettingsPanel {
     this.notifyDriftStateChange();
   }
 
+  addModeColorControls(specs) {
+    if (!this.colorFolder) return;
+    const entries = Object.entries(specs).filter(([key]) => isColorKey(key));
+    const ordered = [
+      ...entries.filter(([, spec]) => spec.kind === 'palette'),
+      ...entries.filter(([, spec]) => spec.kind !== 'palette'),
+    ];
+    const parent = this.colorFolder.domElement.querySelector('.children') ?? this.colorFolder.domElement;
+    const anchor = parent.firstElementChild;
+    for (const [key, spec] of ordered) {
+      this.addUniformRow(this.colorFolder, key, spec);
+      const ctrl = this.uniformControllers.get(key);
+      if (!ctrl) continue;
+      this.modeColorControllers.push(ctrl);
+      if (anchor) parent.insertBefore(ctrl.domElement, anchor);
+    }
+  }
+
   rebuildShaderFolder(shaderId) {
     const savedDrift = new Map();
     if (this.shaderFolder) {
@@ -1326,14 +1386,22 @@ export class SettingsPanel {
       }
       this.shaderFolder.destroy();
       this.folderDriftActions = this.folderDriftActions.filter(
-        (entry) => entry.specs === this.globalSpecs || entry.specs === BACKGROUND_UNIFORMS,
+        (entry) => entry.specs === this.globalSpecs || entry.specs === this.colorSpecs,
       );
     }
+    for (const ctrl of this.modeColorControllers ?? []) {
+      this.uniformControllers.delete(ctrl.property);
+      this.driftToggles.delete(ctrl.property);
+      this.driftManager.unregister(ctrl.property);
+      ctrl.destroy();
+    }
+    this.modeColorControllers = [];
 
     const shader = SHADERS[shaderId];
     mergeShaderDefaults(this.state, shaderId);
     this.shaderFolder = this.gui.addFolder(shader.label);
     this.addUniformControls(this.shaderFolder, shader.uniforms);
+    this.addModeColorControls(shader.uniforms);
 
     for (const [key] of savedDrift) {
       const spec = shader.uniforms[key];
@@ -1346,7 +1414,9 @@ export class SettingsPanel {
       }
     }
 
-    this.placeGlobalAtTop();
+    this.placeMenuOrder();
+    this.shaderFolder?.close();
+    this.colorFolder?.close();
     this.patchNumberControllers();
     const focusKey = this.navigableItems[this.gamepadFocusIndex]?.key;
     this.refreshGamepadMenuAfterRebuild(focusKey);
@@ -1576,7 +1646,6 @@ export class SettingsPanel {
 
   openPanel() {
     this.gui.open();
-    this.gui.foldersRecursive().forEach((folder) => folder.open());
   }
 
   /** Hidden → toolbar → full options → hidden. On a phone, hidden ↔ full sliders. */
@@ -1706,7 +1775,6 @@ export class SettingsPanel {
 
   openGuiForGamepadMenu() {
     this.gui.open();
-    this.gui.foldersRecursive().forEach((folder) => folder.open());
   }
 
   enterGamepadMenu() {

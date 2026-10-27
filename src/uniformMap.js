@@ -32,6 +32,18 @@ function uiToT(ui, spec) {
   return t;
 }
 
+function stretchNegative(t, spec) {
+  const scale = spec.negativeScale;
+  if (!scale || t >= 0.5) return t;
+  return 0.5 - (0.5 - t) * scale;
+}
+
+function unstretchNegative(t, spec) {
+  const scale = spec.negativeScale;
+  if (!scale || t >= 0.5) return t;
+  return 0.5 - (0.5 - t) / scale;
+}
+
 function tToUi(t, spec) {
   t = clamp(t, 0, 1);
   if (spec.invert) t = 1 - t;
@@ -50,7 +62,7 @@ export function uiToShader(ui, spec) {
     return (spec.shaderMin ?? 0) + eased * ((spec.shaderMax ?? 1) - (spec.shaderMin ?? 0));
   }
   if (spec.kind === 'zoom') {
-    const t = uiToT(ui, spec);
+    const t = stretchNegative(uiToT(ui, spec), spec);
     const exp = spec.shaderMin + t * (spec.shaderMax - spec.shaderMin);
     return Math.pow(2, exp);
   }
@@ -68,7 +80,7 @@ export function uiToShader(ui, spec) {
     return Math.round(raw / 1000) * 1000;
   }
 
-  const t = uiToT(ui, spec);
+  const t = stretchNegative(uiToT(ui, spec), spec);
   if (spec.shaderMin !== undefined && spec.shaderMax !== undefined) {
     return spec.shaderMin + t * (spec.shaderMax - spec.shaderMin);
   }
@@ -95,7 +107,7 @@ export function shaderToUi(shader, spec) {
   if (spec.kind === 'zoom') {
     const exp = Math.log2(Math.max(shader, 1e-6));
     const t = (exp - spec.shaderMin) / (spec.shaderMax - spec.shaderMin || 1);
-    return tToUi(t, spec);
+    return tToUi(unstretchNegative(t, spec), spec);
   }
   if (spec.kind === 'flowPoint') {
     return tToUi(flowPointToT(shader), spec);
@@ -108,7 +120,7 @@ export function shaderToUi(shader, spec) {
 
   if (spec.shaderMin !== undefined && spec.shaderMax !== undefined) {
     const t = (shader - spec.shaderMin) / (spec.shaderMax - spec.shaderMin || 1);
-    return tToUi(t, spec);
+    return tToUi(unstretchNegative(t, spec), spec);
   }
 
   return Math.round(clamp(shader, 0, 1) * 100);
@@ -120,6 +132,7 @@ export function getSpecMap(shaderId) {
     ...(SHADERS[shaderId]?.uniforms ?? SHADER_UNIFORM_TEMPLATES[shaderId] ?? {}),
   };
   if (shaderId === 'spiro') specs.uComplexity = SPIRO_COMPLEXITY;
+  if (specs.uZoom) specs.uZoom = { ...specs.uZoom, negativeScale: 3 };
   return specs;
 }
 
