@@ -14,6 +14,7 @@ import { TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SI
 import { AUDIO_FEATURES } from './MusicMode.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
 import { canDrift } from './driftUtils.js';
+import { DRIFT_MODES } from './DriftManager.js';
 import { tipFor } from './helpTips.js';
 import {
   applyLiteLimits,
@@ -195,6 +196,8 @@ export class SettingsPanel {
       driftDuration: driftManager.duration,
       driftSpeed: driftManager.speed,
       driftSpeedAuto: driftManager.speedAuto,
+      driftMode: 'Random',
+      driftLimit: driftManager.limit,
       motionTrails: 100,
       trailsNeverDecay: false,
       resolutionScale: visualizer.resolutionScale ?? defaultResolutionScale(),
@@ -715,6 +718,20 @@ export class SettingsPanel {
         dm.speed = v;
       });
     this.driftSpeedCtrl.disable(this.state.driftSpeedAuto);
+    drift
+      .add(this.state, 'driftMode', Object.keys(DRIFT_MODES))
+      .name('Drift mode')
+      .onChange((mode) => {
+        dm.setMode(DRIFT_MODES[mode] ?? 'random');
+      });
+    const limitCtrl = drift
+      .add(this.state, 'driftLimit', 1, 5, 1)
+      .name('Drift limit')
+      .onChange((level) => {
+        dm.setLimit(level);
+      });
+    limitCtrl.domElement.dataset.help = 'How far drift stays from the ends. 1 is a small margin. 5 keeps the motion near the middle.';
+    drift.controllers[drift.controllers.length - 2].domElement.dataset.help = 'Random wanders. Left to right and right to left sweep the slider. Ping-pong goes back and forth.';
   }
 
   buildGlobalSection() {

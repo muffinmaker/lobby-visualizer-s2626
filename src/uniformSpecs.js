@@ -73,11 +73,11 @@ export const BACKGROUND_UNIFORMS = {
   uBgBlue: rgb(8),
 };
 
-/** Spiro Flow only. Other shaders keep the 0–100 global Complexity slider. */
+/** Spiro Flow only. The slider is 0–100; the shader still uses −50…20. */
 export const SPIRO_COMPLEXITY = {
-  value: 0,
-  min: -50,
-  max: 20,
+  value: 71,
+  min: 0,
+  max: 100,
   step: 1,
   shaderMin: -50,
   shaderMax: 20,
@@ -85,8 +85,8 @@ export const SPIRO_COMPLEXITY = {
 
 export const GLOBAL_UNIFORMS = {
   ...BACKGROUND_UNIFORMS,
-  uSpeed: { value: 10, min: 0, max: 400, step: 1, kind: 'speed', shaderMin: 0, shaderMax: 2.4 },
-  uScale: { value: 45, min: 0, max: 400, step: 1, shaderMin: 0.3, shaderMax: 9.1 },
+  uSpeed: { value: 3, min: 0, max: 100, step: 1, kind: 'speed', shaderMin: 0, shaderMax: 2.4 },
+  uScale: { value: 11, min: 0, max: 100, step: 1, shaderMin: 0.3, shaderMax: 9.1 },
   uComplexity: pct(40, 0.2, 3),
   uBrightness: pct(50, 0.2, 2.5),
   uSaturation: pct(67, 0, 1.5),
@@ -160,7 +160,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uLineSpacing: { ...pct(50, 0.04, 0.2), label: 'Line spacing' },
     uSpacingMode: { value: 0, min: 0, max: 4, step: 1, kind: 'spacingMode', label: 'Spacing mode' },
     uWarp: pct(30, 0.05, 2),
-    uLineWidth: { value: 33, min: 0, max: 400, step: 1, shaderMin: 0.002, shaderMax: 0.2, label: 'Line thickness' },
+    uLineWidth: { value: 8, min: 0, max: 100, step: 1, shaderMin: 0.002, shaderMax: 0.2, label: 'Line thickness' },
     uMirrorAngle: { ...center(50, -3.1416, 3.1416), label: 'Mirror angle' },
     uSymmetry: { value: 1, min: 0, max: 3, step: 1, kind: 'symmetry', label: 'Symmetry' },
     uCenterShape: { value: 1, min: 0, max: 7, step: 1, kind: 'shape' },
@@ -171,7 +171,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uShape3: { value: 5, min: 0, max: 7, step: 1, kind: 'shape' },
     uShape4: { value: 4, min: 0, max: 7, step: 1, kind: 'shape' },
     uShapeMorph: pct(22, 0, 1.5),
-    uZoom: { value: 50, min: 0, max: 400, step: 1, shaderMin: 0.35, shaderMax: 8.95 },
+    uZoom: { value: 13, min: 0, max: 100, step: 1, shaderMin: 0.35, shaderMax: 8.95 },
     uPalette: fullPalette(3),
     uObjectScale: objectScale(),
   },
@@ -204,7 +204,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uBallCount: count(7, 3, 12),
     uSoftness: pct(35, 0.2, 1.2),
     uEdgeGlow: pct(40, 0, 3),
-    uZoom: { value: 40, min: 0, max: 400, step: 1, shaderMin: 0.4, shaderMax: 8.8 },
+    uZoom: { value: 10, min: 0, max: 100, step: 1, shaderMin: 0.4, shaderMax: 8.8 },
     uPalette: fullPalette(0),
     uObjectScale: objectScale(),
   },
@@ -218,7 +218,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uChevronGlow: pct(52, 0, 2.2),
     uLineThickness: { ...pct(50, 0.2, 1.8), label: 'Line thickness' },
     uTrailShape: { value: 0, min: 0, max: 11, step: 1, kind: 'trailShape' },
-    uZoom: { value: 50, min: 0, max: 400, step: 1, shaderMin: 0.35, shaderMax: 7.75 },
+    uZoom: { value: 13, min: 0, max: 100, step: 1, shaderMin: 0.35, shaderMax: 7.75 },
     uPalette: fullPalette(3),
     uObjectScale: objectScale(),
     uHueShift: pct(50, 0, 2),
@@ -243,7 +243,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uMix: { ...pct(55, 0, 1), label: 'Layer mix' },
     uLayerScale: { ...pct(40, 0.15, 1.2), label: 'Layer scale' },
     uSpeedOffset: { ...pct(35, 0, 1.6), label: 'Speed offset' },
-    uZoom: { value: 50, min: 0, max: 400, step: 1, shaderMin: 0.35, shaderMax: 8.95 },
+    uZoom: { value: 13, min: 0, max: 100, step: 1, shaderMin: 0.35, shaderMax: 8.95 },
     uObjectScale: objectScale(),
   },
 };

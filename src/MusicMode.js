@@ -355,10 +355,10 @@ export class MusicMode {
     const out = { ...b };
     const signed = (key, amount) => amount * this.spinSign(key, b[key], specs[key]);
 
-    out.uSpeed = clamp(Math.round(b.uSpeed + energy * 38 * s + beat * 22 * s), 0, 400);
-    out.uScale = clamp(Math.round(b.uScale + bass * 28 * s - treble * 6 * s), 0, 400);
-    const complexityMin = this.currentShader === 'spiro' ? -50 : 0;
-    const complexityMax = this.currentShader === 'spiro' ? 20 : 100;
+    out.uSpeed = clamp(Math.round(b.uSpeed + energy * 10 * s + beat * 6 * s), 0, 100);
+    out.uScale = clamp(Math.round(b.uScale + bass * 7 * s - treble * 2 * s), 0, 100);
+    const complexityMin = 0;
+    const complexityMax = 100;
     out.uComplexity = clamp(
       Math.round(b.uComplexity + mid * 32 * s + treble * 10 * s),
       complexityMin,
@@ -382,10 +382,9 @@ export class MusicMode {
           spec?.max ?? 100,
         );
       } else if (key.includes('Zoom') || key.includes('Field') || key.includes('Scale')) {
-        out[key] = clamp(Math.round(b[key] + bass * 24 * s - mid * 8 * s), 0, 400);
+        out[key] = clamp(Math.round(b[key] + bass * 6 * s - mid * 2 * s), 0, 100);
       } else if (key.includes('Trail') || key.includes('Alpha') || key.includes('Line')) {
-        const lineMax = key === 'uLineWidth' && this.currentShader === 'kaleido' ? 400 : 100;
-        out[key] = clamp(Math.round(b[key] + treble * 25 * s + energy * 15 * s), 0, lineMax);
+        out[key] = clamp(Math.round(b[key] + treble * 8 * s + energy * 4 * s), 0, 100);
       } else {
         out[key] = clamp(Math.round(b[key] + energy * 20 * s), 0, 100);
       }
