@@ -168,11 +168,14 @@ export function mountTransportBar(guiElement, handlers) {
 
   const save = createBtn(SAVE_ICON_SVG, 'Save preset', 'transport-btn save-btn', { html: true });
   const info = createBtn('i', 'Tutorial', 'transport-btn info-btn');
+  const help = createBtn('?', 'Help — hover a control to read what it does', 'transport-btn help-btn');
+  help.setAttribute('aria-pressed', 'false');
 
   bindBtn(save, handlers.onSave);
   bindBtn(info, handlers.onInfo);
+  help.addEventListener('click', () => handlers.onHelpToggle?.());
 
-  actions.append(save, info);
+  actions.append(save, info, help);
   transport.append(shaderNav.group, presetBtn, driftAll, smoothTransitions, autocycle, actions);
   transport.addEventListener('click', (e) => e.stopPropagation());
   transport.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -231,6 +234,7 @@ export function mountTransportBar(guiElement, handlers) {
     autocycle,
     save,
     info,
+    help,
   };
 
   function flashControl(id) {

@@ -247,6 +247,8 @@ export const SHADERS = {
       uniform float uTintGreen;
       uniform float uTintBlue;
       uniform float uObjectScale;
+      uniform float uGravity;
+      uniform float uGravityAngle;
       ${PALETTE_UNIFORMS}
       ${PALETTE_FN}
 
@@ -308,6 +310,10 @@ export const SHADERS = {
 
         float pulse = 1.0 + uPulse * 0.08 * sin(t * 1.4 + orbit);
         pos *= pulse;
+        vec2 gdir = vec2(cos(uGravityAngle), sin(uGravityAngle));
+        float pull = uGravity * (0.72 + 0.28 * sin(t * 0.31 + orbit * 0.2));
+        pos += gdir * pull * (0.85 + lane * 0.45);
+        pos += gdir * uGravity * sin(a) * 0.22;
         float radial = clamp(length(pos) / max(uScale * 0.45, 0.12), 0.0, 1.35);
         pos.x /= max(uAspect, 0.75);
         pos /= max(pow(uZoom, 0.65) * 0.25, 0.09);

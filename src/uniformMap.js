@@ -57,6 +57,11 @@ export function uiToShader(ui, spec) {
   if (spec.kind === 'flowPoint') {
     return flowPointToShader(uiToT(ui, spec));
   }
+  if (spec.kind === 'trailDecay') {
+    const t = uiToT(ui, spec);
+    const fade = (1 - t) * (1 - t) * (1 - t);
+    return 1 - fade * 0.62;
+  }
   if (spec.kind === 'particles') {
     const t = (ui - spec.min) / (spec.max - spec.min || 1);
     const raw = spec.shaderMin + clamp(t, 0, 1) * (spec.shaderMax - spec.shaderMin);
@@ -94,6 +99,11 @@ export function shaderToUi(shader, spec) {
   }
   if (spec.kind === 'flowPoint') {
     return tToUi(flowPointToT(shader), spec);
+  }
+  if (spec.kind === 'trailDecay') {
+    const fade = Math.max(0, (1 - shader) / 0.62);
+    const t = 1 - Math.cbrt(fade);
+    return tToUi(t, spec);
   }
 
   if (spec.shaderMin !== undefined && spec.shaderMax !== undefined) {

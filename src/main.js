@@ -6,6 +6,7 @@ import { DriftManager } from './DriftManager.js';
 import { MusicMode } from './MusicMode.js';
 import { createTutorial } from './Tutorial.js';
 import { mountTransportBar } from './TransportBar.js';
+import { mountHelpMode } from './helpMode.js';
 import { mountMobileBar } from './MobileBar.js';
 import { mountTouchGestures } from './touchGestures.js';
 import { applyMenuScale, loadMenuScale } from './menuBigMode.js';
@@ -541,6 +542,7 @@ async function start() {
     onPresetNext,
     onSave: onSavePreset,
     onInfo: () => tutorial.toggle(),
+    onHelpToggle: () => helpMode?.toggle(),
   });
 
   phoneBar = mountMobileBar({
@@ -568,7 +570,13 @@ async function start() {
     onInfo: () => tutorial.toggle(),
     onHide: () => setUiHidden(true),
     onShow: () => setUiHidden(false),
+    onHelpToggle: () => helpMode?.toggle(),
   });
+
+  const helpMode = mountHelpMode(
+    [settings.gui.domElement, phoneBar?.element].filter(Boolean),
+    [transport?.help, phoneBar?.help],
+  );
 
   function setUiHidden(hidden) {
     uiHidden = Boolean(hidden);

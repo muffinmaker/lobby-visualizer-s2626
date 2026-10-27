@@ -25,15 +25,12 @@ void main() {
     return;
   }
   if (uPreserveHue > 0.5) {
-    // Dim trails without pulling saturated strokes toward the background grey.
-    float ink = max(
-      max(abs(prev.r - uFadeColor.r), abs(prev.g - uFadeColor.g)),
-      abs(prev.b - uFadeColor.b)
-    );
-    vec3 faded = prev.rgb * uDecay;
-    prev.rgb = mix(uFadeColor, faded, smoothstep(0.008, 0.04, ink));
-    float peak = max(max(prev.r, prev.g), prev.b);
-    if (peak > 0.98) prev.rgb *= 0.98 / peak;
+    // Keep the stroke color. Only crush bright buildup when the trail is set to fade.
+    prev.rgb *= uDecay;
+    if (uDecay < 0.9) {
+      float peak = max(max(prev.r, prev.g), prev.b);
+      if (peak > 0.98) prev.rgb *= 0.98 / peak;
+    }
   } else {
     prev.rgb = mix(uFadeColor, prev.rgb, uDecay);
     // Additive strokes can clip to white — ease bright buildup back toward the fade tint.

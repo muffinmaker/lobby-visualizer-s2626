@@ -9,6 +9,8 @@ uniform float uPal1B;
 uniform float uPal2R;
 uniform float uPal2G;
 uniform float uPal2B;
+uniform float uWhiteness;
+uniform float uBlackness;
 `;
 
 export const PALETTE_FN = /* glsl */ `
@@ -36,9 +38,15 @@ vec3 spiroNeon(float hue, float chroma, vec3 offset, float gain) {
   return pow(clamp(base, 0.0, 1.0), vec3(0.82)) * gain;
 }
 
+vec3 tonePalette(vec3 ink) {
+  ink = mix(ink, vec3(1.0), clamp(uWhiteness, 0.0, 1.0));
+  ink = mix(ink, vec3(0.0), clamp(uBlackness, 0.0, 1.0));
+  return ink;
+}
+
 vec3 namedPalette(float hue, float paletteId) {
   float p = floor(paletteId + 0.5);
-  if (p > 24.5) return customPalette(hue);
+  if (p > 24.5) return tonePalette(customPalette(hue));
   vec3 offset = vec3(0.0, 0.33, 0.67);
   float chroma = 1.65;
   float gain = 1.35;
@@ -135,6 +143,6 @@ vec3 namedPalette(float hue, float paletteId) {
     gain = 1.5;
   }
 
-  return spiroNeon(h, chroma, offset, gain);
+  return tonePalette(spiroNeon(h, chroma, offset, gain));
 }
 `;

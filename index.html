@@ -86,11 +86,15 @@
         overflow-x: hidden;
       }
 
+      .lil-gui.root:not(.phone-bar) {
+        width: min(92vw, 292px);
+        max-width: min(92vw, 292px);
+      }
+
       .lil-gui.root {
         -webkit-backdrop-filter: blur(10px);
         backdrop-filter: blur(10px);
         overflow-x: hidden;
-        max-width: var(--width, 360px);
         position: fixed;
         z-index: 30;
         margin: 0;
@@ -121,8 +125,8 @@
       }
 
       .lil-gui.root.menu-big-mode {
-        width: calc(360px + (60vw - 360px) * (var(--menu-scale) - 1) / 2);
-        max-width: min(92vw, calc(360px + (60vw - 360px) * (var(--menu-scale) - 1) / 2));
+        width: calc(292px + (52vw - 292px) * (var(--menu-scale) - 1) / 2);
+        max-width: min(92vw, calc(292px + (52vw - 292px) * (var(--menu-scale) - 1) / 2));
       }
 
       .lil-gui.root.menu-big-mode .controller {
@@ -246,10 +250,10 @@
       }
 
       .lil-gui.root.menu-big-mode .transport-shader-label {
-        flex: 0 0 18rem;
-        width: 18rem;
-        min-width: 18rem;
-        max-width: 18rem;
+        flex: 0 1 auto;
+        width: auto;
+        min-width: 0;
+        max-width: 8rem;
         font-size: 1.74rem;
         padding: 0 0.36rem;
       }
@@ -380,6 +384,14 @@
         text-overflow: ellipsis;
         white-space: nowrap;
         min-width: 0;
+        flex: 0 0 42%;
+        width: 42%;
+      }
+
+      .lil-gui .controller {
+        position: relative;
+        padding-right: 1.5rem;
+        box-sizing: border-box;
       }
 
       .lil-gui .controller .widget {
@@ -423,9 +435,13 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        position: absolute;
+        right: 0.1rem;
+        top: 50%;
+        transform: translateY(-50%);
         width: 1.35rem;
         height: 1.35rem;
-        margin-left: 0.25rem;
+        margin-left: 0;
         border-radius: 0.25rem;
         cursor: pointer;
         opacity: 0.45;
@@ -700,10 +716,10 @@
       }
 
       .transport-shader-label {
-        flex: 0 0 6rem;
-        width: 6rem;
-        min-width: 6rem;
-        max-width: 6rem;
+        flex: 0 1 auto;
+        width: auto;
+        min-width: 0;
+        max-width: 5.4rem;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -1225,6 +1241,27 @@
       body.phone-ui .lil-gui.root:not(.phone-bar) .controller.number .slider {
         height: 2.25rem;
         min-height: 2.25rem;
+      }
+
+      .help-tip {
+        position: fixed;
+        z-index: 80;
+        max-width: 16rem;
+        padding: 0.45rem 0.55rem;
+        border-radius: 0.35rem;
+        background: rgba(12, 12, 14, 0.94);
+        color: rgba(255, 255, 255, 0.92);
+        font: 12px/1.35 system-ui, sans-serif;
+        pointer-events: none;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+      }
+
+      .lil-gui.help-mode .controller:hover {
+        outline: 1px solid rgba(140, 190, 255, 0.45);
+      }
+
+      .lil-gui .title.gui-title-row .transport-btn.help-btn {
+        width: 1.25rem;
       }
 
       @media (max-width: 840px) {

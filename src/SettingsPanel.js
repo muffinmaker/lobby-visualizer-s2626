@@ -14,6 +14,7 @@ import { TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SI
 import { AUDIO_FEATURES } from './MusicMode.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
 import { canDrift } from './driftUtils.js';
+import { tipFor } from './helpTips.js';
 import {
   applyLiteLimits,
   describeModeLoad,
@@ -684,10 +685,12 @@ export class SettingsPanel {
         this.updateTrailsNeverDecayCtrl();
         this.handleValueChange();
       });
+    this.motionTrailsCtrl.domElement.dataset.help = tipFor('motionTrails');
     this.trailsNeverDecayCtrl = display
       .add(this.state, 'trailsNeverDecay')
       .name('Trails never decay')
       .onChange(() => this.handleValueChange());
+    this.trailsNeverDecayCtrl.domElement.dataset.help = tipFor('trailsNeverDecay');
     this.updateTrailsNeverDecayCtrl();
     this.addUniformControls(display, BACKGROUND_UNIFORMS);
   }
@@ -1192,6 +1195,7 @@ export class SettingsPanel {
 
     this.uniformControllers.set(key, controller);
     configureNumberController(controller);
+    controller.domElement.dataset.help = tipFor(key, label);
 
     if (canDrift(spec)) {
       this.attachDriftToggle(controller, key, spec);

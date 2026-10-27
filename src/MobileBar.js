@@ -123,6 +123,8 @@ export function mountMobileBar(handlers) {
   );
   const save = createBtn(SAVE_ICON_SVG, 'Save preset', 'transport-btn save-btn', { html: true });
   const info = createBtn('i', 'Tutorial', 'transport-btn info-btn');
+  const help = createBtn('?', 'Help — hover a control to read what it does', 'transport-btn help-btn');
+  help.setAttribute('aria-pressed', 'false');
   const hideBtn = createBtn('Hide', 'Hide menu', 'transport-btn phone-hide-btn');
 
   driftAll.setAttribute('aria-pressed', 'false');
@@ -134,11 +136,12 @@ export function mountMobileBar(handlers) {
   bindBtn(autocycle, handlers.onAutoCycleToggle);
   bindBtn(save, handlers.onSave);
   bindBtn(info, handlers.onInfo);
+  help.addEventListener('click', () => handlers.onHelpToggle?.());
   bindBtn(hideBtn, handlers.onHide);
 
   const actions = document.createElement('div');
   actions.className = 'title-actions';
-  actions.append(save, info, hideBtn);
+  actions.append(save, info, help, hideBtn);
 
   transport.append(shaderNav.group, presetBtn, driftAll, smooth, autocycle, actions);
   transport.addEventListener('click', (event) => event.stopPropagation());
@@ -174,6 +177,7 @@ export function mountMobileBar(handlers) {
     autocycle,
     save,
     info,
+    help,
     hide: hideBtn,
     show: showBtn,
   };
