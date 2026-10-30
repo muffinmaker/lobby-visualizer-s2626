@@ -843,7 +843,7 @@ async function start() {
     requestAnimationFrame(tick);
   }
 
-  const desktopHint = 'Double-click · menu  |  Space · settings  |  ? · tutorial  |  F · fullscreen  |  H · hide UI';
+  const desktopHint = 'Double-click · menu  |  Space · settings  |  ? · tutorial  |  F · fullscreen  |  H · fps';
   const phoneHint = 'Drag to look around  ·  double-tap for the menu  ·  pinch to zoom';
 
   function isPhoneLayout() {
@@ -957,6 +957,13 @@ async function start() {
     setUiHidden(!uiHidden);
   }
 
+  let perfHidden = false;
+
+  function togglePerfReadout() {
+    perfHidden = !perfHidden;
+    document.getElementById('perf-readout')?.classList.toggle('is-hidden', perfHidden);
+  }
+
   const DOUBLE_SPACE_MS = 400;
   let lastSpacePressAt = 0;
 
@@ -998,7 +1005,7 @@ async function start() {
       settings.toggleVisible();
     }
     if (e.code === 'KeyF') toggleFullscreen();
-    if (e.code === 'KeyH') toggleUI();
+    if (e.code === 'KeyH') togglePerfReadout();
     if (e.code === 'ArrowRight') psyche.adjustHorizontal(1);
     if (e.code === 'ArrowLeft') psyche.adjustHorizontal(-1);
     if (e.code === 'ArrowUp') psyche.adjustVertical(1);
@@ -1026,7 +1033,7 @@ async function start() {
     '%cLobby Visualizer',
     'font-weight:bold;font-size:14px',
     `\nShaders: ${SHADER_IDS.join(', ')}`,
-    '\nSpace: settings | Space×2: move menu | ?: tutorial | F: fullscreen | H: hide UI | [ ]: prev/next pack logo | ↑/↓: zoom | ←/→: element counts | Z/C/X/B/V: motion/colors/shapes/party/preset | USB gamepad: see tutorial',
+    '\nSpace: settings | Space×2: move menu | ?: tutorial | F: fullscreen | H: show/hide fps | [ ]: prev/next pack logo | ↑/↓: zoom | ←/→: element counts | Z/C/X/B/V: motion/colors/shapes/party/preset | USB gamepad: see tutorial',
     '\nDouble-click (desktop) or double-tap (phone) opens the menu. Phone: slide for rotate/speed, pinch to zoom, two-finger drag to look around',
   );
 }

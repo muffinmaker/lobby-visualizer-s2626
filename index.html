@@ -53,6 +53,17 @@
         pointer-events: none;
       }
 
+      #perf-readout.is-hidden {
+        display: none;
+      }
+
+      .quality-readout {
+        margin: -0.15rem 0.35rem 0.35rem;
+        padding-left: 42%;
+        color: rgba(255, 255, 255, 0.78);
+        font: 500 0.72rem/1.2 system-ui, sans-serif;
+      }
+
       #hint {
         position: fixed;
         bottom: 1.25rem;
@@ -1305,7 +1316,7 @@
       </div>
     </div>
     <div id="perf-readout" aria-live="polite">Measuring…</div>
-    <div id="hint">Space · settings &nbsp;|&nbsp; ? · tutorial &nbsp;|&nbsp; F · fullscreen &nbsp;|&nbsp; H · hide UI</div>
+    <div id="hint">Space · settings &nbsp;|&nbsp; ? · tutorial &nbsp;|&nbsp; F · fullscreen &nbsp;|&nbsp; H · fps</div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

@@ -30,7 +30,7 @@ const TIPS = {
   motionTrails: 'Global trail strength. 100 lets Trail decay hold a painting.',
   trailsNeverDecay: 'When on, trails are forced to fade instead of holding.',
   menuScale: 'Size of this menu. Phone uses the screen width.',
-  performancePreset: 'Full, Balanced, or Lite. Lite caps the heavy settings.',
+  performancePreset: 'Stepped slider: Full, Balanced, or Lite. Lite caps the heavy settings.',
   resolutionScale: 'Render resolution. Lower is lighter.',
 };
 

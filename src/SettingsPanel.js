@@ -40,6 +40,8 @@ import {
 import { TEXT_POSITIONS } from './textOverlay.js';
 
 const TRAIL_SHADERS = new Set(['spocks', 'spiro', 'flow']);
+const QUALITY_STEPS = ['full', 'balanced', 'lite'];
+const QUALITY_LABELS = ['Full', 'Balanced', 'Lite'];
 const FLOW_LOGO_COLLIDER_KEYS = new Set(['uLogoCollider', 'uLogoColliderBounce']);
 
 const COLOR_KEYS = new Set([
@@ -225,6 +227,8 @@ export class SettingsPanel {
       trailsNeverDecay: false,
       resolutionScale: visualizer.resolutionScale ?? defaultResolutionScale(),
       liteMode: loadLiteMode(),
+      qualityStep: loadLiteMode() ? 2 : 0,
+      qualityLabel: loadLiteMode() ? 'Lite' : 'Full',
       performancePreset: loadLiteMode() ? 'lite' : 'full',
       perfNote: 'Measuring…',
       menuOpacity: 80,
@@ -664,19 +668,20 @@ export class SettingsPanel {
     const display = this.gui.addFolder('Display');
     this.displayFolder = display;
     this.qualityCtrl = display
-      .add(this.state, 'performancePreset', { Full: 'full', Balanced: 'balanced', Lite: 'lite' })
+      .add(this.state, 'qualityStep', 0, 2, 1)
       .name('Quality')
-      .onChange((preset) => {
-        this.setPerformancePreset(preset);
+      .onChange((step) => {
+        const index = Math.max(0, Math.min(2, Math.round(step)));
+        this.state.qualityStep = index;
+        this.setPerformancePreset(QUALITY_STEPS[index]);
       });
+    this.qualityCtrl.domElement.dataset.help = tipFor('performancePreset');
+    this.qualityReadout = document.createElement('div');
+    this.qualityReadout.className = 'quality-readout';
+    this.qualityReadout.textContent = this.state.qualityLabel;
+    this.qualityCtrl.domElement.insertAdjacentElement('afterend', this.qualityReadout);
     this.perfNoteCtrl = display.add(this.state, 'perfNote').name('Load');
     this.perfNoteCtrl.disable(true);
-    this.liteModeCtrl = display
-      .add(this.state, 'liteMode')
-      .name('Lite mode (multi-screen)')
-      .onChange((enabled) => {
-        this.setLiteMode(enabled);
-      });
     this.menuPositionCtrl = display
       .add(this.state, 'menuPosition', MENU_POSITION_LABELS)
       .name('Menu position')
@@ -922,8 +927,17 @@ export class SettingsPanel {
     };
   }
 
+  syncQualityLabel(preset) {
+    const index = Math.max(0, QUALITY_STEPS.indexOf(preset));
+    this.state.qualityStep = index;
+    this.state.qualityLabel = QUALITY_LABELS[index];
+    this.qualityCtrl?.updateDisplay();
+    if (this.qualityReadout) this.qualityReadout.textContent = this.state.qualityLabel;
+  }
+
   setPerformancePreset(preset) {
     this.state.performancePreset = preset;
+    this.syncQualityLabel(preset);
     if (preset === 'lite') {
       this.setLiteMode(true);
       return;
@@ -968,7 +982,7 @@ export class SettingsPanel {
     this.state.liteMode = next;
     if (next) this.state.performancePreset = 'lite';
     else if (this.state.performancePreset === 'lite') this.state.performancePreset = 'full';
-    this.qualityCtrl?.updateDisplay();
+    this.syncQualityLabel(this.state.performancePreset);
     if (!skipSave) saveLiteMode(next);
     this.visualizer.setLiteMode(next);
 
@@ -983,7 +997,6 @@ export class SettingsPanel {
     }
 
     this.updateLiteControls();
-    this.liteModeCtrl?.updateDisplay();
     this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
     this.syncValuesToVisualizer();
     this.handleValueChange(true);
