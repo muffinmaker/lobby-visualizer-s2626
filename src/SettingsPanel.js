@@ -8,9 +8,10 @@ import {
   getShaderChoices,
 } from './shaders/index.js';
 import { getSpecMap, mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
+import { MIDI_MAP_NOTE } from './midiInput.js';
 import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
 import { FIELD_SHAPE_OPTIONS, FLOW_MOTION_OPTIONS, PATTERN_OPTIONS, POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, SPACING_OPTIONS, STAMP_SHAPE_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
-import { TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
+import { TEXT_ALIGNS, TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
 import { AUDIO_FEATURES } from './MusicMode.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
 import { canDrift } from './driftUtils.js';
@@ -90,6 +91,38 @@ function savePresetOverrides(overrides) {
   }
 }
 
+const OVERLAY_KEY = 'lobby-overlay';
+
+function loadOverlayPrefs() {
+  const fallback = {
+    overlayOn: false,
+    overlayShader: 'kaleido',
+    overlayMix: 45,
+    overlayBlend: 'Mix',
+    overlayAudio: false,
+  };
+  try {
+    const raw = localStorage.getItem(OVERLAY_KEY);
+    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveOverlayPrefs(state) {
+  try {
+    localStorage.setItem(OVERLAY_KEY, JSON.stringify({
+      overlayOn: state.overlayOn,
+      overlayShader: state.overlayShader,
+      overlayMix: state.overlayMix,
+      overlayBlend: state.overlayBlend,
+      overlayAudio: state.overlayAudio,
+    }));
+  } catch {
+    /* ignore */
+  }
+}
+
 function formatDisplayValue(value) {
   const rounded = Math.round(Number(value) * 10) / 10;
   if (!Number.isFinite(rounded)) return '';
@@ -155,6 +188,10 @@ export class SettingsPanel {
     initialTextDrift = false,
     initialTextDriftSpeed = 30,
     initialTextDriftDirection = 'right',
+    initialTextTracking = 40,
+    initialTextStroke = 0,
+    initialTextAlign = 'center',
+    initialTextEffectAmount = 70,
     onTextEnabledChange,
     onTextSizeChange,
     onTextOpacityChange,
@@ -168,6 +205,10 @@ export class SettingsPanel {
     onTextDriftChange,
     onTextDriftSpeedChange,
     onTextDriftDirectionChange,
+    onTextTrackingChange,
+    onTextStrokeChange,
+    onTextAlignChange,
+    onTextEffectAmountChange,
     onOpenNotepad,
   }) {
     this.presetManager = presetManager;
@@ -200,6 +241,10 @@ export class SettingsPanel {
     this.onTextEffectSpeedChange = onTextEffectSpeedChange;
     this.onTextDriftSpeedChange = onTextDriftSpeedChange;
     this.onTextDriftDirectionChange = onTextDriftDirectionChange;
+    this.onTextTrackingChange = onTextTrackingChange;
+    this.onTextStrokeChange = onTextStrokeChange;
+    this.onTextAlignChange = onTextAlignChange;
+    this.onTextEffectAmountChange = onTextEffectAmountChange;
     this.onOpenNotepad = onOpenNotepad;
     this.visible = true;
     this.gamepadMenuActive = false;
@@ -236,6 +281,10 @@ export class SettingsPanel {
       textDrift: initialTextDrift,
       textDriftSpeed: initialTextDriftSpeed,
       textDriftDirection: initialTextDriftDirection,
+      textTracking: initialTextTracking,
+      textStroke: initialTextStroke,
+      textAlign: initialTextAlign,
+      textEffectAmount: initialTextEffectAmount,
       autoCycle: presetManager.autoCycle,
       cycleInterval: presetManager.cycleInterval,
       transitionDuration: presetManager.transitionDuration,
@@ -249,6 +298,7 @@ export class SettingsPanel {
       driftLimit: driftManager.limit,
       motionTrails: 100,
       trailsNeverDecay: false,
+      ...loadOverlayPrefs(),
       resolutionScale: visualizer.resolutionScale ?? defaultResolutionScale(),
       liteMode: loadLiteMode(),
       qualityStep: loadLiteMode() ? 2 : 0,
@@ -337,6 +387,7 @@ export class SettingsPanel {
     const dm = this.driftManager;
 
     this.buildMenuSection(pm);
+    this.buildOverlaySection();
     this.buildDisplaySection();
     this.buildDriftSection(dm);
     this.buildGlobalSection();
@@ -461,6 +512,7 @@ export class SettingsPanel {
 
   attachAllPresetOverrides() {
     this.attachPresetOverride(this.menuFolder, 'Controls');
+    this.attachPresetOverride(this.overlayFolder, 'Overlay');
     this.attachPresetOverride(this.displayFolder, 'Display');
     this.attachPresetOverride(this.globalFolder, 'Global');
     this.attachPresetOverride(this.colorFolder, 'Colors');
@@ -699,6 +751,24 @@ export class SettingsPanel {
     });
 
     text
+      .add(this.state, 'textAlign', TEXT_ALIGNS)
+      .name('Align')
+      .onChange((value) => {
+        this.onTextAlignChange?.(value);
+      });
+    text
+      .add(this.state, 'textTracking', 0, 100, 1)
+      .name('Tracking')
+      .onChange((value) => {
+        this.onTextTrackingChange?.(value);
+      });
+    text
+      .add(this.state, 'textStroke', 0, 100, 1)
+      .name('Outline')
+      .onChange((value) => {
+        this.onTextStrokeChange?.(value);
+      });
+    text
       .add(this.state, 'textLineHeight', 90, 220, 1)
       .name('Line spacing %')
       .onChange((value) => {
@@ -710,6 +780,12 @@ export class SettingsPanel {
       .name('Animation')
       .onChange((value) => {
         this.onTextEffectChange?.(value);
+      });
+    text
+      .add(this.state, 'textEffectAmount', 0, 100, 1)
+      .name('Animation amount')
+      .onChange((value) => {
+        this.onTextEffectAmountChange?.(value);
       });
     text
       .add(this.state, 'textEffectSpeed', 0, 100, 1)
@@ -767,8 +843,49 @@ export class SettingsPanel {
     driftAllBtn.domElement.classList.add('drift-all-wide');
     menu.add({ smooth: () => fire('lobby-smooth') }, 'smooth').name('Smooth transitions');
     menu.add({ autoCycle: () => fire('lobby-autocycle') }, 'autoCycle').name('Auto-cycle');
+    this.performanceCtrl = menu.add({ performance: () => fire('lobby-performance') }, 'performance').name('Performance');
+    this.performanceCtrl.domElement.classList.add('drift-all-wide');
+    this.midiCtrl = menu.add({ midi: () => fire('lobby-midi') }, 'midi').name('MIDI');
+    this.midiCtrl.domElement.classList.add('drift-all-wide');
+    this.midiCtrl.domElement.dataset.help = MIDI_MAP_NOTE;
+    this.state.midiMap = MIDI_MAP_NOTE;
+    const midiMap = menu.add(this.state, 'midiMap').name('MIDI map');
+    midiMap.disable();
+    midiMap.domElement.dataset.help = MIDI_MAP_NOTE;
     menu.add({ tutorial: () => fire('lobby-tutorial') }, 'tutorial').name('Tutorial');
     menu.add({ help: () => fire('lobby-help') }, 'help').name('Help');
+  }
+
+  buildOverlaySection() {
+    const overlay = this.gui.addFolder('Overlay');
+    this.overlayFolder = overlay;
+    const choices = getShaderChoices();
+    const sync = () => {
+      saveOverlayPrefs(this.state);
+      this.pushOverlay();
+    };
+    overlay.add(this.state, 'overlayOn').name('Layer B').onChange(sync);
+    overlay.add(this.state, 'overlayShader', choices).name('Mode B').onChange(sync);
+    overlay.add(this.state, 'overlayMix', 0, 100, 1).name('Mix').onChange(sync);
+    overlay.add(this.state, 'overlayBlend', { Mix: 'Mix', Add: 'Add', Multiply: 'Multiply' }).name('Blend').onChange(sync);
+    overlay.add(this.state, 'overlayAudio').name('Audio mix').onChange(sync);
+    this.pushOverlay();
+  }
+
+  pushOverlay(music = null) {
+    let mix = (this.state.overlayMix ?? 0) / 100;
+    if (this.state.overlayAudio && music?.enabled) {
+      const beat = music.smoothed?.beat || 0;
+      const energy = music.smoothed?.energy || 0;
+      mix = Math.max(0, Math.min(1, mix * 0.3 + beat * 0.8 + energy * 0.45));
+    }
+    const mode = { Mix: 0, Add: 1, Multiply: 2 }[this.state.overlayBlend] ?? 0;
+    this.visualizer.setOverlay({
+      enabled: Boolean(this.state.overlayOn),
+      shaderId: this.state.overlayShader,
+      mix,
+      mode,
+    });
   }
 
   buildDisplaySection() {
@@ -912,7 +1029,7 @@ export class SettingsPanel {
     if (!parent) return;
     const collapseEl = this.collapseCtrl?.domElement;
     if (collapseEl) parent.insertBefore(collapseEl, parent.firstElementChild);
-    const order = [this.menuFolder, this.displayFolder, this.globalFolder, this.shaderFolder, this.colorFolder];
+    const order = [this.menuFolder, this.overlayFolder, this.displayFolder, this.globalFolder, this.shaderFolder, this.colorFolder];
     let cursor = collapseEl ?? null;
     for (const folder of order) {
       const el = folder?.domElement;
@@ -1440,6 +1557,34 @@ export class SettingsPanel {
     return next;
   }
 
+  setPerformanceDrift(enabled, onlyKeys = null) {
+    const specs = getSpecMap(this.state.shader);
+    const keys = onlyKeys ?? ['uSpeed', 'uBloom', 'uBrightness', 'uHueShift', 'uColorSpeed', 'uColorSpread', 'uTwist', 'uPulse', 'uWarp', 'uSwirl', 'uTwistAmount', 'uMix', 'uFieldScale'];
+    const changed = [];
+    for (const key of keys) {
+      const spec = specs[key];
+      if (!spec || !canDrift(spec)) continue;
+      const was = this.driftManager.isEnabled(key);
+      if (enabled && !was) {
+        this.driftManager.setEnabled(key, spec, true, this.state[key] ?? spec.value);
+        changed.push(key);
+      }
+      if (!enabled && was) {
+        this.driftManager.setEnabled(key, spec, false, this.state[key] ?? spec.value);
+      }
+      const toggle = this.driftToggles.get(key);
+      if (toggle) {
+        toggle.checked = this.driftManager.isEnabled(key);
+        toggle.parentElement?.classList.toggle('is-active', toggle.checked);
+      }
+    }
+    return changed;
+  }
+
+  setControlActive(ctrl, active) {
+    ctrl?.domElement?.classList.toggle('is-active', active);
+  }
+
   setDriftAll(enabled) {
     const entries = this.getDriftableEntries();
     this.driftManager.setEnabledMany(entries, enabled, this.getValues());
@@ -1683,6 +1828,7 @@ export class SettingsPanel {
   handleValueChange(rebuild = false, syncSmooth = false) {
     const values = this.getValues();
     this.visualizer.applyValues(values, { syncSmooth });
+    this.pushOverlay();
     this.onChange?.({ shader: this.state.shader, values, rebuild });
   }
 

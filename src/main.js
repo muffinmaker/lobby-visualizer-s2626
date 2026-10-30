@@ -9,7 +9,9 @@ import { createTutorial } from './Tutorial.js';
 import { mountTransportBar } from './TransportBar.js';
 import { mountHelpMode } from './helpMode.js';
 import { mountMobileBar } from './MobileBar.js';
-import { mountTouchGestures } from './touchGestures.js';
+import { consumePinch, mountTouchGestures } from './touchGestures.js';
+import { createMidiInput, LAUNCHKEY_PAD_NOTES, MIDI_CC_TO_SETTING, MIDI_MAP_NOTE } from './midiInput.js';
+import { getSpecMap } from './uniformMap.js';
 import { applyMenuScale, loadMenuScale } from './menuBigMode.js';
 import { createGamepadController, showGamepadToast } from './GamepadController.js';
 import { createGamepadChaos } from './gamepadChaos.js';
@@ -56,6 +58,10 @@ import {
   loadStoredTextDrift,
   loadStoredTextDriftSpeed,
   loadStoredTextDriftDirection,
+  loadStoredTextTracking,
+  loadStoredTextStroke,
+  loadStoredTextAlign,
+  loadStoredTextEffectAmount,
 } from './textOverlay.js';
 import { LITE_MODE_KEY } from './liteMode.js';
 
@@ -368,6 +374,10 @@ async function start() {
     initialTextDrift: loadStoredTextDrift(),
     initialTextDriftSpeed: loadStoredTextDriftSpeed(),
     initialTextDriftDirection: loadStoredTextDriftDirection(),
+    initialTextTracking: loadStoredTextTracking(),
+    initialTextStroke: loadStoredTextStroke(),
+    initialTextAlign: loadStoredTextAlign(),
+    initialTextEffectAmount: loadStoredTextEffectAmount(),
     onTextEnabledChange: (value) => {
       textOverlay.setEnabled(value);
     },
@@ -407,6 +417,10 @@ async function start() {
     onTextDriftDirectionChange: (value) => {
       textOverlay.setDriftDirection(value);
     },
+    onTextTrackingChange: (value) => textOverlay.setTracking(value),
+    onTextStrokeChange: (value) => textOverlay.setStroke(value),
+    onTextAlignChange: (value) => textOverlay.setAlign(value),
+    onTextEffectAmountChange: (value) => textOverlay.setEffectAmount(value),
     onOpenNotepad: () => {
       textOverlay.openNotepad();
     },
@@ -595,6 +609,100 @@ async function start() {
     presetManager.setSmoothTransitions(!presetManager.smoothTransitions);
   });
   document.addEventListener('lobby-autocycle', () => presetManager.setAutoCycle(!presetManager.autoCycle));
+
+  const performance = {
+    on: false,
+    autoCycle: false,
+    smooth: true,
+    interval: 45,
+    randomize: true,
+    driftKeys: [],
+    steps: 0,
+    skipShaderStep: false,
+  };
+
+  function setPerformanceMode(on) {
+    if (on === performance.on) return;
+    performance.on = on;
+    if (on) {
+      performance.autoCycle = presetManager.autoCycle;
+      performance.smooth = presetManager.smoothTransitions;
+      performance.interval = presetManager.cycleInterval;
+      performance.randomize = presetManager.randomizeOnCycle;
+      performance.steps = 0;
+      presetManager.randomizeOnCycle = false;
+      presetManager.cycleInterval = Math.min(presetManager.cycleInterval, 18);
+      settings.state.cycleInterval = presetManager.cycleInterval;
+      presetManager.setSmoothTransitions(true);
+      presetManager.setAutoCycle(true);
+      performance.driftKeys = settings.setPerformanceDrift(true);
+      showGamepadToast('Performance on');
+    } else {
+      presetManager.randomizeOnCycle = performance.randomize;
+      presetManager.cycleInterval = performance.interval;
+      settings.state.cycleInterval = performance.interval;
+      settings.setPerformanceDrift(false, performance.driftKeys);
+      performance.driftKeys = [];
+      presetManager.setSmoothTransitions(performance.smooth);
+      presetManager.setAutoCycle(performance.autoCycle);
+      showGamepadToast('Performance off');
+    }
+    settings.setControlActive(settings.performanceCtrl, on);
+    settings.gui?.controllersRecursive?.().forEach((controller) => controller.updateDisplay());
+  }
+
+  let midi = null;
+  let lastMidiNoteAt = 0;
+
+  function setMidiEnabled(on) {
+    if (!midi) {
+      midi = createMidiInput({
+        onNote(note, _velocity, down) {
+          if (LAUNCHKEY_PAD_NOTES.invert.includes(note)) {
+            if (!down) return;
+            settings.state.uInvert = Number(settings.state.uInvert) > 0.5 ? 0 : 1;
+            settings.ensureInvertRow();
+            settings.handleValueChange();
+            showGamepadToast(settings.state.uInvert ? 'Invert on' : 'Invert off');
+            return;
+          }
+          if (LAUNCHKEY_PAD_NOTES.blackout.includes(note)) {
+            visualizer.blackout = down;
+            return;
+          }
+          if (LAUNCHKEY_PAD_NOTES.strobe.includes(note)) {
+            visualizer.strobe = down;
+            return;
+          }
+          if (!down) return;
+          const now = performance.now();
+          if (now - lastMidiNoteAt < 120) return;
+          lastMidiNoteAt = now;
+          onPresetNext();
+        },
+        onCc(cc, value) {
+          const key = MIDI_CC_TO_SETTING[cc];
+          if (!key) return;
+          const spec = getSpecMap(settings.state.shader)[key];
+          if (!spec) return;
+          const span = (spec.max ?? 100) - (spec.min ?? 0);
+          const next = Math.round((spec.min ?? 0) + (value / 127) * span);
+          settings.state[key] = next;
+          settings.uniformControllers.get(key)?.setValue(next);
+          settings.handleValueChange();
+        },
+        onStatus(message) {
+          showGamepadToast(message);
+        },
+      });
+    }
+    if (on && !midi.enabled) midi.start();
+    else if (!on && midi.enabled) midi.stop();
+    settings.setControlActive(settings.midiCtrl, Boolean(midi.enabled));
+  }
+
+  document.addEventListener('lobby-performance', () => setPerformanceMode(!performance.on));
+  document.addEventListener('lobby-midi', () => setMidiEnabled(!midi?.enabled));
   document.addEventListener('lobby-tutorial', () => tutorial.toggle());
   document.addEventListener('lobby-help', () => helpMode?.toggle());
 
@@ -765,6 +873,20 @@ async function start() {
     if (event === 'activeShaderChanged') {
       refreshShaderTransportLabel(detail.shader);
       refreshPresetTransportLabel();
+      if (performance.on) {
+        performance.driftKeys.push(...settings.setPerformanceDrift(true));
+      }
+    }
+    if (event === 'transitionEnd' && performance.on) {
+      if (performance.skipShaderStep) {
+        performance.skipShaderStep = false;
+      } else {
+        performance.steps += 1;
+        if (performance.steps % 3 === 0) {
+          performance.skipShaderStep = true;
+          presetManager.cycleShader(1);
+        }
+      }
     }
     if (
       event === 'preset' ||
@@ -879,6 +1001,7 @@ async function start() {
 
   function tick() {
     if (!running) return;
+    settings.pushOverlay(musicMode);
     const dt = visualizer.render();
     perfFrames += 1;
     perfAccum += dt;
@@ -938,8 +1061,8 @@ async function start() {
     requestAnimationFrame(tick);
   }
 
-  const desktopHint = 'Double-click · menu  |  Space · settings  |  ? · tutorial  |  F · fullscreen  |  H · fps';
-  const phoneHint = 'Drag to look around  ·  double-tap for the menu  ·  pinch to zoom';
+  const desktopHint = 'P · performance  |  M · MIDI  |  pinch · zoom  |  H · fps';
+  const phoneHint = 'Drag to look  ·  pinch to zoom  ·  two fingers to look  ·  double-tap for the menu';
 
   function isPhoneLayout() {
     const narrow = window.matchMedia('(max-width: 768px)').matches;
@@ -964,6 +1087,17 @@ async function start() {
 
   function applyPhoneLayout(matches) {
     document.body.classList.toggle('phone-ui', matches);
+    const landscape = window.matchMedia('(orientation: landscape)').matches;
+    document.body.classList.toggle('phone-landscape', matches && landscape);
+    if (
+      matches &&
+      settings.state.resolutionScale >= 100 &&
+      !sessionStorage.getItem('lobby-phone-res')
+    ) {
+      sessionStorage.setItem('lobby-phone-res', '1');
+      settings.state.resolutionScale = 70;
+      settings.visualizer.setResolutionScale(70);
+    }
     phoneBar.element.hidden = !matches;
     if (matches) {
       settings.setMenuScaleAvailable(false);
@@ -990,6 +1124,7 @@ async function start() {
 
   syncPhoneLayout();
   window.addEventListener('resize', syncPhoneLayout);
+  window.addEventListener('orientationchange', syncPhoneLayout);
   window.matchMedia('(hover: hover) and (pointer: fine)').addEventListener('change', syncPhoneLayout);
   window.matchMedia('(pointer: coarse)').addEventListener('change', syncPhoneLayout);
   if (typeof ResizeObserver !== 'undefined') {
@@ -1039,6 +1174,44 @@ async function start() {
       psyche.toastLastGesture();
     },
   });
+
+  let wheelZoomCarry = 0;
+  let gestureScale = 1;
+
+  function zoomFromRatio(ratio) {
+    const pinch = consumePinch(wheelZoomCarry, ratio);
+    wheelZoomCarry = pinch.carry;
+    if (!pinch.steps) return;
+    psyche.adjustVertical(pinch.steps, { silent: true });
+    const zoom = settings.state.uZoom ?? settings.state.uScale;
+    if (zoom != null) showGamepadToast(`Zoom ${Math.round(zoom)}`);
+  }
+
+  window.addEventListener('wheel', (event) => {
+    if (!isMenuGestureTarget(event.target)) return;
+    event.preventDefault();
+    if (event.ctrlKey || event.metaKey) {
+      zoomFromRatio(Math.exp(-event.deltaY / 100));
+      return;
+    }
+    psyche.adjustPan(-event.deltaX, -event.deltaY);
+  }, { passive: false });
+
+  window.addEventListener('gesturestart', (event) => {
+    if (!isMenuGestureTarget(event.target)) return;
+    event.preventDefault();
+    gestureScale = event.scale || 1;
+    wheelZoomCarry = 0;
+  }, { passive: false });
+
+  window.addEventListener('gesturechange', (event) => {
+    if (!isMenuGestureTarget(event.target)) return;
+    event.preventDefault();
+    const next = event.scale || 1;
+    const ratio = next / (gestureScale || 1);
+    gestureScale = next;
+    zoomFromRatio(ratio);
+  }, { passive: false });
 
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
@@ -1101,6 +1274,8 @@ async function start() {
     }
     if (e.code === 'KeyF') toggleFullscreen();
     if (e.code === 'KeyH') togglePerfReadout();
+    if (e.code === 'KeyP') setPerformanceMode(!performance.on);
+    if (e.code === 'KeyM') setMidiEnabled(!midi?.enabled);
     if (e.code === 'ArrowRight') psyche.adjustHorizontal(1);
     if (e.code === 'ArrowLeft') psyche.adjustHorizontal(-1);
     if (e.code === 'ArrowUp') psyche.adjustVertical(1);

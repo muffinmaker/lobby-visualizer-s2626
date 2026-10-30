@@ -1005,7 +1005,7 @@ export const SHADERS = {
       }
 
       void main() {
-        vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0 / uZoom;
+        vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0 / max(abs(uZoom), 0.2);
         uv -= vec2(uPanX, uPanY);
         float t = uTime;
 

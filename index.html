@@ -42,8 +42,8 @@
 
       #perf-readout {
         position: fixed;
-        top: 0.55rem;
-        left: 0.6rem;
+        top: calc(0.55rem + env(safe-area-inset-top));
+        left: calc(0.6rem + env(safe-area-inset-left));
         z-index: 25;
         max-width: min(46rem, 92vw);
         color: rgba(255, 255, 255, 0.72);
@@ -592,6 +592,18 @@
         pointer-events: none;
       }
 
+      #hero-text[data-align='left'] {
+        left: 4vw;
+        right: auto;
+        text-align: left;
+      }
+
+      #hero-text[data-align='right'] {
+        left: auto;
+        right: 4vw;
+        text-align: right;
+      }
+
       #hero-text[data-position='top'] {
         top: 8vh;
       }
@@ -1130,8 +1142,8 @@
       .phone-bar {
         display: none;
         position: fixed;
-        left: 0.45rem;
-        right: 0.45rem;
+        left: calc(0.45rem + env(safe-area-inset-left));
+        right: calc(0.45rem + env(safe-area-inset-right));
         bottom: calc(0.45rem + env(safe-area-inset-bottom));
         z-index: 36;
         width: auto;
@@ -1259,6 +1271,10 @@
         justify-content: center;
       }
 
+      body.phone-ui.phone-landscape .lil-gui.root:not(.phone-bar) {
+        max-height: min(42dvh, calc(100dvh - var(--phone-bar-h, 3.2rem) - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
+      }
+
       body.phone-ui #hint {
         bottom: calc(var(--phone-bar-h, 4rem) + 0.9rem);
         width: min(92vw, 26rem);
@@ -1291,7 +1307,7 @@
         bottom: calc(var(--phone-bar-h, 4rem) + 0.55rem) !important;
         width: auto !important;
         max-width: none !important;
-        max-height: min(58dvh, calc(100dvh - var(--phone-bar-h, 4rem) - 1.2rem - env(safe-area-inset-bottom))) !important;
+        max-height: min(58dvh, calc(100dvh - var(--phone-bar-h, 4rem) - 1.2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
         border-radius: 0.35rem;
         box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.45);
         font-size: 15px;

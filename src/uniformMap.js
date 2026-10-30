@@ -32,10 +32,16 @@ function uiToT(ui, spec) {
   return t;
 }
 
+function zoomOutFloorT(spec) {
+  if (!(spec.shaderMin > 0) || spec.shaderMax == null) return -Infinity;
+  const span = spec.shaderMax - spec.shaderMin || 1;
+  return ((spec.shaderMin / 3) - spec.shaderMin) / span;
+}
+
 function stretchNegative(t, spec) {
   const scale = spec.negativeScale;
   if (!scale || t >= 0.5) return t;
-  return 0.5 - (0.5 - t) * scale;
+  return Math.max(0.5 - (0.5 - t) * scale, zoomOutFloorT(spec));
 }
 
 function unstretchNegative(t, spec) {
@@ -132,7 +138,9 @@ export function getSpecMap(shaderId) {
     ...(SHADERS[shaderId]?.uniforms ?? SHADER_UNIFORM_TEMPLATES[shaderId] ?? {}),
   };
   if (shaderId === 'spiro') specs.uComplexity = SPIRO_COMPLEXITY;
-  if (specs.uZoom) specs.uZoom = { ...specs.uZoom, negativeScale: 3 };
+  if (specs.uZoom && (specs.uZoom.shaderMin ?? 0) < 0) {
+    specs.uZoom = { ...specs.uZoom, negativeScale: 3 };
+  }
   return specs;
 }
 

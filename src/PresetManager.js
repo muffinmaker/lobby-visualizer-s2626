@@ -1247,6 +1247,112 @@ const PRESET_LIST = [
       uZoom: 12,
     },
   },
+  {
+    name: 'Ink Field',
+    shader: 'flow',
+    values: {
+      uSpeed: 3, uScale: 16, uComplexity: 42, uBrightness: 48, uSaturation: 42, uBloom: 18,
+      uParticleCount: 22, uFieldScale: 60, uNoiseScale: 18, uTrailAlpha: 36, uPointSize: 16,
+      uFieldShape: 7, uMotion: 1, uShapeSize: 40,
+    },
+  },
+  {
+    name: 'Neon Dust',
+    shader: 'flow',
+    values: {
+      uSpeed: 8, uScale: 14, uComplexity: 70, uBrightness: 70, uSaturation: 92, uBloom: 48,
+      uParticleCount: 40, uFieldScale: 30, uNoiseScale: 55, uTrailAlpha: 14, uPointSize: 22,
+      uFieldShape: 5, uMotion: 7, uShapeSize: 55,
+    },
+  },
+  {
+    name: 'Mint Merge',
+    shader: 'metaballs',
+    values: {
+      uSpeed: 3, uScale: 16, uComplexity: 40, uBrightness: 62, uSaturation: 70, uBloom: 40,
+      uBallCount: 6, uSoftness: 55, uEdgeGlow: 28, uZoom: 48,
+    },
+  },
+  {
+    name: 'Violet Pool',
+    shader: 'metaballs',
+    values: {
+      uSpeed: 6, uScale: 12, uComplexity: 66, uBrightness: 58, uSaturation: 86, uBloom: 52,
+      uBallCount: 10, uSoftness: 22, uEdgeGlow: 70, uZoom: 55,
+    },
+  },
+  {
+    name: 'Copper Lines',
+    shader: 'ribbons',
+    values: {
+      uSpeed: 4, uScale: 18, uComplexity: 36, uBrightness: 54, uSaturation: 60, uBloom: 30,
+      uRibbonCount: 4, uThickness: 48, uTwistAmount: 20, uZoom: 58,
+    },
+  },
+  {
+    name: 'Ice Threads',
+    shader: 'ribbons',
+    values: {
+      uSpeed: 7, uScale: 10, uComplexity: 74, uBrightness: 68, uSaturation: 80, uBloom: 55,
+      uRibbonCount: 8, uThickness: 16, uTwistAmount: 72, uZoom: 42,
+    },
+  },
+  {
+    name: 'Violet Gate',
+    shader: 'wormhole',
+    values: {
+      uSpeed: 5, uScale: 14, uComplexity: 58, uBrightness: 60, uSaturation: 84, uBloom: 46,
+      uChevrons: 10, uRingSize: 48, uRingWidth: 30, uTunnelDepth: 70, uSwirl: 62, uZoom: 52,
+    },
+  },
+  {
+    name: 'Gold Tunnel',
+    shader: 'wormhole',
+    values: {
+      uSpeed: 2, uScale: 18, uComplexity: 30, uBrightness: 66, uSaturation: 72, uBloom: 34,
+      uChevrons: 6, uRingSize: 70, uRingWidth: 55, uTunnelDepth: 40, uSwirl: 18, uZoom: 60,
+    },
+  },
+  {
+    name: 'Forest Ripple',
+    shader: 'layers',
+    values: {
+      uSpeed: 3, uScale: 16, uComplexity: 36, uBrightness: 56, uSaturation: 64, uBloom: 28,
+      uLayerCount: 3, uMix: 48, uLayerScale: 55, uSpeedOffset: 22, uZoom: 50, uPatternA: 0, uPatternB: 4, uPatternC: 2,
+    },
+  },
+  {
+    name: 'Candy Grid',
+    shader: 'layers',
+    values: {
+      uSpeed: 6, uScale: 12, uComplexity: 70, uBrightness: 70, uSaturation: 88, uBloom: 50,
+      uLayerCount: 5, uMix: 62, uLayerScale: 34, uSpeedOffset: 58, uZoom: 46, uPatternA: 3, uPatternB: 1, uPatternC: 5,
+    },
+  },
+  {
+    name: 'Glass Orb',
+    shader: 'orb',
+    values: {
+      uSpeed: 6, uScale: 20, uComplexity: 40, uBrightness: 70, uSaturation: 78, uBloom: 48,
+      uSpin: 35, uDetail: 30, uZoom: 58,
+    },
+  },
+  {
+    name: 'Ember Orb',
+    shader: 'orb',
+    values: {
+      uSpeed: 9, uScale: 16, uComplexity: 62, uBrightness: 64, uSaturation: 88, uBloom: 62,
+      uSpin: 70, uDetail: 78, uZoom: 46,
+    },
+  },
+  {
+    name: 'Ice Spokes',
+    shader: 'layers',
+    values: {
+      uSpeed: 4, uScale: 14, uComplexity: 48, uBrightness: 64, uSaturation: 58, uBloom: 36,
+      uLayerCount: 4, uMix: 40, uLayerScale: 46, uSpeedOffset: 30, uZoom: 54, uPatternA: 5, uPatternB: 0, uPatternC: 4,
+    },
+  },
 ];
 
 /** One obvious palette per preset so cycling looks different. */
@@ -1302,6 +1408,19 @@ const PRESET_COLOR_PROFILES = {
   'Nyxos Spiral': { uPalette: 24, uHueShift: 64 },
   'Pond Cross': { uPalette: 11, uHueShift: 24 },
   'Dense Moire': { uPalette: 20, uHueShift: 77 },
+  'Ink Field': { uPalette: 18, uHueShift: 12 },
+  'Neon Dust': { uPalette: 22, uHueShift: 68 },
+  'Mint Merge': { uPalette: 22, uHueShift: 24 },
+  'Violet Pool': { uPalette: 19, uHueShift: 80 },
+  'Copper Lines': { uPalette: 18, uHueShift: 16 },
+  'Ice Threads': { uPalette: 15, uHueShift: 44 },
+  'Violet Gate': { uPalette: 19, uHueShift: 72 },
+  'Gold Tunnel': { uPalette: 14, uHueShift: 18 },
+  'Forest Ripple': { uPalette: 17, uHueShift: 26 },
+  'Candy Grid': { uPalette: 16, uHueShift: 58 },
+  'Ice Spokes': { uPalette: 15, uHueShift: 40 },
+  'Glass Orb': { uPalette: 21, uHueShift: 30 },
+  'Ember Orb': { uPalette: 5, uHueShift: 18 },
 };
 
 export const PRESETS = PRESET_LIST.map((preset) => {

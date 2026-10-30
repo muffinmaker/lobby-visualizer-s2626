@@ -44,12 +44,41 @@ void main() {
 const PRESENT_FRAG = `
 uniform sampler2D uMap;
 uniform float uInvert;
+uniform float uBlackout;
+uniform float uStrobe;
+uniform float uTime;
 varying vec2 vUv;
 
 void main() {
   vec4 color = texture2D(uMap, vUv);
   if (uInvert > 0.5) color.rgb = vec3(1.0) - color.rgb;
+  if (uStrobe > 0.5 && fract(uTime * 9.0) > 0.5) color.rgb = vec3(1.0);
+  if (uBlackout > 0.5) color.rgb = vec3(0.0);
   gl_FragColor = vec4(color.rgb, 1.0);
+}`;
+
+const MIX_FRAG = `
+uniform sampler2D uA;
+uniform sampler2D uB;
+uniform float uMix;
+uniform float uMode;
+uniform float uInvert;
+uniform float uBlackout;
+uniform float uStrobe;
+uniform float uTime;
+varying vec2 vUv;
+
+void main() {
+  vec3 a = texture2D(uA, vUv).rgb;
+  vec3 b = texture2D(uB, vUv).rgb;
+  float m = clamp(uMix, 0.0, 1.0);
+  vec3 color = mix(a, b, m);
+  if (uMode > 0.5 && uMode < 1.5) color = min(a + b * m, vec3(1.0));
+  else if (uMode >= 1.5) color = mix(a, a * b, m);
+  if (uInvert > 0.5) color = vec3(1.0) - color;
+  if (uStrobe > 0.5 && fract(uTime * 9.0) > 0.5) color = vec3(1.0);
+  if (uBlackout > 0.5) color = vec3(0.0);
+  gl_FragColor = vec4(color, 1.0);
 }`;
 
 function buildUniforms(shaderId, uiValues = {}) {
@@ -255,6 +284,9 @@ export class Visualizer {
       uniforms: {
         uMap: { value: null },
         uInvert: { value: 0 },
+        uBlackout: { value: 0 },
+        uStrobe: { value: 0 },
+        uTime: { value: 0 },
       },
       vertexShader: FULLSCREEN_VERT,
       fragmentShader: wrapFragment(PRESENT_FRAG),
@@ -263,7 +295,29 @@ export class Visualizer {
     });
     this.compositeScene.add(new THREE.Mesh(createFullscreenQuad(), this.compositeMaterial));
     this.presentTarget = null;
+    this.overlayTarget = null;
     this.invertColors = false;
+    this.blackout = false;
+    this.strobe = false;
+    this.overlay = { enabled: false, shaderId: 'kaleido', mix: 0.5, mode: 0 };
+    this.mixScene = new THREE.Scene();
+    this.mixMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uA: { value: null },
+        uB: { value: null },
+        uMix: { value: 0.5 },
+        uMode: { value: 0 },
+        uInvert: { value: 0 },
+        uBlackout: { value: 0 },
+        uStrobe: { value: 0 },
+        uTime: { value: 0 },
+      },
+      vertexShader: FULLSCREEN_VERT,
+      fragmentShader: wrapFragment(MIX_FRAG),
+      depthTest: false,
+      depthWrite: false,
+    });
+    this.mixScene.add(new THREE.Mesh(createFullscreenQuad(), this.mixMaterial));
 
     this.meshes = {};
     this.materials = {};
@@ -561,20 +615,77 @@ export class Visualizer {
 
     this.recreateTrailBuffers();
     this.presentTarget?.dispose();
-    this.presentTarget = new THREE.WebGLRenderTarget(rw, rh, {
+    const targetOptions = {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
-    });
+    };
+    this.presentTarget = new THREE.WebGLRenderTarget(rw, rh, targetOptions);
+    this.overlayTarget?.dispose();
+    this.overlayTarget = new THREE.WebGLRenderTarget(rw, rh, targetOptions);
     this.onViewportResize?.();
   }
 
   present(texture) {
     this.compositeMaterial.uniforms.uMap.value = texture;
     this.compositeMaterial.uniforms.uInvert.value = this.invertColors ? 1 : 0;
+    this.compositeMaterial.uniforms.uBlackout.value = this.blackout ? 1 : 0;
+    this.compositeMaterial.uniforms.uStrobe.value = this.strobe ? 1 : 0;
+    this.compositeMaterial.uniforms.uTime.value = this.animPhase;
     this.renderer.setRenderTarget(null);
     this.renderer.setClearColor(this.backgroundColor, 1);
     this.renderer.clear();
     this.renderer.render(this.compositeScene, this.quadCamera);
+  }
+
+  setOverlay({ enabled, shaderId, mix, mode } = {}) {
+    if (enabled !== undefined) this.overlay.enabled = Boolean(enabled);
+    if (shaderId) this.overlay.shaderId = shaderId;
+    if (mix !== undefined) this.overlay.mix = Math.max(0, Math.min(1, mix));
+    if (mode !== undefined) this.overlay.mode = mode;
+  }
+
+  showOnly(shaderId) {
+    for (const [id, mesh] of Object.entries(this.meshes)) {
+      mesh.visible = id === shaderId;
+    }
+  }
+
+  renderShaderTo(shaderId, target) {
+    const material = this.materials[shaderId];
+    if (!material || !target) return;
+    if (material.uniforms.uTime) material.uniforms.uTime.value = this.animPhase;
+    this.showOnly(shaderId);
+    this.renderer.autoClear = true;
+    this.renderer.setRenderTarget(target);
+    this.renderer.setClearColor(this.backgroundColor, 1);
+    this.renderer.clear();
+    if (isPointShader(shaderId)) this.renderer.render(this.pointScene, this.pointCamera);
+    else this.renderer.render(this.quadScene, this.quadCamera);
+    this.showOnly(this.currentShaderId);
+  }
+
+  presentMix(baseTexture) {
+    const layerId = this.overlay.shaderId;
+    const active = this.overlay.enabled && layerId && layerId !== this.currentShaderId && this.overlayTarget;
+    if (!active) {
+      this.present(baseTexture);
+      return;
+    }
+    const layerMaterial = this.materials[layerId];
+    if (layerMaterial && this.lastSmoothed) this.applySmoothedUniforms(layerMaterial, this.lastSmoothed);
+    this.renderShaderTo(layerId, this.overlayTarget);
+    this.mixMaterial.uniforms.uA.value = baseTexture;
+    this.mixMaterial.uniforms.uB.value = this.overlayTarget.texture;
+    this.mixMaterial.uniforms.uMix.value = this.overlay.mix;
+    this.mixMaterial.uniforms.uMode.value = this.overlay.mode;
+    this.mixMaterial.uniforms.uInvert.value = this.invertColors ? 1 : 0;
+    this.mixMaterial.uniforms.uBlackout.value = this.blackout ? 1 : 0;
+    this.mixMaterial.uniforms.uStrobe.value = this.strobe ? 1 : 0;
+    this.mixMaterial.uniforms.uTime.value = this.animPhase;
+    this.renderer.setRenderTarget(null);
+    this.renderer.setClearColor(this.backgroundColor, 1);
+    this.renderer.clear();
+    this.renderer.render(this.mixScene, this.quadCamera);
   }
 
   renderScene(target = null) {
@@ -594,6 +705,7 @@ export class Visualizer {
     if (!material) return dt;
 
     const smoothed = this.uniformSmoother.update(dt);
+    this.lastSmoothed = smoothed;
     this.applySmoothedUniforms(material, smoothed);
 
     if (shaderId === 'flow' && smoothed.uParticleCount !== undefined) {
@@ -626,12 +738,12 @@ export class Visualizer {
       this.renderScene(next);
 
       this.renderer.autoClear = true;
-      this.present(next.texture);
+      this.presentMix(next.texture);
 
       this.trailTargets.reverse();
-    } else if (this.invertColors && this.presentTarget) {
+    } else if ((this.invertColors || this.blackout || this.strobe || this.overlay.enabled) && this.presentTarget) {
       this.renderScene(this.presentTarget);
-      this.present(this.presentTarget.texture);
+      this.presentMix(this.presentTarget.texture);
     } else {
       this.renderer.setRenderTarget(null);
       this.renderer.setClearColor(this.backgroundColor, 1);
@@ -649,6 +761,8 @@ export class Visualizer {
     for (const mat of Object.values(this.materials)) mat.dispose();
     this.trailMaterial.dispose();
     this.presentTarget?.dispose();
+    this.overlayTarget?.dispose();
+    this.mixMaterial?.dispose();
     this.compositeMaterial.dispose();
     this.renderer.dispose();
   }

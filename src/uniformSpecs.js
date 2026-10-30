@@ -229,6 +229,12 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uTintGreen: rgb(175),
     uTintBlue: rgb(255),
   },
+  orb: {
+    uPalette: fullPalette(8),
+    uSpin: { ...pct(40, 0.15, 2.2), label: 'Spin' },
+    uDetail: { ...pct(45, 0, 1), label: 'Detail' },
+    uZoom: pct(55, 0.45, 2.2),
+  },
   ribbons: {
     uPalette: fullPalette(0),
     uRibbonCount: count(5, 2, 10),
