@@ -679,7 +679,8 @@ export class SettingsPanel {
     menu.add({ cyclePreset: () => fire('lobby-preset-next') }, 'cyclePreset').name('Cycle preset');
     menu.add({ savePreset: () => fire('lobby-save-preset') }, 'savePreset').name('Save preset');
     menu.add({ uploadPreset: () => fire('lobby-upload-preset') }, 'uploadPreset').name('Upload preset');
-    menu.add({ driftAll: () => fire('lobby-drift-all') }, 'driftAll').name('Drift all');
+    const driftAllBtn = menu.add({ driftAll: () => fire('lobby-drift-all') }, 'driftAll').name('Drift all');
+    driftAllBtn.domElement.classList.add('drift-all-wide');
     menu.add({ smooth: () => fire('lobby-smooth') }, 'smooth').name('Smooth transitions');
     menu.add({ autoCycle: () => fire('lobby-autocycle') }, 'autoCycle').name('Auto-cycle');
     menu.add({ tutorial: () => fire('lobby-tutorial') }, 'tutorial').name('Tutorial');
@@ -1140,7 +1141,8 @@ export class SettingsPanel {
 
     const driftAllKey = `driftAll_${this.folderDriftActions.length}`;
     const driftAllState = { [driftAllKey]: false };
-    const driftAllCtrl = folder.add(driftAllState, driftAllKey).name('↻ Drift all');
+    const driftAllCtrl = folder.add(driftAllState, driftAllKey).name('Drift all');
+    driftAllCtrl.domElement.classList.add('drift-all-wide');
     this.folderDriftActions.push({ ctrl: driftAllCtrl, specs, stateKey: driftAllKey, state: driftAllState });
 
     driftAllCtrl.onChange((enabled) => {

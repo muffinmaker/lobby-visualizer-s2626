@@ -194,10 +194,6 @@
         flex: 0 0 var(--slider-input-min-width);
       }
 
-      .lil-gui.root.menu-big-mode .drift-toggle input {
-        width: calc(0.9rem * var(--menu-scale));
-        height: calc(0.9rem * var(--menu-scale));
-      }
 
       .lil-gui.root.menu-big-mode .title.gui-title-row {
         min-height: auto;
@@ -444,12 +440,63 @@
         cursor: pointer;
       }
 
-      .lil-gui .drift-toggle input {
-        width: 0.9rem;
-        height: 0.9rem;
+      .lil-gui .controller .drift-toggle input[type=checkbox] {
+        appearance: none;
+        width: 14px !important;
+        height: 14px !important;
+        min-width: 14px;
+        min-height: 14px;
+        flex: 0 0 14px;
         margin: 0;
-        accent-color: rgb(140, 180, 255);
         cursor: pointer;
+      }
+
+      .lil-gui .controller .drift-toggle input[type=checkbox]:checked:before {
+        font-size: 12px;
+        line-height: 14px;
+      }
+
+      .lil-gui .controller.drift-all-wide {
+        display: flex;
+      }
+
+      .lil-gui .controller.drift-all-wide.function > .name {
+        display: none;
+      }
+
+      .lil-gui .controller.drift-all-wide.boolean {
+        position: relative;
+      }
+
+      .lil-gui .controller.drift-all-wide.boolean > .name {
+        position: absolute;
+        left: 0.55rem;
+        top: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        width: auto;
+        flex: none;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      .lil-gui .controller.drift-all-wide .widget {
+        flex: 1 1 100%;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .lil-gui .controller.drift-all-wide input[type=checkbox],
+      .lil-gui .controller.drift-all-wide button {
+        width: 100% !important;
+        height: var(--widget-height);
+        min-height: var(--widget-height);
+      }
+
+      .lil-gui .controller.drift-all-wide input[type=checkbox]:checked:before {
+        font-size: 0.8rem;
+        line-height: var(--widget-height);
       }
 
       .lil-gui .controller.partial-drift .name {
