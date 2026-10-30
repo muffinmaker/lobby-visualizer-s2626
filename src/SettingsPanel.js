@@ -1316,13 +1316,10 @@ export class SettingsPanel {
       this.notifyDriftStateChange();
     });
 
-    const icon = document.createElement('span');
-    icon.className = 'drift-toggle-icon';
-    icon.textContent = '↻';
-
-    wrap.append(checkbox, icon);
+    wrap.append(checkbox);
     const widget = row.querySelector('.widget');
-    (widget ?? row).appendChild(wrap);
+    if (widget) widget.prepend(wrap);
+    else row.prepend(wrap);
     this.driftToggles.set(key, checkbox);
   }
 

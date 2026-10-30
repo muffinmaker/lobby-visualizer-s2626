@@ -194,15 +194,9 @@
         flex: 0 0 var(--slider-input-min-width);
       }
 
-      .lil-gui.root.menu-big-mode .drift-toggle {
-        width: 4.05rem;
-        height: 4.05rem;
-        margin-left: 0.75rem;
-        border-radius: 0.75rem;
-      }
-
-      .lil-gui.root.menu-big-mode .drift-toggle-icon {
-        font-size: 2.16rem;
+      .lil-gui.root.menu-big-mode .drift-toggle input {
+        width: calc(0.9rem * var(--menu-scale));
+        height: calc(0.9rem * var(--menu-scale));
       }
 
       .lil-gui.root.menu-big-mode .title.gui-title-row {
@@ -401,7 +395,6 @@
 
       .lil-gui .controller {
         position: relative;
-        padding-right: 1.5rem;
         box-sizing: border-box;
       }
 
@@ -446,40 +439,17 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        position: absolute;
-        right: 0.1rem;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 1.35rem;
-        height: 1.35rem;
-        margin-left: 0;
-        border-radius: 0.25rem;
+        flex: 0 0 auto;
+        margin: 0 0.35rem 0 0;
         cursor: pointer;
-        opacity: 0.45;
-        transition: opacity 0.15s ease, background 0.15s ease;
-        flex-shrink: 0;
-      }
-
-      .lil-gui .drift-toggle:hover {
-        opacity: 0.85;
-        background: rgba(255, 255, 255, 0.08);
-      }
-
-      .lil-gui .drift-toggle.is-active {
-        opacity: 1;
-        background: rgba(120, 180, 255, 0.18);
       }
 
       .lil-gui .drift-toggle input {
-        position: absolute;
-        opacity: 0;
-        pointer-events: none;
-      }
-
-      .lil-gui .drift-toggle-icon {
-        font-size: 0.72rem;
-        line-height: 1;
-        color: rgba(255, 255, 255, 0.85);
+        width: 0.9rem;
+        height: 0.9rem;
+        margin: 0;
+        accent-color: rgb(140, 180, 255);
+        cursor: pointer;
       }
 
       .lil-gui .controller.partial-drift .name {
