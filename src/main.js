@@ -1,6 +1,7 @@
 import { loadCustomShaders } from './shaders/loader.js';
 import { Visualizer } from './Visualizer.js';
 import { PresetManager, SHADER_IDS } from './PresetManager.js';
+import { downloadPresetFile, presetsFromImport } from './SavedPresetStore.js';
 import { SettingsPanel } from './SettingsPanel.js';
 import { DriftManager } from './DriftManager.js';
 import { MusicMode } from './MusicMode.js';
@@ -507,7 +508,80 @@ async function start() {
       values: result.values,
       presetName: result.name,
     });
+    downloadPresetFile(result);
+    settings.refreshPresetDropdown?.();
+    refreshPresetTransportLabel();
   }
+
+  const presetFileInput = document.createElement('input');
+  presetFileInput.type = 'file';
+  presetFileInput.accept = 'application/json,.json';
+  presetFileInput.hidden = true;
+  document.body.append(presetFileInput);
+
+  function openPresetFile() {
+    presetFileInput.value = '';
+    presetFileInput.click();
+  }
+
+  function importPresetEntries(entries) {
+    const imported = [];
+    for (const entry of entries) {
+      if (!SHADER_IDS.includes(entry.shader)) continue;
+      let name = entry.name;
+      if (presetManager.isBuiltin(name)) {
+        const base = `${name} copy`;
+        name = base;
+        let n = 2;
+        while (presetManager.isBuiltin(name) || presetManager.findIndexByName(name) >= 0) {
+          name = `${base} ${n}`;
+          n += 1;
+        }
+      }
+      const saved = presetManager.saveCurrent({
+        name,
+        shader: entry.shader,
+        values: entry.values,
+        overwrite: true,
+      });
+      if (saved && !saved.error && !saved.conflict) imported.push(saved);
+    }
+    return imported;
+  }
+
+  async function onUploadPresetFile(file) {
+    if (!file) return;
+    let entries = [];
+    try {
+      entries = presetsFromImport(JSON.parse(await file.text()));
+    } catch {
+      window.alert('That file is not preset JSON.');
+      return;
+    }
+    if (!entries.length) {
+      window.alert('No presets found. Use a file saved from this visualizer.');
+      return;
+    }
+    const imported = importPresetEntries(entries);
+    if (!imported.length) {
+      window.alert('None of those presets match a mode in this visualizer.');
+      return;
+    }
+    const last = imported[imported.length - 1];
+    presetManager.goToByName(last.name, {
+      shader: last.shader,
+      immediate: true,
+      randomize: false,
+    });
+    settings.refreshPresetDropdown?.();
+    refreshPresetTransportLabel();
+    showGamepadToast(imported.length === 1 ? `Loaded ${last.name}` : `Loaded ${imported.length} presets`);
+  }
+
+  presetFileInput.addEventListener('change', () => {
+    onUploadPresetFile(presetFileInput.files?.[0]);
+  });
+  document.addEventListener('lobby-upload-preset', openPresetFile);
 
   function refreshPresetTransportLabel() {
     presetManager.setActiveShader(settings.state.shader);
@@ -541,6 +615,7 @@ async function start() {
     onPresetPrev,
     onPresetNext,
     onSave: onSavePreset,
+    onUpload: openPresetFile,
     onInfo: () => tutorial.toggle(),
     onHelpToggle: () => helpMode?.toggle(),
   });
@@ -567,6 +642,7 @@ async function start() {
     onPresetPrev,
     onPresetNext,
     onSave: onSavePreset,
+    onUpload: openPresetFile,
     onInfo: () => tutorial.toggle(),
     onHide: () => setUiHidden(true),
     onShow: () => setUiHidden(false),

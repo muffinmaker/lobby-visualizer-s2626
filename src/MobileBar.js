@@ -122,6 +122,7 @@ export function mountMobileBar(handlers) {
     'transport-btn autocycle-btn',
   );
   const save = createBtn(SAVE_ICON_SVG, 'Save preset', 'transport-btn save-btn', { html: true });
+  const upload = createBtn('↑', 'Upload preset JSON', 'transport-btn upload-btn');
   const info = createBtn('i', 'Tutorial', 'transport-btn info-btn');
   const help = createBtn('?', 'Help — hover a control to read what it does', 'transport-btn help-btn');
   help.setAttribute('aria-pressed', 'false');
@@ -135,13 +136,14 @@ export function mountMobileBar(handlers) {
   bindBtn(smooth, handlers.onSmoothTransitionsToggle);
   bindBtn(autocycle, handlers.onAutoCycleToggle);
   bindBtn(save, handlers.onSave);
+  bindBtn(upload, handlers.onUpload);
   bindBtn(info, handlers.onInfo);
   help.addEventListener('click', () => handlers.onHelpToggle?.());
   bindBtn(hideBtn, handlers.onHide);
 
   const actions = document.createElement('div');
   actions.className = 'title-actions';
-  actions.append(save, info, help, hideBtn);
+  actions.append(save, upload, info, help, hideBtn);
 
   transport.append(shaderNav.group, presetBtn, driftAll, smooth, autocycle, actions);
   transport.addEventListener('click', (event) => event.stopPropagation());
@@ -176,6 +178,7 @@ export function mountMobileBar(handlers) {
     smoothTransitions: smooth,
     autocycle,
     save,
+    upload,
     info,
     help,
     hide: hideBtn,

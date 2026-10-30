@@ -335,6 +335,10 @@ export class SettingsPanel {
     };
     this.resetPresetCtrl = this.gui.add(resetActions, 'resetPreset').name('↺ Reset preset');
     this.refreshResetPresetButton();
+    const uploadActions = {
+      uploadPreset: () => document.dispatchEvent(new CustomEvent('lobby-upload-preset')),
+    };
+    this.gui.add(uploadActions, 'uploadPreset').name('Upload preset');
 
     this.buildLogoSection();
     this.buildTextOverlaySection();
