@@ -804,6 +804,11 @@ export class SettingsPanel {
     );
     this.colorSpecs = shared;
     this.addUniformControls(this.colorFolder, shared);
+    const sharedOrder = ['uInvert', 'uWhiteness', 'uBlackness', 'uSaturation', 'uBgRed', 'uBgGreen', 'uBgBlue'];
+    for (const key of sharedOrder) {
+      if (shared[key]) this.addUniformRow(this.colorFolder, key, shared[key]);
+    }
+    this.pinInvertControl();
 
     const stops = [
       ['uPal0R', 'uPal0G', 'uPal0B', 'Stop 1'],
@@ -1407,6 +1412,14 @@ export class SettingsPanel {
       this.modeColorControllers.push(ctrl);
       if (anchor) parent.insertBefore(ctrl.domElement, anchor);
     }
+    this.pinInvertControl();
+  }
+
+  pinInvertControl() {
+    const ctrl = this.uniformControllers.get('uInvert');
+    const parent = this.colorFolder?.domElement?.querySelector('.children');
+    if (!ctrl || !parent) return;
+    parent.insertBefore(ctrl.domElement, parent.firstElementChild);
   }
 
   rebuildShaderFolder(shaderId) {
