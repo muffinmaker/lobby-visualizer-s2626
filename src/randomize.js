@@ -57,20 +57,6 @@ export function randomizeSpecs(specs, target = {}, keys = null, { allowRebuild =
   return result;
 }
 
-export function randomizeGlobal(state = {}) {
-  return randomizeSpecs(GLOBAL_UNIFORMS, state);
-}
-
-export function randomizeShader(shaderId, state = {}) {
-  const shader = SHADERS[shaderId];
-  if (!shader) return state;
-  return randomizeSpecs(shader.uniforms, state);
-}
-
-export function randomizeAll(shaderId, state = {}) {
-  return randomizeShader(shaderId, randomizeGlobal(state));
-}
-
 export function getSpecsForScope(scope, shaderId) {
   if (scope === 'global') return { ...GLOBAL_UNIFORMS };
   if (scope === 'shader') return { ...(SHADERS[shaderId]?.uniforms ?? {}) };

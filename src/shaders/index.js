@@ -316,7 +316,7 @@ export const SHADERS = {
         pos += gdir * uGravity * sin(a) * 0.22;
         float radial = clamp(length(pos) / max(uScale * 0.45, 0.12), 0.0, 1.35);
         pos.x /= max(uAspect, 0.75);
-        pos /= max(pow(uZoom, 0.65) * 0.25, 0.09);
+        pos /= clamp(max(pow(max(abs(uZoom), 0.02), 0.65) * 0.25, 0.09), 0.09, 2.4);
         pos -= vec2(uPanX, uPanY);
 
         vec2 vel = vec2(
@@ -641,7 +641,7 @@ export const SHADERS = {
       void main() {
         vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0);
         uv -= vec2(uPanX, uPanY);
-        float viewZoom = 2.4 / max(uZoom, 0.2);
+        float viewZoom = clamp(2.4 / max(uZoom, 0.28), 0.28, 7.5);
         uv *= viewZoom;
 
         float t = uTime;
@@ -902,7 +902,7 @@ export const SHADERS = {
         vec2 base = fieldShape(seed, uFieldShape) * uScale * uFieldScale * uShapeSize;
         vec2 pos = moveParticles(base, seed, life, t);
         pos.x /= aspect;
-        float zoom = max(pow(uZoom, 0.55), 0.25);
+        float zoom = clamp(max(pow(max(abs(uZoom), 0.02), 0.55), 0.25), 0.25, 4.5);
         pos /= zoom;
         pos -= vec2(uPanX, uPanY);
 
@@ -991,6 +991,8 @@ export const SHADERS = {
       uniform float uBallCount;
       uniform float uSoftness;
       uniform float uEdgeGlow;
+      uniform float uDrift;
+      uniform float uWarp;
       uniform float uZoom;
       uniform float uPanX;
       uniform float uPanY;
@@ -1005,7 +1007,7 @@ export const SHADERS = {
       }
 
       void main() {
-        vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0 / max(abs(uZoom), 0.2);
+        vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * clamp(2.0 / max(abs(uZoom), 0.22), 0.22, 6.5);
         uv -= vec2(uPanX, uPanY);
         float t = uTime;
 
@@ -1014,9 +1016,9 @@ export const SHADERS = {
           if (i >= uBallCount) break;
           float fi = i + 1.0;
           float angle = t * (0.55 + fi * 0.09 * uComplexity) + fi * 2.094;
-          float radius = uScale * uObjectScale * (0.22 + 0.2 * sin(t * 0.9 + fi));
+          float radius = uScale * uObjectScale * (0.22 + 0.2 * sin(t * (0.35 + uDrift) + fi));
           vec2 center = vec2(cos(angle), sin(angle)) * radius;
-          center += vec2(sin(t * 1.3 + fi * 1.3), cos(t * 1.1 + fi)) * 0.22 * uComplexity;
+          center += vec2(sin(t * 1.3 + fi * 1.3), cos(t * 1.1 + fi)) * (0.16 + uWarp * 0.2) * uComplexity;
           float d = length(uv - center);
           field += uSoftness / (d * d + 0.002);
         }
@@ -1274,7 +1276,7 @@ export const SHADERS = {
       }
 
       void main() {
-        vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0 / max(uZoom, 0.2);
+        vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0) * clamp(2.0 / max(uZoom, 0.22), 0.22, 7.0);
         uv -= vec2(uPanX, uPanY);
         float t = uTime * (0.3 + uSpeed * 0.65);
         float travel = t * (0.55 + uTunnelDepth * 0.45);
@@ -1432,7 +1434,7 @@ export const SHADERS = {
       void main() {
         vec2 uv = (vUv - 0.5) * vec2(uAspect, 1.0);
         uv -= vec2(uPanX, uPanY);
-        uv *= (2.1 / max(uZoom, 0.2)) / max(uScale * max(uObjectScale, 0.2), 0.15);
+        uv *= clamp((2.1 / max(uZoom, 0.22)) / max(uScale * max(uObjectScale, 0.2), 0.15), 0.2, 8.0);
         float t = uTime;
         float count = clamp(floor(uLayerCount + 0.5), 2.0, 6.0);
         vec3 acc = vec3(0.0);
@@ -1481,24 +1483,3 @@ export function getShaderChoices() {
 }
 
 export { BACKGROUND_UNIFORMS, GLOBAL_UNIFORMS };
-
-export const COMMON_VERTEX = /* glsl */ `
-  uniform float uTime;
-  uniform float uSpeed;
-  uniform float uScale;
-  uniform float uComplexity;
-  uniform vec2 uResolution;
-  uniform float uAspect;
-`;
-
-export const COMMON_FRAGMENT = /* glsl */ `
-  uniform float uTime;
-  uniform float uSpeed;
-  uniform float uScale;
-  uniform float uComplexity;
-  uniform float uBrightness;
-  uniform float uSaturation;
-  uniform float uBloom;
-  uniform vec2 uResolution;
-  uniform float uAspect;
-`;

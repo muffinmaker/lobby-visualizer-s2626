@@ -53,27 +53,77 @@ export function createMidiInput({ onNote, onCc, onStatus }) {
   };
 }
 
-/**
- * Launchkey Mini pads (notes 36–38, and the same pads an octave up at 96–98).
- * Any other note advances the preset. Hold blackout and strobe; tap Invert.
- */
-export const LAUNCHKEY_PAD_NOTES = {
-  invert: [36, 96],
-  blackout: [37, 97],
-  strobe: [38, 98],
+export const MIDI_MAP_NOTE = 'Defaults — Launchkey Mini pads 36 Invert, 37 hold black, 38 hold strobe, 39 Performance, 40 Swap A/B (also 96–100). Other notes: next preset. Knobs CC 21 Zoom, 22 Speed, 23 Bloom, 24 Brightness, 25 Overlay mix. DDJ-FLX4 channel fader CC 7 Speed. Change these in Controls → MIDI map.';
+
+const MIDI_MAP_KEY = 'lobby-midi-map';
+
+export const MIDI_CC_TARGETS = {
+  Speed: 'uSpeed',
+  Zoom: 'uZoom',
+  Scale: 'uScale',
+  Bloom: 'uBloom',
+  Brightness: 'uBrightness',
+  'Overlay mix': 'overlayMix',
 };
 
-/**
- * CC 21–24: Launchkey Mini knobs in basic/custom mode.
- * CC 7: a volume-style fader, including the DDJ-FLX4 channel fader when it sends CC 7.
- * The FLX4’s other knobs are not fixed here; they vary by Pioneer’s MIDI mode.
- */
-export const MIDI_CC_TO_SETTING = {
-  7: 'uSpeed',
-  21: 'uZoom',
-  22: 'uSpeed',
-  23: 'uBloom',
-  24: 'uBrightness',
+export const MIDI_NOTE_ACTIONS = {
+  'Next preset': 'next',
+  Invert: 'invert',
+  'Hold black': 'blackout',
+  'Hold strobe': 'strobe',
+  Performance: 'performance',
+  'Swap A/B': 'swap',
 };
 
-export const MIDI_MAP_NOTE = 'Launchkey pads: 36 Invert, 37 hold black, 38 hold strobe (also 96–98). Other notes: next preset. Knobs: CC 21 Zoom, 22 Speed, 23 Bloom, 24 Brightness. DDJ-FLX4 fader: CC 7 Speed.';
+export function defaultMidiMap() {
+  return {
+    cc: [
+      { cc: 7, target: 'uSpeed' },
+      { cc: 21, target: 'uZoom' },
+      { cc: 22, target: 'uSpeed' },
+      { cc: 23, target: 'uBloom' },
+      { cc: 24, target: 'uBrightness' },
+      { cc: 25, target: 'overlayMix' },
+    ],
+    notes: [
+      { note: 36, action: 'invert' },
+      { note: 37, action: 'blackout' },
+      { note: 38, action: 'strobe' },
+      { note: 39, action: 'performance' },
+      { note: 40, action: 'swap' },
+      { note: 96, action: 'invert' },
+      { note: 97, action: 'blackout' },
+      { note: 98, action: 'strobe' },
+      { note: 99, action: 'performance' },
+      { note: 100, action: 'swap' },
+    ],
+  };
+}
+
+export function loadMidiMap() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MIDI_MAP_KEY) || '');
+    if (parsed?.cc && parsed?.notes) return parsed;
+  } catch {
+    /* ignore */
+  }
+  return defaultMidiMap();
+}
+
+export function saveMidiMap(map) {
+  try {
+    localStorage.setItem(MIDI_MAP_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function midiCcTarget(map, cc) {
+  const row = map.cc.find((entry) => Number(entry.cc) === Number(cc));
+  return row?.target || null;
+}
+
+export function midiNoteAction(map, note) {
+  const row = map.notes.find((entry) => Number(entry.note) === Number(note));
+  return row?.action || 'next';
+}

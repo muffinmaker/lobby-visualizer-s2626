@@ -8,10 +8,6 @@ export function consumePinch(carry, ratio, sensitivity = DEFAULT_PINCH_SENSITIVI
   return { steps, carry: next - steps };
 }
 
-export function classifySwipe() {
-  return null;
-}
-
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }

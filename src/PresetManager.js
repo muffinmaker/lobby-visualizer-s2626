@@ -1330,6 +1330,70 @@ const PRESET_LIST = [
     },
   },
   {
+    name: 'Warm Chamber',
+    shader: 'chamber',
+    values: {
+      uSpeed: 4, uScale: 20, uComplexity: 30, uBrightness: 62, uSaturation: 70, uBloom: 36,
+      uDetail: 28, uSpin: 20, uZoom: 55, uPanX: 50, uPanY: 50,
+    },
+  },
+  {
+    name: 'Night Chamber',
+    shader: 'chamber',
+    values: {
+      uSpeed: 7, uScale: 16, uComplexity: 55, uBrightness: 54, uSaturation: 82, uBloom: 58,
+      uDetail: 72, uSpin: 48, uZoom: 42, uPanX: 62, uPanY: 46,
+    },
+  },
+  {
+    name: 'Pillar Hall',
+    shader: 'chamber',
+    values: {
+      uSpeed: 2, uScale: 24, uComplexity: 22, uBrightness: 58, uSaturation: 52, uBloom: 22,
+      uDetail: 88, uSpin: 8, uZoom: 48, uPanX: 38, uPanY: 58,
+    },
+  },
+  {
+    name: 'Drift Room',
+    shader: 'chamber',
+    values: {
+      uSpeed: 8, uScale: 14, uComplexity: 48, uBrightness: 66, uSaturation: 76, uBloom: 44,
+      uDetail: 18, uSpin: 82, uZoom: 60, uPanX: 70, uPanY: 40,
+    },
+  },
+  {
+    name: 'Neon Tunnel',
+    shader: 'tunnel',
+    values: {
+      uSpeed: 8, uScale: 18, uComplexity: 55, uBrightness: 72, uSaturation: 86, uBloom: 50,
+      uTwist: 62, uDetail: 70, uZoom: 52,
+    },
+  },
+  {
+    name: 'Quiet Tunnel',
+    shader: 'tunnel',
+    values: {
+      uSpeed: 3, uScale: 22, uComplexity: 28, uBrightness: 58, uSaturation: 48, uBloom: 28,
+      uTwist: 18, uDetail: 22, uZoom: 64,
+    },
+  },
+  {
+    name: 'Helix Tunnel',
+    shader: 'tunnel',
+    values: {
+      uSpeed: 11, uScale: 14, uComplexity: 68, uBrightness: 68, uSaturation: 90, uBloom: 56,
+      uTwist: 92, uDetail: 48, uZoom: 48,
+    },
+  },
+  {
+    name: 'Ribbed Tunnel',
+    shader: 'tunnel',
+    values: {
+      uSpeed: 4, uScale: 20, uComplexity: 36, uBrightness: 60, uSaturation: 62, uBloom: 32,
+      uTwist: 8, uDetail: 92, uZoom: 58,
+    },
+  },
+  {
     name: 'Glass Orb',
     shader: 'orb',
     values: {
@@ -1343,6 +1407,22 @@ const PRESET_LIST = [
     values: {
       uSpeed: 9, uScale: 16, uComplexity: 62, uBrightness: 64, uSaturation: 88, uBloom: 62,
       uSpin: 70, uDetail: 78, uZoom: 46,
+    },
+  },
+  {
+    name: 'Pale Orb',
+    shader: 'orb',
+    values: {
+      uSpeed: 3, uScale: 22, uComplexity: 24, uBrightness: 74, uSaturation: 42, uBloom: 30,
+      uSpin: 12, uDetail: 14, uZoom: 64,
+    },
+  },
+  {
+    name: 'Prism Orb',
+    shader: 'orb',
+    values: {
+      uSpeed: 12, uScale: 14, uComplexity: 74, uBrightness: 68, uSaturation: 92, uBloom: 66,
+      uSpin: 88, uDetail: 64, uZoom: 50,
     },
   },
   {
@@ -1421,6 +1501,16 @@ const PRESET_COLOR_PROFILES = {
   'Ice Spokes': { uPalette: 15, uHueShift: 40 },
   'Glass Orb': { uPalette: 21, uHueShift: 30 },
   'Ember Orb': { uPalette: 5, uHueShift: 18 },
+  'Neon Tunnel': { uPalette: 20, uHueShift: 64 },
+  'Quiet Tunnel': { uPalette: 2, uHueShift: 20 },
+  'Warm Chamber': { uPalette: 1, uHueShift: 16 },
+  'Night Chamber': { uPalette: 19, uHueShift: 70 },
+  'Pillar Hall': { uPalette: 15, uHueShift: 22 },
+  'Drift Room': { uPalette: 16, uHueShift: 48 },
+  'Helix Tunnel': { uPalette: 14, uHueShift: 36 },
+  'Ribbed Tunnel': { uPalette: 17, uHueShift: 12 },
+  'Pale Orb': { uPalette: 15, uHueShift: 8 },
+  'Prism Orb': { uPalette: 12, uHueShift: 55 },
 };
 
 export const PRESETS = PRESET_LIST.map((preset) => {

@@ -8,11 +8,18 @@ import {
   getShaderChoices,
 } from './shaders/index.js';
 import { getSpecMap, mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
-import { MIDI_MAP_NOTE } from './midiInput.js';
+import {
+  MIDI_CC_TARGETS,
+  MIDI_MAP_NOTE,
+  MIDI_NOTE_ACTIONS,
+  defaultMidiMap,
+  loadMidiMap,
+  saveMidiMap,
+} from './midiInput.js';
 import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
 import { FIELD_SHAPE_OPTIONS, FLOW_MOTION_OPTIONS, PATTERN_OPTIONS, POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, SPACING_OPTIONS, STAMP_SHAPE_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
 import { TEXT_ALIGNS, TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
-import { AUDIO_FEATURES } from './MusicMode.js';
+import { AUDIO_FEATURES, MUSIC_ROUTES } from './MusicMode.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
 import { canDrift } from './driftUtils.js';
 import { DRIFT_MODES } from './DriftManager.js';
@@ -109,6 +116,34 @@ function loadOverlayPrefs() {
   }
 }
 
+const PERFORMANCE_KEY = 'lobby-performance';
+
+function loadPerformancePrefs() {
+  const fallback = {
+    performanceInterval: 18,
+    performanceIncludeOverlay: false,
+    performanceSkipHeavy: true,
+  };
+  try {
+    const raw = localStorage.getItem(PERFORMANCE_KEY);
+    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function savePerformancePrefs(state) {
+  try {
+    localStorage.setItem(PERFORMANCE_KEY, JSON.stringify({
+      performanceInterval: state.performanceInterval,
+      performanceIncludeOverlay: state.performanceIncludeOverlay,
+      performanceSkipHeavy: state.performanceSkipHeavy,
+    }));
+  } catch {
+    /* ignore */
+  }
+}
+
 function saveOverlayPrefs(state) {
   try {
     localStorage.setItem(OVERLAY_KEY, JSON.stringify({
@@ -192,6 +227,8 @@ export class SettingsPanel {
     initialTextStroke = 0,
     initialTextAlign = 'center',
     initialTextEffectAmount = 70,
+    initialTextShadow = 0,
+    initialTextCaps = false,
     onTextEnabledChange,
     onTextSizeChange,
     onTextOpacityChange,
@@ -209,6 +246,8 @@ export class SettingsPanel {
     onTextStrokeChange,
     onTextAlignChange,
     onTextEffectAmountChange,
+    onTextShadowChange,
+    onTextCapsChange,
     onOpenNotepad,
   }) {
     this.presetManager = presetManager;
@@ -245,6 +284,8 @@ export class SettingsPanel {
     this.onTextStrokeChange = onTextStrokeChange;
     this.onTextAlignChange = onTextAlignChange;
     this.onTextEffectAmountChange = onTextEffectAmountChange;
+    this.onTextShadowChange = onTextShadowChange;
+    this.onTextCapsChange = onTextCapsChange;
     this.onOpenNotepad = onOpenNotepad;
     this.visible = true;
     this.gamepadMenuActive = false;
@@ -285,6 +326,8 @@ export class SettingsPanel {
       textStroke: initialTextStroke,
       textAlign: initialTextAlign,
       textEffectAmount: initialTextEffectAmount,
+      textShadow: initialTextShadow,
+      textCaps: initialTextCaps,
       autoCycle: presetManager.autoCycle,
       cycleInterval: presetManager.cycleInterval,
       transitionDuration: presetManager.transitionDuration,
@@ -299,6 +342,7 @@ export class SettingsPanel {
       motionTrails: 100,
       trailsNeverDecay: false,
       ...loadOverlayPrefs(),
+      ...loadPerformancePrefs(),
       resolutionScale: visualizer.resolutionScale ?? defaultResolutionScale(),
       liteMode: loadLiteMode(),
       qualityStep: loadLiteMode() ? 2 : 0,
@@ -461,6 +505,11 @@ export class SettingsPanel {
         const ctrl = bands.add(this.state, key, 0, max, 1).name(label);
         ctrl.disable(true);
         this.musicMeters[key] = ctrl;
+      }
+
+      const routes = music.addFolder('Band presets');
+      for (const name of Object.keys(MUSIC_ROUTES)) {
+        routes.add({ load: () => this.applyMusicRoute(name) }, 'load').name(name);
       }
 
       const channels = music.addFolder('Channels');
@@ -769,6 +818,15 @@ export class SettingsPanel {
         this.onTextStrokeChange?.(value);
       });
     text
+      .add(this.state, 'textShadow', 0, 100, 1)
+      .name('Shadow')
+      .onChange((value) => {
+        this.onTextShadowChange?.(value);
+      });
+    text.add(this.state, 'textCaps').name('All caps').onChange((value) => {
+      this.onTextCapsChange?.(value);
+    });
+    text
       .add(this.state, 'textLineHeight', 90, 220, 1)
       .name('Line spacing %')
       .onChange((value) => {
@@ -845,13 +903,23 @@ export class SettingsPanel {
     menu.add({ autoCycle: () => fire('lobby-autocycle') }, 'autoCycle').name('Auto-cycle');
     this.performanceCtrl = menu.add({ performance: () => fire('lobby-performance') }, 'performance').name('Performance');
     this.performanceCtrl.domElement.classList.add('drift-all-wide');
+    menu.add(this.state, 'performanceInterval', 8, 60, 1).name('Performance interval').onChange((value) => {
+      savePerformancePrefs(this.state);
+      if (this.performanceLive) {
+        this.presetManager.cycleInterval = value;
+        this.state.cycleInterval = value;
+      }
+    });
+    menu.add(this.state, 'performanceIncludeOverlay').name('Performance overlay').onChange(() => savePerformancePrefs(this.state));
+    menu.add(this.state, 'performanceSkipHeavy').name('Skip heavy on Lite').onChange(() => savePerformancePrefs(this.state));
     this.midiCtrl = menu.add({ midi: () => fire('lobby-midi') }, 'midi').name('MIDI');
     this.midiCtrl.domElement.classList.add('drift-all-wide');
     this.midiCtrl.domElement.dataset.help = MIDI_MAP_NOTE;
     this.state.midiMap = MIDI_MAP_NOTE;
-    const midiMap = menu.add(this.state, 'midiMap').name('MIDI map');
-    midiMap.disable();
-    midiMap.domElement.dataset.help = MIDI_MAP_NOTE;
+    this.midiMapCtrl = menu.add(this.state, 'midiMap').name('MIDI map');
+    this.midiMapCtrl.disable();
+    this.midiMapCtrl.domElement.dataset.help = MIDI_MAP_NOTE;
+    this.buildMidiMapFolder(menu);
     menu.add({ tutorial: () => fire('lobby-tutorial') }, 'tutorial').name('Tutorial');
     menu.add({ help: () => fire('lobby-help') }, 'help').name('Help');
   }
@@ -867,9 +935,23 @@ export class SettingsPanel {
     overlay.add(this.state, 'overlayOn').name('Layer B').onChange(sync);
     overlay.add(this.state, 'overlayShader', choices).name('Mode B').onChange(sync);
     overlay.add(this.state, 'overlayMix', 0, 100, 1).name('Mix').onChange(sync);
-    overlay.add(this.state, 'overlayBlend', { Mix: 'Mix', Add: 'Add', Multiply: 'Multiply' }).name('Blend').onChange(sync);
+    const blendCtrl = overlay.add(this.state, 'overlayBlend', { Mix: 'Mix', Add: 'Add', Multiply: 'Multiply' }).name('Blend').onChange(sync);
+    this.addOptionStepper(overlay, blendCtrl, 'blend');
     overlay.add(this.state, 'overlayAudio').name('Audio mix').onChange(sync);
+    overlay.add({ swapLayers: () => this.swapOverlayLayers() }, 'swapLayers').name('Swap A and B');
     this.pushOverlay();
+  }
+
+  swapOverlayLayers() {
+    const mainId = this.state.shader;
+    const layerId = this.state.overlayShader;
+    if (!layerId || layerId === mainId) return;
+    this.state.overlayOn = true;
+    this.state.overlayShader = mainId;
+    this.setShader(layerId);
+    saveOverlayPrefs(this.state);
+    this.pushOverlay();
+    this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
   }
 
   pushOverlay(music = null) {
@@ -1390,6 +1472,7 @@ export class SettingsPanel {
           }
           this.handleValueChange();
         });
+      this.addOptionStepper(folder, controller, 'palette');
     } else if (spec.kind === 'shape') {
       controller = folder
         .add(this.state, key, { ...SHAPE_OPTIONS })
@@ -1898,6 +1981,74 @@ export class SettingsPanel {
       this.musicMode.currentShader = this.state.shader;
       this.musicMode.captureBaseline(this.getValues());
     }
+  }
+
+  applyMusicRoute(name) {
+    if (!this.musicMode) return;
+    this.musicMode.applyRoute(name);
+    for (let i = 0; i < 10; i++) {
+      this.state[`musicCh${i}`] = this.musicMode.channels[i] || 'off';
+    }
+    this.rebuildAudioLinks();
+    this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  addOptionStepper(folder, controller, label) {
+    const step = (delta) => {
+      const values = controller._values;
+      if (!Array.isArray(values) || values.length < 2) return;
+      const current = controller.getValue();
+      let index = values.findIndex((value) => String(value) === String(current));
+      if (index < 0) index = 0;
+      controller.setValue(values[(index + delta + values.length) % values.length]);
+    };
+    folder.add({ prev: () => step(-1) }, 'prev').name(`Previous ${label}`);
+    folder.add({ next: () => step(1) }, 'next').name(`Next ${label}`);
+  }
+
+  fillMidiMapState() {
+    this.midiMap.cc.forEach((row, index) => {
+      this.state[`midiCc${index}`] = row.cc;
+      this.state[`midiCcTarget${index}`] = row.target;
+    });
+    this.midiMap.notes.forEach((row, index) => {
+      this.state[`midiNote${index}`] = row.note;
+      this.state[`midiNoteAction${index}`] = row.action;
+    });
+  }
+
+  buildMidiMapFolder(menu) {
+    this.midiMap = loadMidiMap();
+    const folder = menu.addFolder('MIDI map');
+    folder.add({
+      reset: () => {
+        this.midiMap = defaultMidiMap();
+        saveMidiMap(this.midiMap);
+        this.fillMidiMapState();
+        this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+      },
+    }, 'reset').name('Reset to FLX4 / Launchkey');
+    this.fillMidiMapState();
+    this.midiMap.cc.forEach((_row, index) => {
+      folder.add(this.state, `midiCc${index}`, 0, 127, 1).name(`CC slot ${index + 1}`).onChange((value) => {
+        this.midiMap.cc[index].cc = Math.round(value);
+        saveMidiMap(this.midiMap);
+      });
+      folder.add(this.state, `midiCcTarget${index}`, MIDI_CC_TARGETS).name(`CC ${index + 1} controls`).onChange((value) => {
+        this.midiMap.cc[index].target = value;
+        saveMidiMap(this.midiMap);
+      });
+    });
+    this.midiMap.notes.forEach((_row, index) => {
+      folder.add(this.state, `midiNote${index}`, 0, 127, 1).name(`Note slot ${index + 1}`).onChange((value) => {
+        this.midiMap.notes[index].note = Math.round(value);
+        saveMidiMap(this.midiMap);
+      });
+      folder.add(this.state, `midiNoteAction${index}`, MIDI_NOTE_ACTIONS).name(`Note ${index + 1} does`).onChange((value) => {
+        this.midiMap.notes[index].action = value;
+        saveMidiMap(this.midiMap);
+      });
+    });
   }
 
   rebuildAudioLinks() {

@@ -25,10 +25,34 @@ const SHADER_MODS = {
   flow: ['uFieldScale', 'uNoiseScale', 'uTrailAlpha'],
   spocks: ['uRotate', 'uMyTime', 'uZoom'],
   kaleido: ['uWarp', 'uLineWidth', 'uShapeMorph', 'uCenterStrength'],
-  metaballs: ['uEdgeGlow', 'uSoftness'],
+  metaballs: ['uEdgeGlow', 'uSoftness', 'uDrift', 'uWarp'],
   wormhole: ['uTunnelDepth', 'uSwirl', 'uHorizonGlow', 'uColorSpeed'],
-  ribbons: ['uTwistAmount', 'uThickness'],
+  ribbons: ['uTwistAmount', 'uThickness', 'uWave', 'uGlow'],
   layers: ['uMix', 'uSpeedOffset', 'uLayerScale'],
+  orb: ['uSpin', 'uWarp', 'uGlow', 'uZoom'],
+  tunnel: ['uTwist', 'uWarp', 'uGlow', 'uZoom'],
+  chamber: ['uSpin', 'uWarp', 'uGlow', 'uZoom'],
+};
+
+const OFF = ['off', 'off', 'off', 'off', 'off', 'off', 'off', 'off', 'off', 'off'];
+
+export const MUSIC_ROUTES = {
+  'Full band': {
+    channels: [...DEFAULT_CHANNELS],
+    assigns: { uZoom: 0, uScale: 2, uBloom: 5, uSpeed: 6, uBrightness: 4 },
+  },
+  'Kick and hat': {
+    channels: ['kick', 'hihat', ...OFF.slice(2)],
+    assigns: { uBloom: 0, uSpeed: 0, uScale: 1 },
+  },
+  'Bass zoom': {
+    channels: ['bass', 'mid', 'high', 'beat', ...OFF.slice(4)],
+    assigns: { uZoom: 0, uScale: 1, uSaturation: 2, uBloom: 3 },
+  },
+  'Beat pulse': {
+    channels: ['beat', 'bpm', 'kick', ...OFF.slice(3)],
+    assigns: { uSpeed: 0, uBloom: 1, uBrightness: 2 },
+  },
 };
 
 function statusFromError(err, source) {
@@ -70,6 +94,8 @@ export class MusicMode {
     this.beatHold = 0;
     this.peakEnergy = 0.08;
     this.clock = 0;
+    this.phase = 0;
+    this.beatEnv = 0;
     this.beatTimes = [];
     this.bpm = 0;
     this.channels = this.loadChannels();
@@ -102,6 +128,19 @@ export class MusicMode {
     this.channels[index] = next;
     try {
       localStorage.setItem(CHANNEL_KEY, JSON.stringify(this.channels));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  applyRoute(name) {
+    const route = MUSIC_ROUTES[name];
+    if (!route) return;
+    this.channels = route.channels.map((v) => v || 'off');
+    this.assignments = { ...route.assigns };
+    try {
+      localStorage.setItem(CHANNEL_KEY, JSON.stringify(this.channels));
+      localStorage.setItem(ASSIGN_KEY, JSON.stringify(this.assignments));
     } catch {
       /* ignore */
     }
@@ -302,7 +341,8 @@ export class MusicMode {
     for (let i = 0; i < len; i++) total += this.freqData[i];
     const energy = total / len / 255;
 
-    this.peakEnergy = Math.max(energy * 1.05, this.peakEnergy * 0.9995);
+    if (energy > this.peakEnergy) this.peakEnergy = lerp(this.peakEnergy, energy, 0.2);
+    else this.peakEnergy *= 0.997;
     const norm = energy / Math.max(this.peakEnergy, 0.04);
 
     let beat = 0;
@@ -332,10 +372,13 @@ export class MusicMode {
       }
     }
 
+    if (raw.beat > 0.5) this.beatEnv = 1;
+    else this.beatEnv = Math.max(0, this.beatEnv - dt * 1.8);
+    this.phase += dt * (0.45 + (this.smoothed.energy || 0) * 1.6 + Math.max(this.bpm, 40) / 110);
+
     for (const key of Object.keys(this.smoothed)) {
-      const target = key === 'bpm' ? clamp(this.bpm / 180, 0, 1) : key === 'beat' ? raw.beat : raw[key] ?? 0;
+      const target = key === 'bpm' ? clamp(this.bpm / 180, 0, 1) : key === 'beat' ? this.beatEnv : raw[key] ?? 0;
       this.smoothed[key] = lerp(this.smoothed[key] ?? 0, target, k);
-      if (key === 'beat' && this.smoothed.beat < 0.02) this.smoothed.beat = 0;
     }
 
     this.level = Math.round(
@@ -352,10 +395,11 @@ export class MusicMode {
     const specs = getSpecMap(this.currentShader);
     const { bass, mid, treble, energy, beat } = this.smoothed;
     const s = this.sensitivity / 100;
+    const sway = 0.5 + 0.5 * Math.sin(this.phase * Math.PI * 2);
     const out = { ...b };
     const signed = (key, amount) => amount * this.spinSign(key, b[key], specs[key]);
 
-    out.uSpeed = clamp(Math.round(b.uSpeed + energy * 10 * s + beat * 6 * s), 0, 100);
+    out.uSpeed = clamp(Math.round(b.uSpeed + energy * 8 * s + beat * 6 * s + sway * 7 * s), 0, 100);
     out.uScale = clamp(Math.round(b.uScale + bass * 7 * s - treble * 2 * s), 0, 100);
     const complexityMin = 0;
     const complexityMax = 100;
@@ -397,8 +441,9 @@ export class MusicMode {
       if (!feature || feature === 'off') continue;
       const level = this.featureLevel(feature);
       const span = (spec.max - spec.min) * 0.4;
+      const moving = level * 0.82 + sway * 0.18;
       out[key] = clamp(
-        Math.round(b[key] + signed(key, level * span * s)),
+        Math.round(b[key] + signed(key, moving * span * s)),
         spec.min,
         spec.max,
       );

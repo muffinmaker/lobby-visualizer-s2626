@@ -180,7 +180,10 @@ function flowDrawCount(shaderParticleCount, maxParticles = FLOW_MAX_PARTICLES) {
 }
 
 function setFlowParticleDrawRange(geometry, shaderParticleCount, maxParticles = FLOW_MAX_PARTICLES) {
-  geometry.setDrawRange(0, flowDrawCount(shaderParticleCount, maxParticles));
+  const count = flowDrawCount(shaderParticleCount, maxParticles);
+  if (geometry.userData.drawCount === count) return;
+  geometry.userData.drawCount = count;
+  geometry.setDrawRange(0, count);
 }
 
 function ensureFlowGeometryCapacity(geometry, liteMode = false) {

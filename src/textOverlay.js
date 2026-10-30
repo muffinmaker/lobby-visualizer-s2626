@@ -16,6 +16,8 @@ const TRACKING_KEY = 'lobby-viz-text-tracking';
 const STROKE_KEY = 'lobby-viz-text-stroke';
 const ALIGN_KEY = 'lobby-viz-text-align';
 const EFFECT_AMOUNT_KEY = 'lobby-viz-text-effect-amount';
+const SHADOW_KEY = 'lobby-viz-text-shadow';
+const CAPS_KEY = 'lobby-viz-text-caps';
 
 export const TEXT_SIZE_MIN = 40;
 export const TEXT_SIZE_MAX = 1200;
@@ -317,6 +319,26 @@ export function saveTextAlign(value) {
   try { localStorage.setItem(ALIGN_KEY, value); } catch { /* ignore */ }
 }
 
+export function loadStoredTextShadow() {
+  return loadPercent(SHADOW_KEY, 0);
+}
+
+export function saveTextShadow(value) {
+  try { localStorage.setItem(SHADOW_KEY, String(value)); } catch { /* ignore */ }
+}
+
+export function loadStoredTextCaps() {
+  try {
+    return localStorage.getItem(CAPS_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveTextCaps(enabled) {
+  try { localStorage.setItem(CAPS_KEY, enabled ? '1' : '0'); } catch { /* ignore */ }
+}
+
 export function loadStoredTextEffectAmount() {
   return loadPercent(EFFECT_AMOUNT_KEY, 70);
 }
@@ -380,6 +402,8 @@ export function createTextOverlayController() {
   let stroke = loadStoredTextStroke();
   let align = loadStoredTextAlign();
   let effectAmount = loadStoredTextEffectAmount();
+  let shadow = loadStoredTextShadow();
+  let caps = loadStoredTextCaps();
   let driftX = 0;
   let driftY = 0;
   let wanderAngle = 0.4;
@@ -418,6 +442,13 @@ export function createTextOverlayController() {
     return effect !== 'none' || drift;
   }
 
+  function dropShadowCss() {
+    if (shadow <= 0) return '';
+    const px = (shadow / 100) * Math.max(10, size * 0.06);
+    const ink = color === 'black' ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.75)';
+    return `${(px * 0.28).toFixed(1)}px ${(px * 0.5).toFixed(1)}px ${(px * 0.85).toFixed(1)}px ${ink}`;
+  }
+
   function paintMotion(time = motionTime) {
     if (!el) return;
     const amp = Math.max(0.05, (effectSpeed / 100) * (effectAmount / 70));
@@ -454,10 +485,10 @@ export function createTextOverlayController() {
         tx += Math.sin(t * 80) * 16 * amp;
         el.style.textShadow = `${6 * amp}px 0 #f3c, ${-6 * amp}px 0 #3cf`;
       } else {
-        el.style.textShadow = '';
+        el.style.textShadow = dropShadowCss();
       }
     } else {
-      el.style.textShadow = '';
+      el.style.textShadow = dropShadowCss();
     }
 
     const shiftX = align === 'center' ? 'translateX(-50%)' : '';
@@ -513,6 +544,7 @@ export function createTextOverlayController() {
     el.dataset.position = position;
     el.dataset.align = align;
     el.style.letterSpacing = `${((tracking - 40) / 100).toFixed(3)}em`;
+    el.style.textTransform = caps ? 'uppercase' : 'none';
     const strokePx = (stroke / 100) * 10;
     el.style.webkitTextStroke = strokePx > 0.2 ? `${strokePx.toFixed(2)}px ${color === 'black' ? '#fff' : '#000'}` : '';
     el.textContent = content;
@@ -629,6 +661,18 @@ export function createTextOverlayController() {
     saveTextEffectAmount(effectAmount);
   }
 
+  function setShadow(percent) {
+    shadow = Math.max(0, Math.min(100, percent));
+    saveTextShadow(shadow);
+    applyStyles();
+  }
+
+  function setCaps(next) {
+    caps = Boolean(next);
+    saveTextCaps(caps);
+    applyStyles();
+  }
+
   function setLineHeight(percent) {
     lineHeight = Math.max(90, Math.min(220, percent));
     saveTextLineHeight(lineHeight);
@@ -684,6 +728,8 @@ export function createTextOverlayController() {
     setStroke,
     setAlign,
     setEffectAmount,
+    setShadow,
+    setCaps,
     openNotepad,
     closeNotepad,
     getEnabled: () => enabled,

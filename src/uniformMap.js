@@ -50,6 +50,29 @@ function unstretchNegative(t, spec) {
   return 0.5 - (0.5 - t) / scale;
 }
 
+/** Keep the lower part of the slider near the old range, then open the top end. */
+function applyFar(t, spec) {
+  const far = spec.shaderFar;
+  if (far == null || spec.kind === 'zoom') return null;
+  const knee = 0.62;
+  const span = spec.shaderMax - spec.shaderMin;
+  if (t <= knee) return spec.shaderMin + t * span;
+  const atKnee = spec.shaderMin + knee * span;
+  const u = (t - knee) / (1 - knee);
+  return atKnee + Math.pow(u, 0.8) * (far - atKnee);
+}
+
+function undoFar(shader, spec) {
+  const far = spec.shaderFar;
+  if (far == null || spec.kind === 'zoom') return null;
+  const knee = 0.62;
+  const span = spec.shaderMax - spec.shaderMin;
+  const atKnee = spec.shaderMin + knee * span;
+  if (shader <= atKnee) return span === 0 ? 0 : (shader - spec.shaderMin) / span;
+  const u = Math.max(0, Math.min(1, (shader - atKnee) / (far - atKnee || 1)));
+  return knee + Math.pow(u, 1 / 0.8) * (1 - knee);
+}
+
 function tToUi(t, spec) {
   t = clamp(t, 0, 1);
   if (spec.invert) t = 1 - t;
@@ -88,7 +111,7 @@ export function uiToShader(ui, spec) {
 
   const t = stretchNegative(uiToT(ui, spec), spec);
   if (spec.shaderMin !== undefined && spec.shaderMax !== undefined) {
-    return spec.shaderMin + t * (spec.shaderMax - spec.shaderMin);
+    return applyFar(t, spec) ?? spec.shaderMin + t * (spec.shaderMax - spec.shaderMin);
   }
 
   return ui / 100;
@@ -125,7 +148,8 @@ export function shaderToUi(shader, spec) {
   }
 
   if (spec.shaderMin !== undefined && spec.shaderMax !== undefined) {
-    const t = (shader - spec.shaderMin) / (spec.shaderMax - spec.shaderMin || 1);
+    const undone = undoFar(shader, spec);
+    const t = undone ?? (shader - spec.shaderMin) / (spec.shaderMax - spec.shaderMin || 1);
     return tToUi(unstretchNegative(t, spec), spec);
   }
 

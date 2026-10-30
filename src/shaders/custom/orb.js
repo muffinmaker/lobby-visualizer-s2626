@@ -22,6 +22,8 @@ export default {
     uniform float uBloom;
     uniform float uSpin;
     uniform float uDetail;
+    uniform float uGlow;
+    uniform float uWarp;
     uniform float uPalette;
     uniform vec2 uResolution;
     uniform float uAspect;
@@ -39,8 +41,9 @@ export default {
       p.xz = rot(uTime * (0.25 + uSpin) ) * p.xz;
       p.xy = rot(uTime * 0.17 * uSpin) * p.xy;
       float radius = 0.72;
-      float wobble = sin(p.x * 5.0 + uTime) * sin(p.y * 5.0) * sin(p.z * 5.0);
-      return length(p) - radius - wobble * (0.04 + uDetail * 0.12);
+      float freq = 3.0 + uWarp * 6.0;
+      float wobble = sin(p.x * freq + uTime) * sin(p.y * freq) * sin(p.z * freq);
+      return length(p) - radius - wobble * (0.04 + uDetail * 0.16);
     }
 
     vec3 normalAt(vec3 p) {
@@ -76,8 +79,8 @@ export default {
         float rim = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 2.2);
         float hue = 0.15 + n.y * 0.35 + uTime * 0.05;
         vec3 ink = namedPalette(hue, uPalette);
-        col = ink * (0.18 + light * 0.9) + ink * rim * 0.55;
-        col += namedPalette(hue + 0.2, uPalette) * uBloom * rim * 0.35;
+        col = ink * (0.18 + light * 0.9) + ink * rim * (0.25 + uGlow);
+        col += namedPalette(hue + 0.2, uPalette) * uBloom * rim * (0.2 + uGlow * 0.45);
       }
       float gray = dot(col, vec3(0.299, 0.587, 0.114));
       col = mix(vec3(gray), col, uSaturation);

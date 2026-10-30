@@ -10,7 +10,7 @@ import { mountTransportBar } from './TransportBar.js';
 import { mountHelpMode } from './helpMode.js';
 import { mountMobileBar } from './MobileBar.js';
 import { consumePinch, mountTouchGestures } from './touchGestures.js';
-import { createMidiInput, LAUNCHKEY_PAD_NOTES, MIDI_CC_TO_SETTING, MIDI_MAP_NOTE } from './midiInput.js';
+import { createMidiInput, midiCcTarget, midiNoteAction } from './midiInput.js';
 import { getSpecMap } from './uniformMap.js';
 import { applyMenuScale, loadMenuScale } from './menuBigMode.js';
 import { createGamepadController, showGamepadToast } from './GamepadController.js';
@@ -62,6 +62,8 @@ import {
   loadStoredTextStroke,
   loadStoredTextAlign,
   loadStoredTextEffectAmount,
+  loadStoredTextShadow,
+  loadStoredTextCaps,
 } from './textOverlay.js';
 import { LITE_MODE_KEY } from './liteMode.js';
 
@@ -378,6 +380,8 @@ async function start() {
     initialTextStroke: loadStoredTextStroke(),
     initialTextAlign: loadStoredTextAlign(),
     initialTextEffectAmount: loadStoredTextEffectAmount(),
+    initialTextShadow: loadStoredTextShadow(),
+    initialTextCaps: loadStoredTextCaps(),
     onTextEnabledChange: (value) => {
       textOverlay.setEnabled(value);
     },
@@ -421,6 +425,8 @@ async function start() {
     onTextStrokeChange: (value) => textOverlay.setStroke(value),
     onTextAlignChange: (value) => textOverlay.setAlign(value),
     onTextEffectAmountChange: (value) => textOverlay.setEffectAmount(value),
+    onTextShadowChange: (value) => textOverlay.setShadow(value),
+    onTextCapsChange: (value) => textOverlay.setCaps(value),
     onOpenNotepad: () => {
       textOverlay.openNotepad();
     },
@@ -624,6 +630,7 @@ async function start() {
   function setPerformanceMode(on) {
     if (on === performance.on) return;
     performance.on = on;
+    settings.performanceLive = on;
     if (on) {
       performance.autoCycle = presetManager.autoCycle;
       performance.smooth = presetManager.smoothTransitions;
@@ -631,8 +638,18 @@ async function start() {
       performance.randomize = presetManager.randomizeOnCycle;
       performance.steps = 0;
       presetManager.randomizeOnCycle = false;
-      presetManager.cycleInterval = Math.min(presetManager.cycleInterval, 18);
+      performance.overlayOn = settings.state.overlayOn;
+      performance.overlayShader = settings.state.overlayShader;
+      presetManager.cycleInterval = settings.state.performanceInterval ?? 18;
       settings.state.cycleInterval = presetManager.cycleInterval;
+      if (settings.state.performanceIncludeOverlay) {
+        settings.state.overlayOn = true;
+        if (!settings.state.overlayShader || settings.state.overlayShader === settings.state.shader) {
+          settings.state.overlayShader = SHADER_IDS.find((id) => id !== settings.state.shader) || settings.state.overlayShader;
+        }
+        if ((settings.state.overlayMix ?? 0) < 5) settings.state.overlayMix = 40;
+        settings.pushOverlay(musicMode);
+      }
       presetManager.setSmoothTransitions(true);
       presetManager.setAutoCycle(true);
       performance.driftKeys = settings.setPerformanceDrift(true);
@@ -641,6 +658,11 @@ async function start() {
       presetManager.randomizeOnCycle = performance.randomize;
       presetManager.cycleInterval = performance.interval;
       settings.state.cycleInterval = performance.interval;
+      if (performance.overlayOn !== undefined) {
+        settings.state.overlayOn = performance.overlayOn;
+        settings.state.overlayShader = performance.overlayShader;
+        settings.pushOverlay(musicMode);
+      }
       settings.setPerformanceDrift(false, performance.driftKeys);
       performance.driftKeys = [];
       presetManager.setSmoothTransitions(performance.smooth);
@@ -658,7 +680,8 @@ async function start() {
     if (!midi) {
       midi = createMidiInput({
         onNote(note, _velocity, down) {
-          if (LAUNCHKEY_PAD_NOTES.invert.includes(note)) {
+          const action = midiNoteAction(settings.midiMap, note);
+          if (action === 'invert') {
             if (!down) return;
             settings.state.uInvert = Number(settings.state.uInvert) > 0.5 ? 0 : 1;
             settings.ensureInvertRow();
@@ -666,12 +689,20 @@ async function start() {
             showGamepadToast(settings.state.uInvert ? 'Invert on' : 'Invert off');
             return;
           }
-          if (LAUNCHKEY_PAD_NOTES.blackout.includes(note)) {
+          if (action === 'blackout') {
             visualizer.blackout = down;
             return;
           }
-          if (LAUNCHKEY_PAD_NOTES.strobe.includes(note)) {
+          if (action === 'strobe') {
             visualizer.strobe = down;
+            return;
+          }
+          if (action === 'performance') {
+            if (down) setPerformanceMode(!performance.on);
+            return;
+          }
+          if (action === 'swap') {
+            if (down) settings.swapOverlayLayers();
             return;
           }
           if (!down) return;
@@ -681,7 +712,14 @@ async function start() {
           onPresetNext();
         },
         onCc(cc, value) {
-          const key = MIDI_CC_TO_SETTING[cc];
+          const key = midiCcTarget(settings.midiMap, cc);
+          if (key === 'overlayMix') {
+            settings.state.overlayOn = true;
+            settings.state.overlayMix = Math.round((value / 127) * 100);
+            settings.pushOverlay(musicMode);
+            settings.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+            return;
+          }
           if (!key) return;
           const spec = getSpecMap(settings.state.shader)[key];
           if (!spec) return;
@@ -884,7 +922,20 @@ async function start() {
         performance.steps += 1;
         if (performance.steps % 3 === 0) {
           performance.skipShaderStep = true;
-          presetManager.cycleShader(1);
+          const heavy = new Set(['spocks', 'flow', 'orb', 'tunnel', 'chamber']);
+          const lite = settings.state.liteMode || settings.state.performancePreset === 'lite';
+          const skipHeavy = lite && settings.state.performanceSkipHeavy !== false;
+          const pool = SHADER_IDS.filter((id) => !(skipHeavy && heavy.has(id)));
+          const list = pool.length ? pool : SHADER_IDS;
+          const idx = Math.max(0, list.indexOf(presetManager.activeShader));
+          const nextId = list[(idx + 1) % list.length];
+          if (nextId !== presetManager.activeShader) presetManager.switchToShader(nextId);
+          if (settings.state.performanceIncludeOverlay) {
+            const layer = list.find((id) => id !== nextId) || nextId;
+            settings.state.overlayOn = true;
+            settings.state.overlayShader = layer;
+            settings.pushOverlay(musicMode);
+          }
         }
       }
     }
@@ -1076,6 +1127,11 @@ async function start() {
     return narrow;
   }
 
+  function syncVisualHeight() {
+    const height = window.visualViewport?.height || window.innerHeight;
+    document.documentElement.style.setProperty('--app-height', `${Math.round(height)}px`);
+  }
+
   function measurePhoneBar() {
     const visible =
       phoneBar?.element &&
@@ -1087,16 +1143,18 @@ async function start() {
 
   function applyPhoneLayout(matches) {
     document.body.classList.toggle('phone-ui', matches);
+    settings.midiMapCtrl?.domElement.classList.toggle('is-hidden', matches);
     const landscape = window.matchMedia('(orientation: landscape)').matches;
     document.body.classList.toggle('phone-landscape', matches && landscape);
-    if (
-      matches &&
-      settings.state.resolutionScale >= 100 &&
-      !sessionStorage.getItem('lobby-phone-res')
-    ) {
-      sessionStorage.setItem('lobby-phone-res', '1');
-      settings.state.resolutionScale = 70;
-      settings.visualizer.setResolutionScale(70);
+    try {
+      if (matches && !localStorage.getItem('lobby-phone-perf')) {
+        localStorage.setItem('lobby-phone-perf', '1');
+        if (!settings.state.liteMode && settings.state.performancePreset !== 'balanced') {
+          settings.setPerformancePreset('balanced');
+        }
+      }
+    } catch {
+      /* private mode */
     }
     phoneBar.element.hidden = !matches;
     if (matches) {
@@ -1123,7 +1181,12 @@ async function start() {
   }
 
   syncPhoneLayout();
-  window.addEventListener('resize', syncPhoneLayout);
+  syncVisualHeight();
+  window.addEventListener('resize', () => {
+    syncPhoneLayout();
+    syncVisualHeight();
+  });
+  window.visualViewport?.addEventListener('resize', syncVisualHeight);
   window.addEventListener('orientationchange', syncPhoneLayout);
   window.matchMedia('(hover: hover) and (pointer: fine)').addEventListener('change', syncPhoneLayout);
   window.matchMedia('(pointer: coarse)').addEventListener('change', syncPhoneLayout);
