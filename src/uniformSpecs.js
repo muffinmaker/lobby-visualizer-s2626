@@ -93,6 +93,7 @@ export const GLOBAL_UNIFORMS = {
   uBloom: pct(40, 0, 2),
   uWhiteness: { ...pct(0, 0, 1), label: 'Whiteness' },
   uBlackness: { ...pct(0, 0, 1), label: 'Blackness' },
+  uInvert: { ...toggle(0), label: 'Invert' },
   uPanX: center(50, -3.75, 3.75),
   uPanY: center(50, -3.75, 3.75),
   uPal0R: rgb(255),

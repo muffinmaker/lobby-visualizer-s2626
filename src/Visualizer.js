@@ -41,6 +41,17 @@ void main() {
   gl_FragColor = vec4(prev.rgb, 1.0);
 }`;
 
+const PRESENT_FRAG = `
+uniform sampler2D uMap;
+uniform float uInvert;
+varying vec2 vUv;
+
+void main() {
+  vec4 color = texture2D(uMap, vUv);
+  if (uInvert > 0.5) color.rgb = vec3(1.0) - color.rgb;
+  gl_FragColor = vec4(color.rgb, 1.0);
+}`;
+
 function buildUniforms(shaderId, uiValues = {}) {
   const shader = SHADERS[shaderId];
   const specs = { ...GLOBAL_UNIFORMS, ...shader.uniforms };
@@ -240,8 +251,19 @@ export class Visualizer {
     this.trailScene.add(new THREE.Mesh(createFullscreenQuad(), this.trailMaterial));
 
     this.compositeScene = new THREE.Scene();
-    this.compositeMaterial = new THREE.MeshBasicMaterial({ map: null, depthTest: false, depthWrite: false });
+    this.compositeMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uMap: { value: null },
+        uInvert: { value: 0 },
+      },
+      vertexShader: FULLSCREEN_VERT,
+      fragmentShader: wrapFragment(PRESENT_FRAG),
+      depthTest: false,
+      depthWrite: false,
+    });
     this.compositeScene.add(new THREE.Mesh(createFullscreenQuad(), this.compositeMaterial));
+    this.presentTarget = null;
+    this.invertColors = false;
 
     this.meshes = {};
     this.materials = {};
@@ -538,7 +560,21 @@ export class Visualizer {
     }
 
     this.recreateTrailBuffers();
+    this.presentTarget?.dispose();
+    this.presentTarget = new THREE.WebGLRenderTarget(rw, rh, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+    });
     this.onViewportResize?.();
+  }
+
+  present(texture) {
+    this.compositeMaterial.uniforms.uMap.value = texture;
+    this.compositeMaterial.uniforms.uInvert.value = this.invertColors ? 1 : 0;
+    this.renderer.setRenderTarget(null);
+    this.renderer.setClearColor(this.backgroundColor, 1);
+    this.renderer.clear();
+    this.renderer.render(this.compositeScene, this.quadCamera);
   }
 
   renderScene(target = null) {
@@ -573,6 +609,7 @@ export class Visualizer {
     this.animPhase += dt * (prevSpeed + nextSpeed) * 0.5;
     this.lastAnimSpeed = nextSpeed;
     material.uniforms.uTime.value = this.animPhase;
+    this.invertColors = (smoothed.uInvert ?? 0) > 0.5;
 
     const useTrails = this.usesTrails(shaderId);
 
@@ -588,15 +625,13 @@ export class Visualizer {
       this.renderer.autoClear = false;
       this.renderScene(next);
 
-      this.renderer.setRenderTarget(null);
       this.renderer.autoClear = true;
-      this.renderer.setClearColor(this.backgroundColor, 1);
-      this.renderer.clear();
-      this.compositeMaterial.map = next.texture;
-      this.compositeMaterial.needsUpdate = true;
-      this.renderer.render(this.compositeScene, this.quadCamera);
+      this.present(next.texture);
 
       this.trailTargets.reverse();
+    } else if (this.invertColors && this.presentTarget) {
+      this.renderScene(this.presentTarget);
+      this.present(this.presentTarget.texture);
     } else {
       this.renderer.setRenderTarget(null);
       this.renderer.setClearColor(this.backgroundColor, 1);
@@ -613,6 +648,7 @@ export class Visualizer {
     for (const geo of Object.values(this.geometries)) geo.dispose();
     for (const mat of Object.values(this.materials)) mat.dispose();
     this.trailMaterial.dispose();
+    this.presentTarget?.dispose();
     this.compositeMaterial.dispose();
     this.renderer.dispose();
   }

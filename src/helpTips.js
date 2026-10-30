@@ -7,6 +7,7 @@ const TIPS = {
   uBloom: 'Soft glow around the bright parts.',
   uWhiteness: 'Pulls the palette toward white.',
   uBlackness: 'Pulls the palette toward black.',
+  uInvert: 'Flips the finished picture, so a light image becomes dark and a dark image becomes light.',
   uPanX: 'Look left and right. 50 is the center.',
   uPanY: 'Look up and down. 50 is the center.',
   uTrailDecay: 'How long marks stay. 100 keeps them so you can paint. Lower values fade the stroke.',

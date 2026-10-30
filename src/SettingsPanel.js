@@ -48,6 +48,7 @@ const COLOR_KEYS = new Set([
   'uPalette',
   'uWhiteness',
   'uBlackness',
+  'uInvert',
   'uSaturation',
   'uHueShift',
   'uColorSpeed',
