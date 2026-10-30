@@ -68,8 +68,9 @@ function isColorKey(key) {
 }
 
 function formatDisplayValue(value) {
-  const rounded = Math.round(value * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  const rounded = Math.round(Number(value) * 10) / 10;
+  if (!Number.isFinite(rounded)) return '';
+  return rounded.toFixed(1);
 }
 
 function configureNumberController(controller) {
@@ -311,34 +312,14 @@ export class SettingsPanel {
     const pm = this.presetManager;
     const dm = this.driftManager;
 
+    this.buildMenuSection(pm);
     this.buildDisplaySection();
     this.buildDriftSection(dm);
     this.buildGlobalSection();
     this.buildColorSection();
     this.rebuildShaderFolder(this.state.shader);
 
-    this.gui.add(this.state, 'shader', getShaderChoices()).name('Shader').onChange((id) => {
-      this.setShader(id);
-    });
-
-    this.presetController = this.gui
-      .add(this.state, 'preset', pm.getPresetNames(this.state.shader))
-      .name('Preset')
-      .onChange((name) => {
-        pm.setActiveShader(this.state.shader);
-        pm.syncCurrentIndexForShader(name);
-        pm.goToByName(name, { randomize: false, shader: this.state.shader });
-      });
-
-    const resetActions = {
-      resetPreset: () => pm.resetToOriginals(),
-    };
-    this.resetPresetCtrl = this.gui.add(resetActions, 'resetPreset').name('↺ Reset preset');
     this.refreshResetPresetButton();
-    const uploadActions = {
-      uploadPreset: () => document.dispatchEvent(new CustomEvent('lobby-upload-preset')),
-    };
-    this.gui.add(uploadActions, 'uploadPreset').name('Upload preset');
 
     this.buildLogoSection();
     this.buildTextOverlaySection();
@@ -668,6 +649,42 @@ export class SettingsPanel {
       });
   }
 
+  buildMenuSection(pm) {
+    this.collapseCtrl = this.gui
+      .add({ collapseAll: () => this.closeAllFolders() }, 'collapseAll')
+      .name('Collapse all');
+
+    const menu = this.gui.addFolder('Controls');
+    this.menuFolder = menu;
+    const fire = (name) => document.dispatchEvent(new CustomEvent(name));
+
+    menu.add(this.state, 'shader', getShaderChoices()).name('Shader').onChange((id) => {
+      this.setShader(id);
+    });
+    this.presetController = menu
+      .add(this.state, 'preset', pm.getPresetNames(this.state.shader))
+      .name('Preset')
+      .onChange((name) => {
+        pm.setActiveShader(this.state.shader);
+        pm.syncCurrentIndexForShader(name);
+        pm.goToByName(name, { randomize: false, shader: this.state.shader });
+      });
+    this.resetPresetCtrl = menu
+      .add({ resetPreset: () => pm.resetToOriginals() }, 'resetPreset')
+      .name('Reset preset');
+
+    menu.add({ previousShader: () => fire('lobby-shader-prev') }, 'previousShader').name('Previous shader');
+    menu.add({ nextShader: () => fire('lobby-shader-next') }, 'nextShader').name('Next shader');
+    menu.add({ cyclePreset: () => fire('lobby-preset-next') }, 'cyclePreset').name('Cycle preset');
+    menu.add({ savePreset: () => fire('lobby-save-preset') }, 'savePreset').name('Save preset');
+    menu.add({ uploadPreset: () => fire('lobby-upload-preset') }, 'uploadPreset').name('Upload preset');
+    menu.add({ driftAll: () => fire('lobby-drift-all') }, 'driftAll').name('Drift all');
+    menu.add({ smooth: () => fire('lobby-smooth') }, 'smooth').name('Smooth transitions');
+    menu.add({ autoCycle: () => fire('lobby-autocycle') }, 'autoCycle').name('Auto-cycle');
+    menu.add({ tutorial: () => fire('lobby-tutorial') }, 'tutorial').name('Tutorial');
+    menu.add({ help: () => fire('lobby-help') }, 'help').name('Help');
+  }
+
   buildDisplaySection() {
     const display = this.gui.addFolder('Display');
     this.displayFolder = display;
@@ -802,8 +819,10 @@ export class SettingsPanel {
     const anchor = this.displayFolder?.domElement;
     const parent = anchor?.parentElement;
     if (!parent) return;
-    const order = [this.displayFolder, this.globalFolder, this.shaderFolder, this.colorFolder];
-    let cursor = null;
+    const collapseEl = this.collapseCtrl?.domElement;
+    if (collapseEl) parent.insertBefore(collapseEl, parent.firstElementChild);
+    const order = [this.menuFolder, this.displayFolder, this.globalFolder, this.shaderFolder, this.colorFolder];
+    let cursor = collapseEl ?? null;
     for (const folder of order) {
       const el = folder?.domElement;
       if (!el) continue;
@@ -968,7 +987,7 @@ export class SettingsPanel {
 
   notePerf(fps, frameMs) {
     const load = describeModeLoad(this.state.shader, this.state);
-    const text = `${Math.round(fps)} fps · ${frameMs.toFixed(1)} ms · ${load}`;
+    const text = `${Number(fps).toFixed(1)} fps · ${Number(frameMs).toFixed(1)} ms · ${load}`;
     this.state.perfNote = text;
     this.perfNoteCtrl?.updateDisplay();
     const badge = document.getElementById('perf-readout');

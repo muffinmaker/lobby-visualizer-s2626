@@ -582,6 +582,21 @@ async function start() {
     onUploadPresetFile(presetFileInput.files?.[0]);
   });
   document.addEventListener('lobby-upload-preset', openPresetFile);
+  document.addEventListener('lobby-shader-prev', onShaderPrev);
+  document.addEventListener('lobby-shader-next', onShaderNext);
+  document.addEventListener('lobby-preset-next', onPresetNext);
+  document.addEventListener('lobby-save-preset', onSavePreset);
+  document.addEventListener('lobby-drift-all', () => {
+    const enabled = settings.toggleDriftAll();
+    transport?.setDriftAllActive?.(enabled);
+    phoneBar?.setDriftAllActive?.(enabled);
+  });
+  document.addEventListener('lobby-smooth', () => {
+    presetManager.setSmoothTransitions(!presetManager.smoothTransitions);
+  });
+  document.addEventListener('lobby-autocycle', () => presetManager.setAutoCycle(!presetManager.autoCycle));
+  document.addEventListener('lobby-tutorial', () => tutorial.toggle());
+  document.addEventListener('lobby-help', () => helpMode?.toggle());
 
   function refreshPresetTransportLabel() {
     presetManager.setActiveShader(settings.state.shader);
