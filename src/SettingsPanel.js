@@ -804,11 +804,11 @@ export class SettingsPanel {
     );
     this.colorSpecs = shared;
     this.addUniformControls(this.colorFolder, shared);
-    const sharedOrder = ['uInvert', 'uWhiteness', 'uBlackness', 'uSaturation', 'uBgRed', 'uBgGreen', 'uBgBlue'];
+    const sharedOrder = ['uWhiteness', 'uBlackness', 'uSaturation', 'uBgRed', 'uBgGreen', 'uBgBlue'];
     for (const key of sharedOrder) {
       if (shared[key]) this.addUniformRow(this.colorFolder, key, shared[key]);
     }
-    this.pinInvertControl();
+    this.ensureInvertRow();
 
     const stops = [
       ['uPal0R', 'uPal0G', 'uPal0B', 'Stop 1'],
@@ -1412,14 +1412,38 @@ export class SettingsPanel {
       this.modeColorControllers.push(ctrl);
       if (anchor) parent.insertBefore(ctrl.domElement, anchor);
     }
-    this.pinInvertControl();
+    this.ensureInvertRow();
   }
 
-  pinInvertControl() {
-    const ctrl = this.uniformControllers.get('uInvert');
-    const parent = this.colorFolder?.domElement?.querySelector('.children');
-    if (!ctrl || !parent) return;
-    parent.insertBefore(ctrl.domElement, parent.firstElementChild);
+  ensureInvertRow() {
+    const parent = this.colorFolder?.domElement?.querySelector(':scope > .children');
+    if (!parent) return;
+    if (this.state.uInvert === undefined) this.state.uInvert = 0;
+
+    let row = parent.querySelector(':scope > .invert-row');
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'controller boolean invert-row';
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = 'Invert';
+      const widget = document.createElement('div');
+      widget.className = 'widget';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.setAttribute('aria-label', 'Invert');
+      input.addEventListener('change', () => {
+        this.state.uInvert = input.checked ? 1 : 0;
+        this.handleValueChange();
+      });
+      widget.append(input);
+      row.append(name, widget);
+      this.invertInput = input;
+      row.dataset.help = tipFor('uInvert');
+    }
+
+    parent.insertBefore(row, parent.firstElementChild);
+    if (this.invertInput) this.invertInput.checked = Number(this.state.uInvert) > 0.5;
   }
 
   rebuildShaderFolder(shaderId) {
@@ -1620,6 +1644,7 @@ export class SettingsPanel {
     if (values) {
       Object.assign(this.state, values);
       this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
+      this.ensureInvertRow();
     }
     this.fitComplexityControl(this.state.shader);
 
