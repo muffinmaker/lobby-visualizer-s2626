@@ -1,3 +1,5 @@
+import { PALETTE_FN, PALETTE_UNIFORMS } from '../../paletteGlsl.js';
+
 export default {
   id: 'ribbons',
   label: 'Ribbons',
@@ -24,12 +26,11 @@ export default {
     uniform float uPanX;
     uniform float uPanY;
     uniform float uAspect;
+    uniform float uPalette;
+    ${PALETTE_UNIFORMS}
+    ${PALETTE_FN}
 
     varying vec2 vUv;
-
-    vec3 palette(float t) {
-      return 0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + t));
-    }
 
     mat2 rot(float a) {
       float s = sin(a), c = cos(a);
@@ -58,7 +59,7 @@ export default {
         vec2 p = uv;
         p.x += sin(t * 0.55 + fi) * 0.22;
         float r = ribbon(p, phase, t);
-        col += palette(fi * 0.17 + t * 0.16) * r;
+        col += namedPalette(fi * 0.17 + t * 0.16, uPalette) * r;
       }
 
       col *= uBrightness * 1.15;

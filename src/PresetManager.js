@@ -73,7 +73,7 @@ function randomizeUniforms(shaderId, target = {}) {
   return result;
 }
 
-export const PRESETS = [
+const PRESET_LIST = [
   {
     name: 'J04 Spocks',
     shader: 'spocks',
@@ -1248,6 +1248,67 @@ export const PRESETS = [
     },
   },
 ];
+
+/** One obvious palette per preset so cycling looks different. */
+const PRESET_COLOR_PROFILES = {
+  'J04 Spocks': { uPalette: 0, uHueShift: 8, uColorSpeed: 30 },
+  'Spocks Drift': { uPalette: 5, uHueShift: 70, uColorSpeed: 55 },
+  'Vulcan Grid': { uPalette: 1, uHueShift: 20, uColorSpeed: 40 },
+  'Nebula Boxes': { uPalette: 12, uHueShift: 80, uColorSpeed: 62 },
+  'Warp Tunnel': { uPalette: 6, uHueShift: 35, uColorSpeed: 48 },
+  'Korax Lattice': { uPalette: 9, uHueShift: 50, uColorSpeed: 36 },
+  'Tellar Ember': { uPalette: 10, uHueShift: 15, uColorSpeed: 58 },
+  'Proxus Vortex': { uPalette: 20, uHueShift: 88, uColorSpeed: 70 },
+  'Syrax Bloom': { uPalette: 16, uHueShift: 42, uColorSpeed: 44 },
+  'Zephon Void': { uPalette: 7, uHueShift: 5, uColorSpeed: 22, uSaturation: 28 },
+  'Lobby Safe': { uPalette: 2, uHueShift: 60, uColorSpeed: 25 },
+  'Calm Orbits': { uPalette: 2, uHueShift: 42 },
+  Hyperspin: { uPalette: 3, uHueShift: 72 },
+  'Rigel Trails': { uPalette: 1, uHueShift: 28 },
+  'Trill Bloom': { uPalette: 4, uHueShift: 55 },
+  'Andor Ink': { uPalette: 7, uHueShift: 15 },
+  'Gravity Arc': { uPalette: 5, uHueShift: 20 },
+  'Wide Petals': { uPalette: 16, uHueShift: 48 },
+  'Slow Ink': { uPalette: 14, uHueShift: 10 },
+  'Neon Rings': { uPalette: 20, uHueShift: 60 },
+  'Dense Weave': { uPalette: 8, uHueShift: 36 },
+  'Neon Kaleido': { uPalette: 3, uHueShift: 78, uColorSpeed: 60 },
+  'Mirror Six': { uPalette: 6, uHueShift: 18, uColorSpeed: 32 },
+  'Hex Morph': { uPalette: 11, uHueShift: 40, uColorSpeed: 50 },
+  'Star Chamber': { uPalette: 14, uHueShift: 66, uColorSpeed: 44 },
+  'Prism Drift': { uPalette: 8, uHueShift: 12, uColorSpeed: 70 },
+  'Jade Carousel': { uPalette: 17, uHueShift: 30, uColorSpeed: 28 },
+  'Ember Fold': { uPalette: 5, uHueShift: 82, uColorSpeed: 55 },
+  'Crystal Swap': { uPalette: 21, uHueShift: 48, uColorSpeed: 36 },
+  'Deep Flow': { uPalette: 6, uHueShift: 22 },
+  'Particle Storm': { uPalette: 20, uHueShift: 75 },
+  'Gentle Drift': { uPalette: 4, uHueShift: 15 },
+  'Lumis Stream': { uPalette: 9, uHueShift: 50 },
+  'Celix Wake': { uPalette: 23, uHueShift: 40 },
+  'Liquid Merge': { uPalette: 2, uHueShift: 30 },
+  'Bubble Bath': { uPalette: 16, uHueShift: 62 },
+  'Mercury Pool': { uPalette: 7, uHueShift: 8, uSaturation: 35 },
+  'Aurora Blobs': { uPalette: 9, uHueShift: 55 },
+  'Solix Pulse': { uPalette: 10, uHueShift: 18 },
+  'Stargate Transit': { uPalette: 3, uHueShift: 48 },
+  'Contact Passage': { uPalette: 2, uHueShift: 55 },
+  'Dial Home Run': { uPalette: 13, uHueShift: 70 },
+  'Sliders Vortex': { uPalette: 5, uHueShift: 62 },
+  'Slow Drift': { uPalette: 1, uHueShift: 38 },
+  'Silk Ribbons': { uPalette: 12, uHueShift: 20 },
+  'Ribbon Dance': { uPalette: 3, uHueShift: 80 },
+  'Velara Weave': { uPalette: 17, uHueShift: 28 },
+  'Quiet Streams': { uPalette: 6, uHueShift: 12 },
+  'Nyxos Spiral': { uPalette: 24, uHueShift: 64 },
+  'Pond Cross': { uPalette: 11, uHueShift: 24 },
+  'Dense Moire': { uPalette: 20, uHueShift: 77 },
+};
+
+export const PRESETS = PRESET_LIST.map((preset) => {
+  const colors = PRESET_COLOR_PROFILES[preset.name];
+  if (!colors) return preset;
+  return { ...preset, values: { ...preset.values, ...colors } };
+});
 
 export class PresetManager {
   constructor() {

@@ -789,7 +789,11 @@ async function start() {
     presetName,
     { updateGui = true, changeShader = false, syncSmooth = false, clearTrails = true } = {},
   ) {
-    values = { ...values, uPanX: 50, uPanY: 50 };
+    values = settings.withoutLockedPresetValues({ ...values, uPanX: 50, uPanY: 50 });
+    if (settings.isPresetFolderLocked('Global')) {
+      values.uPanX = settings.state.uPanX;
+      values.uPanY = settings.state.uPanY;
+    }
     const trailSettings = {
       motionTrails: settings.state.motionTrails,
       trailsNeverDecay: settings.state.trailsNeverDecay,
@@ -919,7 +923,7 @@ async function start() {
       visualizer.setShader(shader, values);
       visualizer.applyValues(values);
     } else if (presetManager.isTransitioning) {
-      visualizer.applyValues(values, { deferRebuild: true });
+      visualizer.applyValues(settings.withoutLockedPresetValues(values), { deferRebuild: true });
     }
 
     if (presetManager.isTransitioning) {

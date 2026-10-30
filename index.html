@@ -477,6 +477,29 @@
         cursor: pointer;
       }
 
+      .lil-gui:not(.root) > .title {
+        display: flex;
+        align-items: center;
+      }
+
+      .lil-gui .preset-override {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        cursor: pointer;
+      }
+
+      .lil-gui .preset-override input[type=checkbox] {
+        appearance: auto;
+        width: 14px !important;
+        height: 14px !important;
+        min-width: 14px;
+        min-height: 14px;
+        margin: 0;
+        accent-color: rgb(180, 200, 255);
+        cursor: pointer;
+      }
+
       .lil-gui .controller.drift-all-wide {
         display: flex;
       }

@@ -230,6 +230,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uTintBlue: rgb(255),
   },
   ribbons: {
+    uPalette: fullPalette(0),
     uRibbonCount: count(5, 2, 10),
     uThickness: pct(30, 0.01, 0.12),
     uTwistAmount: pct(38, 0, 4),

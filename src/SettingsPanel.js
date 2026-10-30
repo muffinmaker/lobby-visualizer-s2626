@@ -68,6 +68,28 @@ function isColorKey(key) {
   return COLOR_KEYS.has(key) || key.startsWith('uPal');
 }
 
+const PRESET_OVERRIDE_KEY = 'lobby-preset-folder-overrides';
+
+const DISPLAY_PRESET_KEYS = new Set(['motionTrails', 'trailsNeverDecay', 'resolutionScale']);
+
+function loadPresetOverrides() {
+  try {
+    const raw = localStorage.getItem(PRESET_OVERRIDE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePresetOverrides(overrides) {
+  try {
+    localStorage.setItem(PRESET_OVERRIDE_KEY, JSON.stringify(overrides));
+  } catch {
+    /* ignore */
+  }
+}
+
 function formatDisplayValue(value) {
   const rounded = Math.round(Number(value) * 10) / 10;
   if (!Number.isFinite(rounded)) return '';
@@ -307,6 +329,7 @@ export class SettingsPanel {
   }
 
   build() {
+    this.presetOverrides = loadPresetOverrides();
     mergeShaderDefaults(this.state, this.state.shader);
     this.driftManager.setShader(this.state.shader);
 
@@ -339,6 +362,7 @@ export class SettingsPanel {
       };
 
       const music = this.gui.addFolder('Music Mode');
+      this.musicFolder = music;
       this.musicEnabledCtrl = music.add(this.state, 'musicEnabled').name('Enabled').onChange(async (v) => {
         const ok = await mm.setEnabled(v, () => this.getValues());
         if (!ok) {
@@ -402,6 +426,7 @@ export class SettingsPanel {
     }
 
     const cycle = this.gui.addFolder('Auto Cycle');
+    this.cycleFolder = cycle;
     this.autoCycleCtrl = cycle.add(this.state, 'autoCycle').name('Enabled').onChange((v) => {
       pm.setAutoCycle(v);
     });
@@ -430,7 +455,65 @@ export class SettingsPanel {
     this.placeMenuOrder();
     this.patchNumberControllers();
     this.closeAllFolders();
+    this.attachAllPresetOverrides();
     this.gui.close();
+  }
+
+  attachAllPresetOverrides() {
+    this.attachPresetOverride(this.menuFolder, 'Controls');
+    this.attachPresetOverride(this.displayFolder, 'Display');
+    this.attachPresetOverride(this.globalFolder, 'Global');
+    this.attachPresetOverride(this.colorFolder, 'Colors');
+    this.attachPresetOverride(this.driftFolder, 'Drift Timing');
+    this.attachPresetOverride(this.logoFolder, 'Logo');
+    this.attachPresetOverride(this.textFolder, 'Text Overlay');
+    this.attachPresetOverride(this.musicFolder, 'Music Mode');
+    this.attachPresetOverride(this.cycleFolder, 'Auto Cycle');
+    this.attachPresetOverride(this.shaderFolder, 'Mode');
+  }
+
+  attachPresetOverride(folder, id) {
+    const title = folder?.domElement?.querySelector(':scope > .title');
+    if (!title || title.querySelector('.preset-override')) return;
+    const label = document.createElement('label');
+    label.className = 'preset-override';
+    label.title = 'Preset override: keep this folder when a preset loads';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = Boolean(this.presetOverrides[id]);
+    const stop = (event) => event.stopPropagation();
+    input.addEventListener('pointerdown', stop);
+    input.addEventListener('click', stop);
+    label.addEventListener('pointerdown', stop);
+    label.addEventListener('click', stop);
+    input.addEventListener('change', () => {
+      this.presetOverrides[id] = input.checked;
+      savePresetOverrides(this.presetOverrides);
+    });
+    label.append(input);
+    title.append(label);
+  }
+
+  folderForPresetKey(key) {
+    if (DISPLAY_PRESET_KEYS.has(key)) return 'Display';
+    if (isColorKey(key)) return 'Colors';
+    if (key.startsWith('u') && (GLOBAL_UNIFORMS[key] || BACKGROUND_UNIFORMS[key])) return 'Global';
+    if (key.startsWith('u')) return 'Mode';
+    return null;
+  }
+
+  isPresetFolderLocked(id) {
+    return Boolean(this.presetOverrides?.[id]);
+  }
+
+  withoutLockedPresetValues(values) {
+    if (!values) return values;
+    const next = { ...values };
+    for (const key of Object.keys(next)) {
+      const folder = this.folderForPresetKey(key);
+      if (folder && this.isPresetFolderLocked(folder)) delete next[key];
+    }
+    return next;
   }
 
   buildLogoSection() {
@@ -564,6 +647,7 @@ export class SettingsPanel {
 
   buildTextOverlaySection() {
     const text = this.gui.addFolder('Text Overlay');
+    this.textFolder = text;
     this.textOverlayFolder = text;
 
     text.add(this.state, 'textEnabled').name('Enabled').onChange((value) => {
@@ -1490,6 +1574,7 @@ export class SettingsPanel {
     this.placeMenuOrder();
     this.shaderFolder?.close();
     this.colorFolder?.close();
+    this.attachPresetOverride(this.shaderFolder, 'Mode');
     this.patchNumberControllers();
     const focusKey = this.navigableItems[this.gamepadFocusIndex]?.key;
     this.refreshGamepadMenuAfterRebuild(focusKey);
@@ -1578,7 +1663,8 @@ export class SettingsPanel {
 
   syncGuiValues(values) {
     if (!values) return;
-    for (const [key, value] of Object.entries(values)) {
+    const allowed = this.withoutLockedPresetValues(values);
+    for (const [key, value] of Object.entries(allowed)) {
       if (key.startsWith('u')) this.state[key] = value;
     }
     this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
@@ -1605,7 +1691,7 @@ export class SettingsPanel {
   }
 
   applyDisplaySettings(display) {
-    if (!display) return;
+    if (!display || this.isPresetFolderLocked('Display')) return;
     if (display.motionTrails !== undefined) {
       this.state.motionTrails = Math.max(0, Math.min(100, Math.round(display.motionTrails)));
     } else if (
@@ -1642,7 +1728,7 @@ export class SettingsPanel {
     }
 
     if (values) {
-      Object.assign(this.state, values);
+      Object.assign(this.state, this.withoutLockedPresetValues(values));
       this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
       this.ensureInvertRow();
     }
