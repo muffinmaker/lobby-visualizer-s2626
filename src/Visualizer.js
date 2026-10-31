@@ -20,20 +20,17 @@ varying vec2 vUv;
 
 void main() {
   vec4 prev = texture2D(uPrev, vUv);
-  if (uTrailPersist > 0.5) {
+  if (uTrailPersist > 0.5 || uDecay > 0.9995) {
     gl_FragColor = prev;
     return;
   }
   if (uPreserveHue > 0.5) {
-    // Dim trails without pulling saturated strokes toward the background grey.
-    float ink = max(
-      max(abs(prev.r - uFadeColor.r), abs(prev.g - uFadeColor.g)),
-      abs(prev.b - uFadeColor.b)
-    );
-    vec3 faded = prev.rgb * uDecay;
-    prev.rgb = mix(uFadeColor, faded, smoothstep(0.008, 0.04, ink));
-    float peak = max(max(prev.r, prev.g), prev.b);
-    if (peak > 0.98) prev.rgb *= 0.98 / peak;
+    // Keep the stroke color. Only crush bright buildup when the trail is set to fade.
+    prev.rgb *= uDecay;
+    if (uDecay < 0.9) {
+      float peak = max(max(prev.r, prev.g), prev.b);
+      if (peak > 0.98) prev.rgb *= 0.98 / peak;
+    }
   } else {
     prev.rgb = mix(uFadeColor, prev.rgb, uDecay);
     // Additive strokes can clip to white — ease bright buildup back toward the fade tint.
@@ -42,6 +39,94 @@ void main() {
     prev.rgb = mix(prev.rgb, mix(uFadeColor, prev.rgb, 0.42), wash * 0.82);
   }
   gl_FragColor = vec4(prev.rgb, 1.0);
+}`;
+
+const POST_GLSL = `
+uniform float uVignette;
+uniform float uGrain;
+uniform float uChroma;
+uniform float uContrast;
+uniform float uGlobalHue;
+uniform float uScanlines;
+uniform float uPosterize;
+uniform float uBeatPunch;
+uniform float uBeat;
+
+vec3 applyPost(sampler2D tex, vec2 uv) {
+  vec2 c = uv - 0.5;
+  vec2 dir = normalize(c + vec2(0.0001));
+  float shift = uChroma * 0.012;
+  vec3 color = texture2D(tex, uv).rgb;
+  color.r = mix(color.r, texture2D(tex, uv + dir * shift).r, clamp(uChroma, 0.0, 1.0));
+  color.b = mix(color.b, texture2D(tex, uv - dir * shift).b, clamp(uChroma, 0.0, 1.0));
+  float gray = dot(color, vec3(0.299, 0.587, 0.114));
+  color = mix(vec3(gray), color, uContrast);
+  float hue = uGlobalHue * 6.2831853;
+  float cs = cos(hue);
+  float sn = sin(hue);
+  vec3 axis = vec3(0.57735027);
+  vec3 crossed = vec3(
+    axis.y * color.z - axis.z * color.y,
+    axis.z * color.x - axis.x * color.z,
+    axis.x * color.y - axis.y * color.x
+  );
+  color = color * cs + crossed * sn + axis * dot(axis, color) * (1.0 - cs);
+  float vig = smoothstep(0.8, 0.2, length(c * vec2(1.2, 1.0)));
+  color *= mix(1.0, vig, clamp(uVignette, 0.0, 1.0));
+  float grain = fract(sin(dot(uv * vec2(140.0, 90.0) + uTime, vec2(12.9898, 78.233))) * 43758.5453);
+  color += (grain - 0.5) * uGrain * 0.28;
+  float scan = 0.72 + 0.28 * sin(uv.y * 240.0);
+  color *= mix(1.0, scan, clamp(uScanlines, 0.0, 1.0));
+  float levels = mix(18.0, 3.0, clamp(uPosterize, 0.0, 1.0));
+  vec3 posted = floor(color * levels + 0.001) / levels;
+  color = mix(color, posted, smoothstep(0.02, 0.2, uPosterize));
+  float hit = max(uBeat, 0.35 * smoothstep(0.72, 0.98, 0.5 + 0.5 * sin(uTime * 2.4)));
+  color *= 1.0 + uBeatPunch * hit * 0.85;
+  color += vec3(uBeatPunch * hit * 0.18);
+  return clamp(color, 0.0, 1.0);
+}
+`;
+
+const PRESENT_FRAG = `
+uniform sampler2D uMap;
+uniform float uInvert;
+uniform float uBlackout;
+uniform float uStrobe;
+uniform float uTime;
+${POST_GLSL}
+varying vec2 vUv;
+
+void main() {
+  vec3 color = applyPost(uMap, vUv);
+  if (uInvert > 0.5) color = vec3(1.0) - color;
+  if (uStrobe > 0.5 && fract(uTime * 9.0) > 0.5) color = vec3(1.0);
+  if (uBlackout > 0.5) color = vec3(0.0);
+  gl_FragColor = vec4(color, 1.0);
+}`;
+
+const MIX_FRAG = `
+uniform sampler2D uA;
+uniform sampler2D uB;
+uniform float uMix;
+uniform float uMode;
+uniform float uInvert;
+uniform float uBlackout;
+uniform float uStrobe;
+uniform float uTime;
+${POST_GLSL}
+varying vec2 vUv;
+
+void main() {
+  vec3 a = applyPost(uA, vUv);
+  vec3 b = texture2D(uB, vUv).rgb;
+  float m = clamp(uMix, 0.0, 1.0);
+  vec3 color = mix(a, b, m);
+  if (uMode > 0.5 && uMode < 1.5) color = min(a + b * m, vec3(1.0));
+  else if (uMode >= 1.5) color = mix(a, a * b, m);
+  if (uInvert > 0.5) color = vec3(1.0) - color;
+  if (uStrobe > 0.5 && fract(uTime * 9.0) > 0.5) color = vec3(1.0);
+  if (uBlackout > 0.5) color = vec3(0.0);
+  gl_FragColor = vec4(color, 1.0);
 }`;
 
 function buildUniforms(shaderId, uiValues = {}) {
@@ -68,7 +153,7 @@ function buildUniforms(shaderId, uiValues = {}) {
 }
 
 function isPointShader(id) {
-  return id === 'spiro' || id === 'flow';
+  return id === 'spiro' || id === 'flow' || id === 'starspin' || Boolean(SHADERS[id]?.points);
 }
 
 function usesFeedbackTrails(shaderId) {
@@ -96,7 +181,7 @@ function createPointGeometry(count, extraAttributes = {}) {
   return geometry;
 }
 
-const SPIRO_MAX_ORBITS = 10;
+const SPIRO_MAX_ORBITS = 200;
 
 function createSpiroGeometry(count = SPIRO_MAX_ORBITS) {
   const indices = new Float32Array(count);
@@ -143,7 +228,10 @@ function flowDrawCount(shaderParticleCount, maxParticles = FLOW_MAX_PARTICLES) {
 }
 
 function setFlowParticleDrawRange(geometry, shaderParticleCount, maxParticles = FLOW_MAX_PARTICLES) {
-  geometry.setDrawRange(0, flowDrawCount(shaderParticleCount, maxParticles));
+  const count = flowDrawCount(shaderParticleCount, maxParticles);
+  if (geometry.userData.drawCount === count) return;
+  geometry.userData.drawCount = count;
+  geometry.setDrawRange(0, count);
 }
 
 function ensureFlowGeometryCapacity(geometry, liteMode = false) {
@@ -205,7 +293,8 @@ export class Visualizer {
     this.resolutionScale = defaultResolutionScale();
     this.liteMode = false;
     this.backgroundColor = new THREE.Color(0x020208);
-    this.uniformSmoother = new UniformSmoother(1.4);
+    this.uniformSmoother = new UniformSmoother(0.8);
+    this.uniformSmoother.setEaseSeconds(0.8);
     this.animPhase = 0;
     this.lastAnimSpeed = null;
 
@@ -243,8 +332,62 @@ export class Visualizer {
     this.trailScene.add(new THREE.Mesh(createFullscreenQuad(), this.trailMaterial));
 
     this.compositeScene = new THREE.Scene();
-    this.compositeMaterial = new THREE.MeshBasicMaterial({ map: null, depthTest: false, depthWrite: false });
+    this.compositeMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uMap: { value: null },
+        uInvert: { value: 0 },
+        uBlackout: { value: 0 },
+        uStrobe: { value: 0 },
+        uTime: { value: 0 },
+        uVignette: { value: 0 },
+        uGrain: { value: 0 },
+        uChroma: { value: 0 },
+        uContrast: { value: 1 },
+        uGlobalHue: { value: 0 },
+        uScanlines: { value: 0 },
+        uPosterize: { value: 0 },
+        uBeatPunch: { value: 0 },
+        uBeat: { value: 0 },
+      },
+      vertexShader: FULLSCREEN_VERT,
+      fragmentShader: wrapFragment(PRESENT_FRAG),
+      depthTest: false,
+      depthWrite: false,
+    });
     this.compositeScene.add(new THREE.Mesh(createFullscreenQuad(), this.compositeMaterial));
+    this.presentTarget = null;
+    this.overlayTarget = null;
+    this.invertColors = false;
+    this.blackout = false;
+    this.strobe = false;
+    this.overlay = { enabled: false, shaderId: 'kaleido', mix: 0.5, mode: 0 };
+    this.mixScene = new THREE.Scene();
+    this.mixMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uA: { value: null },
+        uB: { value: null },
+        uMix: { value: 0.5 },
+        uMode: { value: 0 },
+        uInvert: { value: 0 },
+        uBlackout: { value: 0 },
+        uStrobe: { value: 0 },
+        uTime: { value: 0 },
+        uVignette: { value: 0 },
+        uGrain: { value: 0 },
+        uChroma: { value: 0 },
+        uContrast: { value: 1 },
+        uGlobalHue: { value: 0 },
+        uScanlines: { value: 0 },
+        uPosterize: { value: 0 },
+        uBeatPunch: { value: 0 },
+        uBeat: { value: 0 },
+      },
+      vertexShader: FULLSCREEN_VERT,
+      fragmentShader: wrapFragment(MIX_FRAG),
+      depthTest: false,
+      depthWrite: false,
+    });
+    this.mixScene.add(new THREE.Mesh(createFullscreenQuad(), this.mixMaterial));
 
     this.meshes = {};
     this.materials = {};
@@ -288,7 +431,7 @@ export class Visualizer {
       transparent: trailBlended,
       depthTest: false,
       depthWrite: false,
-      blending: points ? THREE.AdditiveBlending : THREE.NormalBlending,
+      blending: THREE.NormalBlending,
     });
     if (id === 'flow') {
       material.uniforms.uLogoColliderVisible = { value: 0 };
@@ -387,7 +530,7 @@ export class Visualizer {
       this.uniformSmoother.snap(shaderValues);
       this.lastAnimSpeed = null;
       this.clearTrailBuffers();
-      if (shaderId === 'spiro' && shaderValues.uOrbitCount !== undefined) {
+      if ((shaderId === 'spiro' || shaderId === 'starspin') && shaderValues.uOrbitCount !== undefined) {
         const pens = Math.min(
           SPIRO_MAX_ORBITS,
           Math.max(1, Math.floor(shaderValues.uOrbitCount)),
@@ -419,6 +562,10 @@ export class Visualizer {
     }
 
     this.applyTrailSettingsFromUi(uiValues);
+  }
+
+  setEaseSeconds(seconds) {
+    this.uniformSmoother.setEaseSeconds(seconds);
   }
 
   setResolutionScale(scale) {
@@ -474,18 +621,9 @@ export class Visualizer {
     const trailStrength = Math.max(0, Math.min(1, this.motionTrails / 100));
     const minDecay = 0.68 + (1 - trailStrength) * 0.22;
     let decay = minDecay + (baseDecay - minDecay) * trailStrength;
-    if (this.currentShaderId === 'spiro') {
-      decay += 0.028 * trailStrength;
-    }
     const persistTrails = this.currentShaderId === 'spocks' && (values.uTrailPersist ?? 0) > 0.5;
-    if (persistTrails) {
+    if (persistTrails || this.trailsNeverDecay || baseDecay >= 0.995) {
       decay = 1;
-    }
-    if (this.trailsNeverDecay) {
-      decay = Math.min(decay, 0.93);
-    } else {
-      const decayCap = this.currentShaderId === 'spiro' ? 0.99 : 0.96;
-      decay = Math.min(decay, decayCap);
     }
     this.trailMaterial.uniforms.uDecay.value = decay;
     this.trailMaterial.uniforms.uPreserveHue.value = usesFeedbackTrails(this.currentShaderId) ? 1 : 0;
@@ -514,7 +652,7 @@ export class Visualizer {
 
     if (deferRebuild) return;
 
-    if (this.currentShaderId === 'spiro' && shaderValues.uOrbitCount !== undefined) {
+    if ((this.currentShaderId === 'spiro' || this.currentShaderId === 'starspin') && shaderValues.uOrbitCount !== undefined) {
       const pens = Math.min(
         SPIRO_MAX_ORBITS,
         Math.max(1, Math.floor(shaderValues.uOrbitCount)),
@@ -547,7 +685,107 @@ export class Visualizer {
     }
 
     this.recreateTrailBuffers();
+    this.presentTarget?.dispose();
+    const targetOptions = {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+    };
+    this.presentTarget = new THREE.WebGLRenderTarget(rw, rh, targetOptions);
+    this.overlayTarget?.dispose();
+    this.overlayTarget = new THREE.WebGLRenderTarget(rw, rh, targetOptions);
     this.onViewportResize?.();
+  }
+
+  postActive() {
+    const fx = this.postFx || {};
+    return (fx.uVignette ?? 0) > 0.01
+      || (fx.uGrain ?? 0) > 0.01
+      || (fx.uChroma ?? 0) > 0.01
+      || Math.abs((fx.uContrast ?? 1) - 1) > 0.03
+      || (fx.uGlobalHue ?? 0) > 0.01
+      || (fx.uScanlines ?? 0) > 0.01
+      || (fx.uPosterize ?? 0) > 0.02
+      || (fx.uBeatPunch ?? 0) > 0.01;
+  }
+
+  applyPostUniforms(material) {
+    const fx = this.postFx || {};
+    const uniforms = material?.uniforms;
+    if (!uniforms) return;
+    if (uniforms.uVignette) uniforms.uVignette.value = fx.uVignette ?? 0;
+    if (uniforms.uGrain) uniforms.uGrain.value = fx.uGrain ?? 0;
+    if (uniforms.uChroma) uniforms.uChroma.value = fx.uChroma ?? 0;
+    if (uniforms.uContrast) uniforms.uContrast.value = fx.uContrast ?? 1;
+    if (uniforms.uGlobalHue) uniforms.uGlobalHue.value = fx.uGlobalHue ?? 0;
+    if (uniforms.uScanlines) uniforms.uScanlines.value = fx.uScanlines ?? 0;
+    if (uniforms.uPosterize) uniforms.uPosterize.value = fx.uPosterize ?? 0;
+    if (uniforms.uBeatPunch) uniforms.uBeatPunch.value = fx.uBeatPunch ?? 0;
+    if (uniforms.uBeat) uniforms.uBeat.value = this.audioBeat ?? 0;
+  }
+
+  present(texture) {
+    this.compositeMaterial.uniforms.uMap.value = texture;
+    this.compositeMaterial.uniforms.uInvert.value = this.invertColors ? 1 : 0;
+    this.compositeMaterial.uniforms.uBlackout.value = this.blackout ? 1 : 0;
+    this.compositeMaterial.uniforms.uStrobe.value = this.strobe ? 1 : 0;
+    this.compositeMaterial.uniforms.uTime.value = this.animPhase;
+    this.applyPostUniforms(this.compositeMaterial);
+    this.renderer.setRenderTarget(null);
+    this.renderer.setClearColor(this.backgroundColor, 1);
+    this.renderer.clear();
+    this.renderer.render(this.compositeScene, this.quadCamera);
+  }
+
+  setOverlay({ enabled, shaderId, mix, mode } = {}) {
+    if (enabled !== undefined) this.overlay.enabled = Boolean(enabled);
+    if (shaderId) this.overlay.shaderId = shaderId;
+    if (mix !== undefined) this.overlay.mix = Math.max(0, Math.min(1, mix));
+    if (mode !== undefined) this.overlay.mode = mode;
+  }
+
+  showOnly(shaderId) {
+    for (const [id, mesh] of Object.entries(this.meshes)) {
+      mesh.visible = id === shaderId;
+    }
+  }
+
+  renderShaderTo(shaderId, target) {
+    const material = this.materials[shaderId];
+    if (!material || !target) return;
+    if (material.uniforms.uTime) material.uniforms.uTime.value = this.animPhase;
+    this.showOnly(shaderId);
+    this.renderer.autoClear = true;
+    this.renderer.setRenderTarget(target);
+    this.renderer.setClearColor(this.backgroundColor, 1);
+    this.renderer.clear();
+    if (isPointShader(shaderId)) this.renderer.render(this.pointScene, this.pointCamera);
+    else this.renderer.render(this.quadScene, this.quadCamera);
+    this.showOnly(this.currentShaderId);
+  }
+
+  presentMix(baseTexture) {
+    const layerId = this.overlay.shaderId;
+    const active = this.overlay.enabled && layerId && layerId !== this.currentShaderId && this.overlayTarget;
+    if (!active) {
+      this.present(baseTexture);
+      return;
+    }
+    const layerMaterial = this.materials[layerId];
+    if (layerMaterial && this.lastSmoothed) this.applySmoothedUniforms(layerMaterial, this.lastSmoothed);
+    this.renderShaderTo(layerId, this.overlayTarget);
+    this.mixMaterial.uniforms.uA.value = baseTexture;
+    this.mixMaterial.uniforms.uB.value = this.overlayTarget.texture;
+    this.mixMaterial.uniforms.uMix.value = this.overlay.mix;
+    this.mixMaterial.uniforms.uMode.value = this.overlay.mode;
+    this.mixMaterial.uniforms.uInvert.value = this.invertColors ? 1 : 0;
+    this.mixMaterial.uniforms.uBlackout.value = this.blackout ? 1 : 0;
+    this.mixMaterial.uniforms.uStrobe.value = this.strobe ? 1 : 0;
+    this.mixMaterial.uniforms.uTime.value = this.animPhase;
+    this.applyPostUniforms(this.mixMaterial);
+    this.renderer.setRenderTarget(null);
+    this.renderer.setClearColor(this.backgroundColor, 1);
+    this.renderer.clear();
+    this.renderer.render(this.mixScene, this.quadCamera);
   }
 
   renderScene(target = null) {
@@ -567,6 +805,7 @@ export class Visualizer {
     if (!material) return dt;
 
     const smoothed = this.uniformSmoother.update(dt);
+    this.lastSmoothed = smoothed;
     this.applySmoothedUniforms(material, smoothed);
 
     if (shaderId === 'flow' && smoothed.uParticleCount !== undefined) {
@@ -576,12 +815,23 @@ export class Visualizer {
         flowMaxParticles(this.liteMode),
       );
     }
-    const nextSpeed = Math.max(smoothed.uSpeed ?? 0.05, 0.001);
+    const nextSpeed = Math.max(smoothed.uSpeed ?? 0, 0);
     const prevSpeed = this.lastAnimSpeed ?? nextSpeed;
     this.animPhase = compensateAnimPhase(this.animPhase, shaderId, prevSpeed, nextSpeed);
     this.animPhase += dt * (prevSpeed + nextSpeed) * 0.5;
     this.lastAnimSpeed = nextSpeed;
     material.uniforms.uTime.value = this.animPhase;
+    this.invertColors = (smoothed.uInvert ?? 0) > 0.5;
+    this.postFx = {
+      uVignette: smoothed.uVignette ?? 0,
+      uGrain: smoothed.uGrain ?? 0,
+      uChroma: smoothed.uChroma ?? 0,
+      uContrast: smoothed.uContrast ?? 1,
+      uGlobalHue: smoothed.uGlobalHue ?? 0,
+      uScanlines: smoothed.uScanlines ?? 0,
+      uPosterize: smoothed.uPosterize ?? 0,
+      uBeatPunch: smoothed.uBeatPunch ?? 0,
+    };
 
     const useTrails = this.usesTrails(shaderId);
 
@@ -597,15 +847,13 @@ export class Visualizer {
       this.renderer.autoClear = false;
       this.renderScene(next);
 
-      this.renderer.setRenderTarget(null);
       this.renderer.autoClear = true;
-      this.renderer.setClearColor(this.backgroundColor, 1);
-      this.renderer.clear();
-      this.compositeMaterial.map = next.texture;
-      this.compositeMaterial.needsUpdate = true;
-      this.renderer.render(this.compositeScene, this.quadCamera);
+      this.presentMix(next.texture);
 
       this.trailTargets.reverse();
+    } else if ((this.invertColors || this.blackout || this.strobe || this.overlay.enabled || this.postActive()) && this.presentTarget) {
+      this.renderScene(this.presentTarget);
+      this.presentMix(this.presentTarget.texture);
     } else {
       this.renderer.setRenderTarget(null);
       this.renderer.setClearColor(this.backgroundColor, 1);
@@ -622,6 +870,9 @@ export class Visualizer {
     for (const geo of Object.values(this.geometries)) geo.dispose();
     for (const mat of Object.values(this.materials)) mat.dispose();
     this.trailMaterial.dispose();
+    this.presentTarget?.dispose();
+    this.overlayTarget?.dispose();
+    this.mixMaterial?.dispose();
     this.compositeMaterial.dispose();
     this.renderer.dispose();
   }

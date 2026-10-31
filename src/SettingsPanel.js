@@ -4,16 +4,30 @@ import {
   SHADERS,
   BACKGROUND_UNIFORMS,
   GLOBAL_UNIFORMS,
+  POST_UNIFORMS,
   SHADER_IDS,
   getShaderChoices,
 } from './shaders/index.js';
-import { mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
+import { getSpecMap, mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
+import {
+  MIDI_CC_TARGETS,
+  MIDI_MAP_NOTE,
+  MIDI_NOTE_ACTIONS,
+  defaultMidiMap,
+  loadMidiMap,
+  saveMidiMap,
+} from './midiInput.js';
 import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
-import { SHAPE_OPTIONS, STAMP_SHAPE_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
+import { COLOR_ALONG_OPTIONS, FIELD_SHAPE_OPTIONS, FLOW_MOTION_OPTIONS, PATTERN_OPTIONS, POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, SPACING_OPTIONS, STAMP_SHAPE_OPTIONS, STAR_MOTION_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
+import { TEXT_ALIGNS, TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
+import { AUDIO_FEATURES, MUSIC_ROUTES } from './MusicMode.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
 import { canDrift } from './driftUtils.js';
+import { DRIFT_MODES } from './DriftManager.js';
+import { tipFor } from './helpTips.js';
 import {
   applyLiteLimits,
+  describeModeLoad,
   loadLiteMode,
   saveLiteMode,
   snapshotLiteRestoreFields,
@@ -27,19 +41,128 @@ import {
   nextMenuPosition,
   saveMenuPosition,
 } from './menuPosition.js';
-import { applyMenuBigMode, loadMenuBigMode, saveMenuBigMode } from './menuBigMode.js';
+import { applyMenuScale, loadMenuScale, saveMenuScale, MENU_SCALE_MIN, MENU_SCALE_MAX } from './menuBigMode.js';
 import {
   LOGO_PACK_CHOICES,
   getPackSymbolChoices,
 } from './logoPacks.js';
 import { TEXT_POSITIONS } from './textOverlay.js';
 
-const TRAIL_SHADERS = new Set(['spocks', 'spiro', 'flow']);
+const TRAIL_SHADERS = new Set(['spocks', 'spiro', 'flow', 'starspin']);
+const QUALITY_STEPS = ['full', 'balanced', 'lite'];
+const QUALITY_LABELS = ['Full', 'Balanced', 'Lite'];
 const FLOW_LOGO_COLLIDER_KEYS = new Set(['uLogoCollider', 'uLogoColliderBounce']);
 
+const COLOR_KEYS = new Set([
+  'uPalette',
+  'uWhiteness',
+  'uBlackness',
+  'uInvert',
+  'uSaturation',
+  'uHueShift',
+  'uColorSpeed',
+  'uColorSpread',
+  'uTintRed',
+  'uTintGreen',
+  'uTintBlue',
+  'uRed',
+  'uGreen',
+  'uBlue',
+  'uBgRed',
+  'uBgGreen',
+  'uBgBlue',
+]);
+
+function isColorKey(key) {
+  return COLOR_KEYS.has(key) || key.startsWith('uPal');
+}
+
+const PRESET_OVERRIDE_KEY = 'lobby-preset-folder-overrides';
+
+const DISPLAY_PRESET_KEYS = new Set(['motionTrails', 'trailsNeverDecay', 'resolutionScale']);
+
+function loadPresetOverrides() {
+  try {
+    const raw = localStorage.getItem(PRESET_OVERRIDE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePresetOverrides(overrides) {
+  try {
+    localStorage.setItem(PRESET_OVERRIDE_KEY, JSON.stringify(overrides));
+  } catch {
+    /* ignore */
+  }
+}
+
+const OVERLAY_KEY = 'lobby-overlay';
+
+function loadOverlayPrefs() {
+  const fallback = {
+    overlayOn: false,
+    overlayShader: 'kaleido',
+    overlayMix: 45,
+    overlayBlend: 'Mix',
+    overlayAudio: false,
+  };
+  try {
+    const raw = localStorage.getItem(OVERLAY_KEY);
+    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+const PERFORMANCE_KEY = 'lobby-performance';
+
+function loadPerformancePrefs() {
+  const fallback = {
+    performanceInterval: 18,
+    performanceIncludeOverlay: false,
+    performanceSkipHeavy: true,
+  };
+  try {
+    const raw = localStorage.getItem(PERFORMANCE_KEY);
+    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function savePerformancePrefs(state) {
+  try {
+    localStorage.setItem(PERFORMANCE_KEY, JSON.stringify({
+      performanceInterval: state.performanceInterval,
+      performanceIncludeOverlay: state.performanceIncludeOverlay,
+      performanceSkipHeavy: state.performanceSkipHeavy,
+    }));
+  } catch {
+    /* ignore */
+  }
+}
+
+function saveOverlayPrefs(state) {
+  try {
+    localStorage.setItem(OVERLAY_KEY, JSON.stringify({
+      overlayOn: state.overlayOn,
+      overlayShader: state.overlayShader,
+      overlayMix: state.overlayMix,
+      overlayBlend: state.overlayBlend,
+      overlayAudio: state.overlayAudio,
+    }));
+  } catch {
+    /* ignore */
+  }
+}
+
 function formatDisplayValue(value) {
-  const rounded = Math.round(value * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  const rounded = Math.round(Number(value) * 10) / 10;
+  if (!Number.isFinite(rounded)) return '';
+  return rounded.toFixed(1);
 }
 
 function configureNumberController(controller) {
@@ -95,6 +218,18 @@ export class SettingsPanel {
     initialTextPosition = 'center',
     initialTextAutoFit = true,
     initialTextLineHeight = 135,
+    initialTextFont = 'System',
+    initialTextEffect = 'none',
+    initialTextEffectSpeed = 45,
+    initialTextDrift = false,
+    initialTextDriftSpeed = 30,
+    initialTextDriftDirection = 'right',
+    initialTextTracking = 40,
+    initialTextStroke = 0,
+    initialTextAlign = 'center',
+    initialTextEffectAmount = 70,
+    initialTextShadow = 0,
+    initialTextCaps = false,
     onTextEnabledChange,
     onTextSizeChange,
     onTextOpacityChange,
@@ -102,6 +237,18 @@ export class SettingsPanel {
     onTextPositionChange,
     onTextAutoFitChange,
     onTextLineHeightChange,
+    onTextFontChange,
+    onTextEffectChange,
+    onTextEffectSpeedChange,
+    onTextDriftChange,
+    onTextDriftSpeedChange,
+    onTextDriftDirectionChange,
+    onTextTrackingChange,
+    onTextStrokeChange,
+    onTextAlignChange,
+    onTextEffectAmountChange,
+    onTextShadowChange,
+    onTextCapsChange,
     onOpenNotepad,
   }) {
     this.presetManager = presetManager;
@@ -128,6 +275,18 @@ export class SettingsPanel {
     this.onTextPositionChange = onTextPositionChange;
     this.onTextAutoFitChange = onTextAutoFitChange;
     this.onTextLineHeightChange = onTextLineHeightChange;
+    this.onTextFontChange = onTextFontChange;
+    this.onTextEffectChange = onTextEffectChange;
+    this.onTextDriftChange = onTextDriftChange;
+    this.onTextEffectSpeedChange = onTextEffectSpeedChange;
+    this.onTextDriftSpeedChange = onTextDriftSpeedChange;
+    this.onTextDriftDirectionChange = onTextDriftDirectionChange;
+    this.onTextTrackingChange = onTextTrackingChange;
+    this.onTextStrokeChange = onTextStrokeChange;
+    this.onTextAlignChange = onTextAlignChange;
+    this.onTextEffectAmountChange = onTextEffectAmountChange;
+    this.onTextShadowChange = onTextShadowChange;
+    this.onTextCapsChange = onTextCapsChange;
     this.onOpenNotepad = onOpenNotepad;
     this.visible = true;
     this.gamepadMenuActive = false;
@@ -158,6 +317,18 @@ export class SettingsPanel {
       textPosition: initialTextPosition,
       textAutoFit: initialTextAutoFit,
       textLineHeight: initialTextLineHeight,
+      textFont: initialTextFont,
+      textEffect: initialTextEffect,
+      textEffectSpeed: initialTextEffectSpeed,
+      textDrift: initialTextDrift,
+      textDriftSpeed: initialTextDriftSpeed,
+      textDriftDirection: initialTextDriftDirection,
+      textTracking: initialTextTracking,
+      textStroke: initialTextStroke,
+      textAlign: initialTextAlign,
+      textEffectAmount: initialTextEffectAmount,
+      textShadow: initialTextShadow,
+      textCaps: initialTextCaps,
       autoCycle: presetManager.autoCycle,
       cycleInterval: presetManager.cycleInterval,
       transitionDuration: presetManager.transitionDuration,
@@ -167,25 +338,42 @@ export class SettingsPanel {
       driftDuration: driftManager.duration,
       driftSpeed: driftManager.speed,
       driftSpeedAuto: driftManager.speedAuto,
+      driftMode: 'Random',
+      driftLimit: driftManager.limit,
       motionTrails: 100,
       trailsNeverDecay: false,
+      ...loadOverlayPrefs(),
+      ...loadPerformancePrefs(),
       resolutionScale: visualizer.resolutionScale ?? defaultResolutionScale(),
+      easeSeconds: 0.8,
       liteMode: loadLiteMode(),
+      qualityStep: loadLiteMode() ? 2 : 0,
+      qualityLabel: loadLiteMode() ? 'Lite' : 'Full',
+      performancePreset: loadLiteMode() ? 'lite' : 'full',
+      perfNote: 'Measuring…',
       menuOpacity: 80,
       menuPosition: loadMenuPosition(),
-      menuBigMode: loadMenuBigMode(),
+      menuScale: loadMenuScale(),
       musicEnabled: false,
       musicSource: 'mic',
       musicSensitivity: 65,
       musicResponse: 55,
       musicLevel: 0,
       musicStatus: 'Off',
+      musicKick: 0,
+      musicHihat: 0,
+      musicBass: 0,
+      musicMid: 0,
+      musicHigh: 0,
+      musicBeat: 0,
+      musicBpm: 0,
       ...this.flattenValues(presetManager.currentPreset),
     };
     mergeShaderDefaults(this.state, this.state.shader);
 
     this.gui = new GUI({ title: '', width: 360 });
     this.presetController = null;
+    this.complexityByShader = { [this.state.shader]: this.state.uComplexity };
     this.build();
 
     this.presetManager.subscribe((event, detail) => {
@@ -237,34 +425,21 @@ export class SettingsPanel {
   }
 
   build() {
+    this.presetOverrides = loadPresetOverrides();
     mergeShaderDefaults(this.state, this.state.shader);
     this.driftManager.setShader(this.state.shader);
 
     const pm = this.presetManager;
     const dm = this.driftManager;
 
+    this.buildMenuSection(pm);
+    this.buildOverlaySection();
     this.buildDisplaySection();
     this.buildDriftSection(dm);
     this.buildGlobalSection();
+    this.buildColorSection();
     this.rebuildShaderFolder(this.state.shader);
 
-    this.gui.add(this.state, 'shader', getShaderChoices()).name('Shader').onChange((id) => {
-      this.setShader(id);
-    });
-
-    this.presetController = this.gui
-      .add(this.state, 'preset', pm.getPresetNames(this.state.shader))
-      .name('Preset')
-      .onChange((name) => {
-        pm.setActiveShader(this.state.shader);
-        pm.syncCurrentIndexForShader(name);
-        pm.goToByName(name, { randomize: false, shader: this.state.shader });
-      });
-
-    const resetActions = {
-      resetPreset: () => pm.resetToOriginals(),
-    };
-    this.resetPresetCtrl = this.gui.add(resetActions, 'resetPreset').name('↺ Reset preset');
     this.refreshResetPresetButton();
 
     this.buildLogoSection();
@@ -284,6 +459,7 @@ export class SettingsPanel {
       };
 
       const music = this.gui.addFolder('Music Mode');
+      this.musicFolder = music;
       this.musicEnabledCtrl = music.add(this.state, 'musicEnabled').name('Enabled').onChange(async (v) => {
         const ok = await mm.setEnabled(v, () => this.getValues());
         if (!ok) {
@@ -296,7 +472,7 @@ export class SettingsPanel {
         this.state.musicStatus = mm.status;
         this.musicStatusCtrl?.updateDisplay();
       });
-      music
+      const sourceCtrl = music
         .add(this.state, 'musicSource', { Microphone: 'mic', 'Tab / screen audio': 'tab' })
         .name('Source')
         .onChange(async (src) => {
@@ -306,7 +482,8 @@ export class SettingsPanel {
             mm.currentShader = this.state.shader;
           }
         });
-      music.add(this.state, 'musicSensitivity', 10, 100, 1).name('Sensitivity').onChange((v) => {
+      this.stepIfDropdown(music, sourceCtrl, 'source');
+      const sensitivityCtrl = music.add(this.state, 'musicSensitivity', 10, 100, 1).name('Sensitivity').onChange((v) => {
         mm.sensitivity = v;
       });
       music.add(this.state, 'musicResponse', 10, 100, 1).name('Response').onChange((v) => {
@@ -316,9 +493,44 @@ export class SettingsPanel {
       this.musicLevelCtrl.disable(true);
       this.musicStatusCtrl = music.add(this.state, 'musicStatus').name('Status');
       this.musicStatusCtrl.disable(true);
+
+      const bands = music.addFolder('Bands');
+      this.musicMeters = {};
+      for (const [key, label, max] of [
+        ['musicKick', 'Kick', 100],
+        ['musicHihat', 'Hi-hat', 100],
+        ['musicBass', 'Bass', 100],
+        ['musicMid', 'Mid', 100],
+        ['musicHigh', 'High', 100],
+        ['musicBeat', 'Beat', 100],
+        ['musicBpm', 'BPM', 200],
+      ]) {
+        const ctrl = bands.add(this.state, key, 0, max, 1).name(label);
+        ctrl.disable(true);
+        this.musicMeters[key] = ctrl;
+      }
+
+      const routes = music.addFolder('Band presets');
+      for (const name of Object.keys(MUSIC_ROUTES)) {
+        routes.add({ load: () => this.applyMusicRoute(name) }, 'load').name(name);
+      }
+
+      const channels = music.addFolder('Channels');
+      for (let i = 0; i < 10; i++) {
+        this.state[`musicCh${i}`] = mm.channels[i] || 'off';
+        const channelCtrl = channels
+          .add(this.state, `musicCh${i}`, AUDIO_FEATURES)
+          .name(`Channel ${i}`)
+          .onChange((value) => mm.setChannelFeature(i, value));
+        this.stepIfDropdown(channels, channelCtrl, `channel ${i}`);
+      }
+
+      this.audioLinks = music.addFolder('Setting links');
+      this.rebuildAudioLinks();
     }
 
     const cycle = this.gui.addFolder('Auto Cycle');
+    this.cycleFolder = cycle;
     this.autoCycleCtrl = cycle.add(this.state, 'autoCycle').name('Enabled').onChange((v) => {
       pm.setAutoCycle(v);
     });
@@ -342,9 +554,73 @@ export class SettingsPanel {
 
     this.applyMenuOpacity(this.state.menuOpacity);
     this.applyMenuPosition(this.state.menuPosition);
-    this.applyMenuBigMode(this.state.menuBigMode);
+    this.applyMenuScale(this.state.menuScale);
+    this.applyComplexityForShader(this.state.shader);
+    this.placeMenuOrder();
+    this.visualizer.setEaseSeconds(this.state.easeSeconds);
     this.patchNumberControllers();
+    this.stepRemainingDropdowns();
+    this.closeAllFolders();
+    this.attachAllPresetOverrides();
     this.gui.close();
+  }
+
+  attachAllPresetOverrides() {
+    this.attachPresetOverride(this.menuFolder, 'Controls');
+    this.attachPresetOverride(this.overlayFolder, 'Overlay');
+    this.attachPresetOverride(this.displayFolder, 'Display');
+    this.attachPresetOverride(this.globalFolder, 'Global');
+    this.attachPresetOverride(this.colorFolder, 'Colors');
+    this.attachPresetOverride(this.driftFolder, 'Drift Timing');
+    this.attachPresetOverride(this.logoFolder, 'Logo');
+    this.attachPresetOverride(this.textFolder, 'Text Overlay');
+    this.attachPresetOverride(this.musicFolder, 'Music Mode');
+    this.attachPresetOverride(this.cycleFolder, 'Auto Cycle');
+    this.attachPresetOverride(this.shaderFolder, 'Mode');
+  }
+
+  attachPresetOverride(folder, id) {
+    const title = folder?.domElement?.querySelector(':scope > .title');
+    if (!title || title.querySelector('.preset-override')) return;
+    const label = document.createElement('label');
+    label.className = 'preset-override';
+    label.title = 'Preset override: keep this folder when a preset loads';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = Boolean(this.presetOverrides[id]);
+    const stop = (event) => event.stopPropagation();
+    input.addEventListener('pointerdown', stop);
+    input.addEventListener('click', stop);
+    label.addEventListener('pointerdown', stop);
+    label.addEventListener('click', stop);
+    input.addEventListener('change', () => {
+      this.presetOverrides[id] = input.checked;
+      savePresetOverrides(this.presetOverrides);
+    });
+    label.append(input);
+    title.append(label);
+  }
+
+  folderForPresetKey(key) {
+    if (DISPLAY_PRESET_KEYS.has(key)) return 'Display';
+    if (isColorKey(key)) return 'Colors';
+    if (key.startsWith('u') && (GLOBAL_UNIFORMS[key] || BACKGROUND_UNIFORMS[key])) return 'Global';
+    if (key.startsWith('u')) return 'Mode';
+    return null;
+  }
+
+  isPresetFolderLocked(id) {
+    return Boolean(this.presetOverrides?.[id]);
+  }
+
+  withoutLockedPresetValues(values) {
+    if (!values) return values;
+    const next = { ...values };
+    for (const key of Object.keys(next)) {
+      const folder = this.folderForPresetKey(key);
+      if (folder && this.isPresetFolderLocked(folder)) delete next[key];
+    }
+    return next;
   }
 
   buildLogoSection() {
@@ -478,6 +754,7 @@ export class SettingsPanel {
 
   buildTextOverlaySection() {
     const text = this.gui.addFolder('Text Overlay');
+    this.textFolder = text;
     this.textOverlayFolder = text;
 
     text.add(this.state, 'textEnabled').name('Enabled').onChange((value) => {
@@ -490,7 +767,14 @@ export class SettingsPanel {
     text.add(textActions, 'openNotepad').name('Open notepad');
 
     text
-      .add(this.state, 'textSize', 40, 240, 1)
+      .add(this.state, 'textFont', Object.fromEntries(Object.keys(TEXT_FONTS).map((name) => [name, name])))
+      .name('Font')
+      .onChange((value) => {
+        this.onTextFontChange?.(value);
+      });
+
+    text
+      .add(this.state, 'textSize', TEXT_SIZE_MIN, TEXT_SIZE_MAX, 1)
       .name('Text size %')
       .onChange((value) => {
         this.onTextSizeChange?.(value);
@@ -522,33 +806,210 @@ export class SettingsPanel {
     });
 
     text
+      .add(this.state, 'textAlign', TEXT_ALIGNS)
+      .name('Align')
+      .onChange((value) => {
+        this.onTextAlignChange?.(value);
+      });
+    text
+      .add(this.state, 'textTracking', 0, 100, 1)
+      .name('Tracking')
+      .onChange((value) => {
+        this.onTextTrackingChange?.(value);
+      });
+    text
+      .add(this.state, 'textStroke', 0, 100, 1)
+      .name('Outline')
+      .onChange((value) => {
+        this.onTextStrokeChange?.(value);
+      });
+    text
+      .add(this.state, 'textShadow', 0, 100, 1)
+      .name('Shadow')
+      .onChange((value) => {
+        this.onTextShadowChange?.(value);
+      });
+    text.add(this.state, 'textCaps').name('All caps').onChange((value) => {
+      this.onTextCapsChange?.(value);
+    });
+    text
       .add(this.state, 'textLineHeight', 90, 220, 1)
       .name('Line spacing %')
       .onChange((value) => {
         this.onTextLineHeightChange?.(value);
       });
+
+    text
+      .add(this.state, 'textEffect', TEXT_EFFECTS)
+      .name('Animation')
+      .onChange((value) => {
+        this.onTextEffectChange?.(value);
+      });
+    text
+      .add(this.state, 'textEffectAmount', 0, 100, 1)
+      .name('Animation amount')
+      .onChange((value) => {
+        this.onTextEffectAmountChange?.(value);
+      });
+    text
+      .add(this.state, 'textEffectSpeed', 0, 100, 1)
+      .name('Animation speed')
+      .onChange((value) => {
+        this.onTextEffectSpeedChange?.(value);
+      });
+    text.add(this.state, 'textDrift').name('Drift').onChange((value) => {
+      this.onTextDriftChange?.(value);
+    });
+    text
+      .add(this.state, 'textDriftSpeed', 0, 100, 1)
+      .name('Drift speed')
+      .onChange((value) => {
+        this.onTextDriftSpeedChange?.(value);
+      });
+    text
+      .add(this.state, 'textDriftDirection', TEXT_DRIFT_DIRECTIONS)
+      .name('Drift direction')
+      .onChange((value) => {
+        this.onTextDriftDirectionChange?.(value);
+      });
+  }
+
+  buildMenuSection(pm) {
+    this.collapseCtrl = this.gui
+      .add({ collapseAll: () => this.closeAllFolders() }, 'collapseAll')
+      .name('Collapse all');
+
+    const menu = this.gui.addFolder('Controls');
+    this.menuFolder = menu;
+    const fire = (name) => document.dispatchEvent(new CustomEvent(name));
+
+    const shaderCtrl = menu.add(this.state, 'shader', getShaderChoices()).name('Shader').onChange((id) => {
+      this.setShader(id);
+    });
+    this.stepIfDropdown(menu, shaderCtrl, 'shader');
+    this.presetController = menu
+      .add(this.state, 'preset', pm.getPresetNames(this.state.shader))
+      .name('Preset')
+      .onChange((name) => {
+        pm.setActiveShader(this.state.shader);
+        pm.syncCurrentIndexForShader(name);
+        pm.goToByName(name, { randomize: false, shader: this.state.shader });
+      });
+    this.stepIfDropdown(menu, this.presetController, 'preset');
+    this.resetPresetCtrl = menu
+      .add({ resetPreset: () => pm.resetToOriginals() }, 'resetPreset')
+      .name('Reset preset');
+
+    menu.add({ previousShader: () => fire('lobby-shader-prev') }, 'previousShader').name('Previous shader');
+    menu.add({ nextShader: () => fire('lobby-shader-next') }, 'nextShader').name('Next shader');
+    menu.add({ cyclePreset: () => fire('lobby-preset-next') }, 'cyclePreset').name('Cycle preset');
+    menu.add({ savePreset: () => fire('lobby-save-preset') }, 'savePreset').name('Save preset');
+    menu.add({ uploadPreset: () => fire('lobby-upload-preset') }, 'uploadPreset').name('Upload preset');
+    const driftAllBtn = menu.add({ driftAll: () => fire('lobby-drift-all') }, 'driftAll').name('Drift all');
+    driftAllBtn.domElement.classList.add('drift-all-wide');
+    menu.add({ smooth: () => fire('lobby-smooth') }, 'smooth').name('Smooth transitions');
+    menu.add({ autoCycle: () => fire('lobby-autocycle') }, 'autoCycle').name('Auto-cycle');
+    this.performanceCtrl = menu.add({ performance: () => fire('lobby-performance') }, 'performance').name('Performance');
+    this.performanceCtrl.domElement.classList.add('drift-all-wide');
+    menu.add(this.state, 'performanceInterval', 8, 60, 1).name('Performance interval').onChange((value) => {
+      savePerformancePrefs(this.state);
+      if (this.performanceLive) {
+        this.presetManager.cycleInterval = value;
+        this.state.cycleInterval = value;
+      }
+    });
+    menu.add(this.state, 'performanceIncludeOverlay').name('Performance overlay').onChange(() => savePerformancePrefs(this.state));
+    menu.add(this.state, 'performanceSkipHeavy').name('Skip heavy on Lite').onChange(() => savePerformancePrefs(this.state));
+    this.midiCtrl = menu.add({ midi: () => fire('lobby-midi') }, 'midi').name('MIDI');
+    this.midiCtrl.domElement.classList.add('drift-all-wide');
+    this.midiCtrl.domElement.dataset.help = MIDI_MAP_NOTE;
+    this.state.midiMap = MIDI_MAP_NOTE;
+    this.midiMapCtrl = menu.add(this.state, 'midiMap').name('MIDI map');
+    this.midiMapCtrl.disable();
+    this.midiMapCtrl.domElement.dataset.help = MIDI_MAP_NOTE;
+    this.buildMidiMapFolder(menu);
+    menu.add({ tutorial: () => fire('lobby-tutorial') }, 'tutorial').name('Tutorial');
+    menu.add({ help: () => fire('lobby-help') }, 'help').name('Help');
+  }
+
+  buildOverlaySection() {
+    const overlay = this.gui.addFolder('Overlay');
+    this.overlayFolder = overlay;
+    const choices = getShaderChoices();
+    const sync = () => {
+      saveOverlayPrefs(this.state);
+      this.pushOverlay();
+    };
+    overlay.add(this.state, 'overlayOn').name('Layer B').onChange(sync);
+    overlay.add(this.state, 'overlayShader', choices).name('Mode B').onChange(sync);
+    overlay.add(this.state, 'overlayMix', 0, 100, 1).name('Mix').onChange(sync);
+    const blendCtrl = overlay.add(this.state, 'overlayBlend', { Mix: 'Mix', Add: 'Add', Multiply: 'Multiply' }).name('Blend').onChange(sync);
+    this.stepIfDropdown(overlay, blendCtrl, 'blend');
+    overlay.add(this.state, 'overlayAudio').name('Audio mix').onChange(sync);
+    overlay.add({ swapLayers: () => this.swapOverlayLayers() }, 'swapLayers').name('Swap A and B');
+    this.pushOverlay();
+  }
+
+  swapOverlayLayers() {
+    const mainId = this.state.shader;
+    const layerId = this.state.overlayShader;
+    if (!layerId || layerId === mainId) return;
+    this.state.overlayOn = true;
+    this.state.overlayShader = mainId;
+    this.setShader(layerId);
+    saveOverlayPrefs(this.state);
+    this.pushOverlay();
+    this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  pushOverlay(music = null) {
+    let mix = (this.state.overlayMix ?? 0) / 100;
+    if (this.state.overlayAudio && music?.enabled) {
+      const beat = music.smoothed?.beat || 0;
+      const energy = music.smoothed?.energy || 0;
+      mix = Math.max(0, Math.min(1, mix * 0.3 + beat * 0.8 + energy * 0.45));
+    }
+    const mode = { Mix: 0, Add: 1, Multiply: 2 }[this.state.overlayBlend] ?? 0;
+    this.visualizer.setOverlay({
+      enabled: Boolean(this.state.overlayOn),
+      shaderId: this.state.overlayShader,
+      mix,
+      mode,
+    });
   }
 
   buildDisplaySection() {
     const display = this.gui.addFolder('Display');
     this.displayFolder = display;
-    this.liteModeCtrl = display
-      .add(this.state, 'liteMode')
-      .name('Lite mode (multi-screen)')
-      .onChange((enabled) => {
-        this.setLiteMode(enabled);
+    this.qualityCtrl = display
+      .add(this.state, 'qualityStep', 0, 2, 1)
+      .name('Quality')
+      .onChange((step) => {
+        const index = Math.max(0, Math.min(2, Math.round(step)));
+        this.state.qualityStep = index;
+        this.fpsQualityCeiling = index;
+        this.setPerformancePreset(QUALITY_STEPS[index]);
       });
+    this.qualityCtrl.domElement.dataset.help = tipFor('performancePreset');
+    this.qualityReadout = document.createElement('div');
+    this.qualityReadout.className = 'quality-readout';
+    this.qualityReadout.textContent = this.state.qualityLabel;
+    this.qualityCtrl.domElement.insertAdjacentElement('afterend', this.qualityReadout);
+    this.perfNoteCtrl = display.add(this.state, 'perfNote').name('Load');
+    this.perfNoteCtrl.disable(true);
     this.menuPositionCtrl = display
-      .add(this.state, 'menuPosition', MENU_POSITION_LABELS)
+      .add(this.state, 'menuPosition', Object.fromEntries(
+        MENU_POSITIONS.map((id) => [MENU_POSITION_LABELS[id], id]),
+      ))
       .name('Menu position')
       .onChange((position) => {
         this.setMenuPosition(position);
       });
-    display
-      .add(this.state, 'menuBigMode')
-      .name('Big menu (distance view)')
-      .onChange((enabled) => {
-        this.setMenuBigMode(enabled);
+    this.menuScaleCtrl = display
+      .add(this.state, 'menuScale', MENU_SCALE_MIN, MENU_SCALE_MAX, 5)
+      .name('Menu size')
+      .onChange((scale) => {
+        this.setMenuScale(scale);
       });
     display
       .add(this.state, 'menuOpacity', 30, 100, 1)
@@ -556,17 +1017,40 @@ export class SettingsPanel {
       .onChange((v) => {
         this.applyMenuOpacity(v);
       });
-    display
+    this.state.fpsLock = false;
+    this.state.fpsTarget = 30;
+    this.fpsCeiling = this.state.resolutionScale;
+    this.fpsQualityCeiling = this.state.qualityStep ?? 0;
+    this.fpsUnder = 0;
+    this.fpsOver = 0;
+    display.add(this.state, 'fpsLock').name('FPS lock').onChange((on) => {
+      if (on) {
+        this.fpsCeiling = this.state.resolutionScale;
+        this.fpsQualityCeiling = this.state.qualityStep ?? 0;
+      }
+    });
+    display.add(this.state, 'fpsTarget', 20, 60, 1).name('FPS target');
+    display.add(this.state, 'easeSeconds', 0, 10, 0.1).name('Ease (s)').onChange((seconds) => {
+      this.visualizer.setEaseSeconds(seconds);
+    });
+    const post = display.addFolder('Post FX');
+    for (const [key, spec] of Object.entries(POST_UNIFORMS)) {
+      this.addUniformRow(post, key, spec);
+    }
+    const resolutionCtrl = display
       .add(this.state, 'resolutionScale', 25, 100, 1)
       .name('Resolution %')
       .onChange((v) => {
         if (this.state.liteMode) {
           v = Math.min(v, 50);
           this.state.resolutionScale = v;
-          this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
         }
+        this.fpsCeiling = v;
         this.visualizer.setResolutionScale(v);
       });
+    this.attachLooseDrift(resolutionCtrl, 'resolutionScale', 25, 100, (value) => {
+      this.visualizer.setResolutionScale(value);
+    });
     this.motionTrailsCtrl = display
       .add(this.state, 'motionTrails', 0, 100, 1)
       .name('Motion Trails')
@@ -574,12 +1058,13 @@ export class SettingsPanel {
         this.updateTrailsNeverDecayCtrl();
         this.handleValueChange();
       });
+    this.motionTrailsCtrl.domElement.dataset.help = tipFor('motionTrails');
     this.trailsNeverDecayCtrl = display
       .add(this.state, 'trailsNeverDecay')
       .name('Trails never decay')
       .onChange(() => this.handleValueChange());
+    this.trailsNeverDecayCtrl.domElement.dataset.help = tipFor('trailsNeverDecay');
     this.updateTrailsNeverDecayCtrl();
-    this.addUniformControls(display, BACKGROUND_UNIFORMS);
   }
 
   buildDriftSection(dm) {
@@ -602,25 +1087,183 @@ export class SettingsPanel {
         dm.speed = v;
       });
     this.driftSpeedCtrl.disable(this.state.driftSpeedAuto);
+    drift
+      .add(this.state, 'driftMode', Object.keys(DRIFT_MODES))
+      .name('Drift mode')
+      .onChange((mode) => {
+        dm.setMode(DRIFT_MODES[mode] ?? 'random');
+      });
+    const limitCtrl = drift
+      .add(this.state, 'driftLimit', 1, 5, 1)
+      .name('Drift limit')
+      .onChange((level) => {
+        dm.setLimit(level);
+      });
+    limitCtrl.domElement.dataset.help = 'How far drift stays from the ends. 1 is a small margin. 5 keeps the motion near the middle.';
+    drift.controllers[drift.controllers.length - 2].domElement.dataset.help = 'Random wanders. Left to right and right to left sweep the slider. Ping-pong goes back and forth.';
   }
 
   buildGlobalSection() {
     this.globalSpecs = Object.fromEntries(
-      Object.entries(GLOBAL_UNIFORMS).filter(([key]) => !(key in BACKGROUND_UNIFORMS)),
+      Object.entries(GLOBAL_UNIFORMS).filter(
+        ([key]) => !isColorKey(key),
+      ),
     );
     this.globalFolder = this.gui.addFolder('Global');
     this.addUniformControls(this.globalFolder, this.globalSpecs);
   }
 
-  placeShaderFolderAfterGlobal() {
-    if (!this.globalFolder?.domElement || !this.shaderFolder?.domElement) return;
-    const parent = this.globalFolder.domElement.parentElement;
+  buildColorSection() {
+    this.colorFolder = this.gui.addFolder('Colors');
+    this.modeColorControllers = [];
+    const shared = Object.fromEntries(
+      Object.entries({ ...BACKGROUND_UNIFORMS, ...GLOBAL_UNIFORMS }).filter(([key]) => isColorKey(key)),
+    );
+    this.colorSpecs = shared;
+    this.addUniformControls(this.colorFolder, shared);
+    const sharedOrder = ['uWhiteness', 'uBlackness', 'uSaturation', 'uBgRed', 'uBgGreen', 'uBgBlue'];
+    for (const key of sharedOrder) {
+      if (shared[key]) this.addUniformRow(this.colorFolder, key, shared[key]);
+    }
+    this.ensureInvertRow();
+
+    const stops = [
+      ['uPal0R', 'uPal0G', 'uPal0B', 'Stop 1'],
+      ['uPal1R', 'uPal1G', 'uPal1B', 'Stop 2'],
+      ['uPal2R', 'uPal2G', 'uPal2B', 'Stop 3'],
+    ];
+    for (const [r, g, b, name] of stops) {
+      for (const [key, part] of [[r, 'red'], [g, 'green'], [b, 'blue']]) {
+        const spec = { value: this.state[key] ?? 0, min: 0, max: 255, step: 1, kind: 'rgb', label: `${name} ${part}` };
+        this.addUniformRow(this.colorFolder, key, spec);
+      }
+    }
+  }
+
+  placeMenuOrder() {
+    const anchor = this.displayFolder?.domElement;
+    const parent = anchor?.parentElement;
     if (!parent) return;
-    parent.insertBefore(this.shaderFolder.domElement, this.globalFolder.domElement.nextSibling);
+    const collapseEl = this.collapseCtrl?.domElement;
+    if (collapseEl) parent.insertBefore(collapseEl, parent.firstElementChild);
+    const order = [this.menuFolder, this.overlayFolder, this.displayFolder, this.globalFolder, this.shaderFolder, this.colorFolder];
+    let cursor = collapseEl ?? null;
+    for (const folder of order) {
+      const el = folder?.domElement;
+      if (!el) continue;
+      if (!cursor) parent.insertBefore(el, parent.firstElementChild);
+      else parent.insertBefore(el, cursor.nextSibling);
+      cursor = el;
+    }
+  }
+
+  closeAllFolders() {
+    this.gui.foldersRecursive().forEach((folder) => folder.close());
   }
 
   patchNumberControllers() {
-    this.gui.controllersRecursive().forEach((controller) => configureNumberController(controller));
+    this.gui.controllersRecursive().forEach((controller) => {
+      configureNumberController(controller);
+      this.attachSliderClicks(controller);
+      this.attachPresetMark(controller);
+      this.attachNameReset(controller);
+    });
+  }
+
+  presetDefaultFor(key) {
+    const preset = this.presetManager?.currentPreset;
+    if (!preset) return undefined;
+    const original = this.presetManager.getBuiltinOriginal?.(preset.name, preset.shader);
+    const source = original?.values ?? preset.values ?? {};
+    if (Object.prototype.hasOwnProperty.call(source, key)) return source[key];
+    return this.getSpecForKey(key)?.value;
+  }
+
+  attachPresetMark(controller) {
+    const slider = controller?.domElement?.querySelector?.('.slider');
+    if (!slider) return;
+    let mark = slider.querySelector('.preset-mark');
+    if (!mark) {
+      mark = document.createElement('div');
+      mark.className = 'preset-mark';
+      slider.appendChild(mark);
+    }
+    const min = controller._min;
+    const max = controller._max;
+    const value = this.presetDefaultFor(controller.property);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || !Number.isFinite(Number(value)) || max === min) {
+      mark.hidden = true;
+      return;
+    }
+    const t = (Number(value) - min) / (max - min);
+    mark.hidden = false;
+    mark.style.left = `${Math.max(0, Math.min(1, t)) * 100}%`;
+  }
+
+  refreshPresetMarks() {
+    this.gui.controllersRecursive().forEach((controller) => this.attachPresetMark(controller));
+  }
+
+  jumpToPresetDefault(controller) {
+    const key = controller?.property;
+    const spec = this.getSpecForKey(key);
+    const min = spec?.min ?? controller?._min;
+    const max = spec?.max ?? controller?._max;
+    let next = this.presetDefaultFor(key);
+    if (!Number.isFinite(Number(next))) return;
+    const step = spec?.step ?? controller?._step ?? 1;
+    if (step) next = Math.round(next / step) * step;
+    if (Number.isFinite(min) && Number.isFinite(max)) next = Math.min(max, Math.max(min, next));
+    controller.setValue(next);
+  }
+
+  attachNameReset(controller) {
+    const name = controller?.domElement?.querySelector?.(':scope > .name');
+    if (!name || name.dataset.presetReset === '1') return;
+    if (!controller.domElement.classList.contains('number')) return;
+    name.dataset.presetReset = '1';
+    name.addEventListener('dblclick', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.jumpToPresetDefault(controller);
+    });
+  }
+
+  attachSliderClicks(controller) {
+    const slider = controller?.domElement?.querySelector?.('.slider');
+    if (!slider || slider.dataset.sliderClicks === '1') return;
+    slider.dataset.sliderClicks = '1';
+    let clicks = 0;
+    let timer = 0;
+    slider.addEventListener('click', () => {
+      clicks += 1;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const count = clicks;
+        clicks = 0;
+        if (count < 2) return;
+        const key = controller.property;
+        const spec = this.getSpecForKey(key);
+        const min = spec?.min ?? controller._min;
+        const max = spec?.max ?? controller._max;
+        if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+        const presetValues = this.presetManager.currentPreset?.values ?? {};
+        let next;
+        if (count >= 3) {
+          next = (min + max) / 2;
+        } else if (Object.prototype.hasOwnProperty.call(presetValues, key)) {
+          next = presetValues[key];
+        } else if (spec?.value != null) {
+          next = spec.value;
+        } else {
+          next = (min + max) / 2;
+        }
+        const step = spec?.step ?? controller._step ?? 1;
+        if (step) next = Math.round(next / step) * step;
+        next = Math.min(max, Math.max(min, next));
+        controller.setValue(next);
+      }, 320);
+    });
   }
 
   applyMenuOpacity(percent) {
@@ -645,14 +1288,27 @@ export class SettingsPanel {
     return this.setMenuPosition(nextMenuPosition(this.state.menuPosition));
   }
 
-  applyMenuBigMode(enabled) {
-    applyMenuBigMode(this.gui.domElement, enabled);
+  applyMenuScale(scale) {
+    applyMenuScale(this.gui.domElement, scale);
   }
 
-  setMenuBigMode(enabled) {
-    this.state.menuBigMode = Boolean(enabled);
-    this.applyMenuBigMode(this.state.menuBigMode);
-    saveMenuBigMode(this.state.menuBigMode);
+  setMenuScale(scale) {
+    const next = Math.max(MENU_SCALE_MIN, Math.min(MENU_SCALE_MAX, Math.round(scale)));
+    this.state.menuScale = next;
+    this.applyMenuScale(next);
+    saveMenuScale(next);
+  }
+
+  setMenuScaleAvailable(available) {
+    if (!this.menuScaleCtrl) return;
+    if (available) this.menuScaleCtrl.show();
+    else this.menuScaleCtrl.hide();
+    if (!available) {
+      this.gui.domElement.classList.remove('menu-big-mode');
+      this.gui.domElement.style.removeProperty('--menu-scale');
+    } else {
+      this.applyMenuScale(this.state.menuScale);
+    }
   }
 
   updateTrailsNeverDecayCtrl() {
@@ -680,6 +1336,91 @@ export class SettingsPanel {
     };
   }
 
+  syncQualityLabel(preset) {
+    const index = Math.max(0, QUALITY_STEPS.indexOf(preset));
+    this.state.qualityStep = index;
+    this.state.qualityLabel = QUALITY_LABELS[index];
+    this.qualityCtrl?.updateDisplay();
+    if (this.qualityReadout) this.qualityReadout.textContent = this.state.qualityLabel;
+  }
+
+  setPerformancePreset(preset) {
+    this.state.performancePreset = preset;
+    this.syncQualityLabel(preset);
+    if (preset === 'lite') {
+      this.setLiteMode(true);
+      return;
+    }
+    if (this.state.liteMode) this.setLiteMode(false);
+    if (preset === 'balanced') {
+      this.state.resolutionScale = Math.min(this.state.resolutionScale, 65);
+      this.state.motionTrails = Math.min(this.state.motionTrails ?? 100, 30);
+      if (this.state.uBloom != null) this.state.uBloom = Math.min(this.state.uBloom, 35);
+      if (this.state.uOrbitCount != null) this.state.uOrbitCount = Math.min(this.state.uOrbitCount, 24);
+      if (this.state.uParticleCount != null) this.state.uParticleCount = Math.min(this.state.uParticleCount, 18);
+      if (this.state.uRingCount != null) this.state.uRingCount = Math.min(this.state.uRingCount, 6);
+      if (this.state.uIterations != null) this.state.uIterations = Math.min(this.state.uIterations, 60);
+      if (this.state.uRibbonCount != null) this.state.uRibbonCount = Math.min(this.state.uRibbonCount, 4);
+    }
+    if (preset === 'full') {
+      this.state.resolutionScale = 100;
+    }
+    this.visualizer.setResolutionScale(this.state.resolutionScale);
+    this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    this.updateTrailsNeverDecayCtrl();
+    this.syncValuesToVisualizer();
+  }
+
+  notePerf(fps, frameMs) {
+    const load = describeModeLoad(this.state.shader, this.state);
+    const lock = this.state.fpsLock ? ` · lock ${this.state.fpsTarget || 30}` : '';
+    const text = `${Number(fps).toFixed(1)} fps · ${Number(frameMs).toFixed(1)} ms · ${load}${lock}`;
+    this.state.perfNote = text;
+    this.perfNoteCtrl?.updateDisplay();
+    const badge = document.getElementById('perf-readout');
+    if (badge) badge.textContent = text;
+    this.enforceFpsLock(fps);
+  }
+
+  enforceFpsLock(fps) {
+    if (!this.state.fpsLock) return;
+    const target = this.state.fpsTarget || 30;
+    if (fps < target - 1) {
+      this.fpsUnder = (this.fpsUnder || 0) + 1;
+      this.fpsOver = 0;
+    } else if (fps > target + 12) {
+      this.fpsOver = (this.fpsOver || 0) + 1;
+      this.fpsUnder = 0;
+    } else {
+      this.fpsUnder = 0;
+      this.fpsOver = 0;
+    }
+    if (this.fpsUnder >= 2) {
+      this.fpsUnder = 0;
+      if (this.state.resolutionScale > 30) {
+        this.state.resolutionScale = Math.max(30, this.state.resolutionScale - 10);
+        this.visualizer.setResolutionScale(this.state.resolutionScale);
+      } else if ((this.state.qualityStep ?? 0) < 2) {
+        this.setPerformancePreset(QUALITY_STEPS[(this.state.qualityStep ?? 0) + 1]);
+      }
+      this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    } else if (this.fpsOver >= 4 && this.state.resolutionScale < (this.fpsCeiling ?? 100)) {
+      this.fpsOver = 0;
+      const cap = this.state.liteMode ? 50 : (this.fpsCeiling ?? 100);
+      this.state.resolutionScale = Math.min(cap, this.state.resolutionScale + 5);
+      this.visualizer.setResolutionScale(this.state.resolutionScale);
+      this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    }
+  }
+
+  attachLooseDrift(controller, key, min, max, apply) {
+    const spec = { min, max, step: 1, value: this.state[key] };
+    this.driftManager.register(key, spec, this.state[key]);
+    this.attachDriftToggle(controller, key, spec);
+    if (!this.looseDriftApply) this.looseDriftApply = new Map();
+    this.looseDriftApply.set(key, apply);
+  }
+
   setLiteMode(enabled, { silent = false, skipSave = false, init = false } = {}) {
     const next = Boolean(enabled);
     if (next === this.state.liteMode) return;
@@ -689,6 +1430,9 @@ export class SettingsPanel {
     }
 
     this.state.liteMode = next;
+    if (next) this.state.performancePreset = 'lite';
+    else if (this.state.performancePreset === 'lite') this.state.performancePreset = 'full';
+    this.syncQualityLabel(this.state.performancePreset);
     if (!skipSave) saveLiteMode(next);
     this.visualizer.setLiteMode(next);
 
@@ -703,7 +1447,6 @@ export class SettingsPanel {
     }
 
     this.updateLiteControls();
-    this.liteModeCtrl?.updateDisplay();
     this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
     this.syncValuesToVisualizer();
     this.handleValueChange(true);
@@ -736,12 +1479,37 @@ export class SettingsPanel {
     this.onLogoChange?.(value);
   }
 
+  rememberComplexity(shaderId = this.state.shader) {
+    this.complexityByShader[shaderId] = this.state.uComplexity;
+  }
+
+  fitComplexityControl(shaderId = this.state.shader) {
+    const spec = getSpecMap(shaderId).uComplexity;
+    if (!spec) return;
+    if (this.state.uComplexity < spec.min || this.state.uComplexity > spec.max) {
+      this.state.uComplexity = spec.value;
+    }
+    const ctrl = this.uniformControllers.get('uComplexity');
+    ctrl?.min(spec.min).max(spec.max).step(spec.step ?? 1);
+    ctrl?.updateDisplay();
+    this.rememberComplexity(shaderId);
+  }
+
+  applyComplexityForShader(shaderId = this.state.shader) {
+    if (this.complexityByShader[shaderId] !== undefined) {
+      this.state.uComplexity = this.complexityByShader[shaderId];
+    }
+    this.fitComplexityControl(shaderId);
+  }
+
   setShader(shaderId) {
     if (!shaderId || shaderId === this.state.shader) return shaderId;
 
     const pm = this.presetManager;
+    this.rememberComplexity(this.state.shader);
     mergeShaderDefaults(this.state, shaderId);
     this.state.shader = shaderId;
+    this.applyComplexityForShader(shaderId);
     this.driftManager.setShader(shaderId);
     if (!this.state.liteMode && TRAIL_SHADERS.has(shaderId)) {
       this.state.motionTrails = 100;
@@ -755,6 +1523,7 @@ export class SettingsPanel {
     this.rebuildShaderFolder(shaderId);
     this.applyLiteIfEnabled();
     this.refreshPresetDropdown();
+    this.rebuildAudioLinks();
     pm.syncCurrentIndexForShader(this.state.preset);
     this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
     if (this.musicMode?.enabled) {
@@ -789,9 +1558,16 @@ export class SettingsPanel {
   }
 
   addUniformControls(folder, specs) {
+    const rows = Object.entries(specs);
+    for (const [key, spec] of rows.filter(([key, spec]) => spec.kind === 'palette' && !isColorKey(key))) {
+      if (specs === SHADERS.flow?.uniforms && FLOW_LOGO_COLLIDER_KEYS.has(key)) continue;
+      this.addUniformRow(folder, key, spec);
+    }
+
     const driftAllKey = `driftAll_${this.folderDriftActions.length}`;
     const driftAllState = { [driftAllKey]: false };
-    const driftAllCtrl = folder.add(driftAllState, driftAllKey).name('↻ Drift all');
+    const driftAllCtrl = folder.add(driftAllState, driftAllKey).name('Drift all');
+    driftAllCtrl.domElement.classList.add('drift-all-wide');
     this.folderDriftActions.push({ ctrl: driftAllCtrl, specs, stateKey: driftAllKey, state: driftAllState });
 
     driftAllCtrl.onChange((enabled) => {
@@ -806,7 +1582,7 @@ export class SettingsPanel {
       }
     });
 
-    for (const [key, spec] of Object.entries(specs)) {
+    for (const [key, spec] of rows.filter(([key, spec]) => spec.kind !== 'palette' && !isColorKey(key))) {
       if (specs === SHADERS.flow?.uniforms && FLOW_LOGO_COLLIDER_KEYS.has(key)) continue;
       this.addUniformRow(folder, key, spec);
     }
@@ -826,7 +1602,7 @@ export class SettingsPanel {
         : BASE_PALETTE_OPTIONS;
       controller = folder
         .add(this.state, key, { ...paletteOptions })
-        .name('Palette')
+        .name(spec.label || 'Colors (palette)')
         .onChange(() => {
           if (this.driftManager.isEnabled(key)) {
             this.driftManager.resetFrom(key, this.state[key]);
@@ -846,6 +1622,81 @@ export class SettingsPanel {
     } else if (spec.kind === 'trailShape') {
       controller = folder
         .add(this.state, key, { ...TRAIL_SHAPE_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
+    } else if (spec.kind === 'patternType') {
+      controller = folder
+        .add(this.state, key, { ...PATTERN_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
+    } else if (spec.kind === 'spacingMode') {
+      controller = folder
+        .add(this.state, key, { ...SPACING_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
+    } else if (spec.kind === 'symmetry') {
+      controller = folder
+        .add(this.state, key, { ...SYMMETRY_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
+    } else if (spec.kind === 'fieldShape') {
+      controller = folder
+        .add(this.state, key, { ...FIELD_SHAPE_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
+    } else if (spec.kind === 'colorMode') {
+      controller = folder
+        .add(this.state, key, { ...COLOR_ALONG_OPTIONS })
+        .name(label)
+        .onChange(() => this.handleValueChange());
+    } else if (spec.kind === 'starMotion') {
+      controller = folder
+        .add(this.state, key, { ...STAR_MOTION_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
+    } else if (spec.kind === 'flowMotion') {
+      controller = folder
+        .add(this.state, key, { ...FLOW_MOTION_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
+    } else if (spec.kind === 'pointShape') {
+      controller = folder
+        .add(this.state, key, { ...POINT_SHAPE_OPTIONS })
         .name(label)
         .onChange(() => {
           if (this.driftManager.isEnabled(key)) {
@@ -882,10 +1733,12 @@ export class SettingsPanel {
 
     this.uniformControllers.set(key, controller);
     configureNumberController(controller);
+    controller.domElement.dataset.help = tipFor(key, label);
 
     if (canDrift(spec)) {
       this.attachDriftToggle(controller, key, spec);
     }
+    this.stepIfDropdown(folder, controller, label);
   }
 
   attachDriftToggle(controller, key, spec) {
@@ -906,13 +1759,10 @@ export class SettingsPanel {
       this.notifyDriftStateChange();
     });
 
-    const icon = document.createElement('span');
-    icon.className = 'drift-toggle-icon';
-    icon.textContent = '↻';
-
-    wrap.append(checkbox, icon);
+    wrap.append(checkbox);
     const widget = row.querySelector('.widget');
-    (widget ?? row).appendChild(wrap);
+    if (widget) widget.prepend(wrap);
+    else row.prepend(wrap);
     this.driftToggles.set(key, checkbox);
   }
 
@@ -940,6 +1790,34 @@ export class SettingsPanel {
     const next = !this.isDriftAllEnabled();
     this.setDriftAll(next);
     return next;
+  }
+
+  setPerformanceDrift(enabled, onlyKeys = null) {
+    const specs = getSpecMap(this.state.shader);
+    const keys = onlyKeys ?? ['uSpeed', 'uBloom', 'uBrightness', 'uHueShift', 'uColorSpeed', 'uColorSpread', 'uTwist', 'uPulse', 'uWarp', 'uSwirl', 'uTwistAmount', 'uMix', 'uFieldScale'];
+    const changed = [];
+    for (const key of keys) {
+      const spec = specs[key];
+      if (!spec || !canDrift(spec)) continue;
+      const was = this.driftManager.isEnabled(key);
+      if (enabled && !was) {
+        this.driftManager.setEnabled(key, spec, true, this.state[key] ?? spec.value);
+        changed.push(key);
+      }
+      if (!enabled && was) {
+        this.driftManager.setEnabled(key, spec, false, this.state[key] ?? spec.value);
+      }
+      const toggle = this.driftToggles.get(key);
+      if (toggle) {
+        toggle.checked = this.driftManager.isEnabled(key);
+        toggle.parentElement?.classList.toggle('is-active', toggle.checked);
+      }
+    }
+    return changed;
+  }
+
+  setControlActive(ctrl, active) {
+    ctrl?.domElement?.classList.toggle('is-active', active);
   }
 
   setDriftAll(enabled) {
@@ -982,6 +1860,56 @@ export class SettingsPanel {
     this.notifyDriftStateChange();
   }
 
+  addModeColorControls(specs) {
+    if (!this.colorFolder) return;
+    const entries = Object.entries(specs).filter(([key]) => isColorKey(key));
+    const ordered = [
+      ...entries.filter(([, spec]) => spec.kind === 'palette'),
+      ...entries.filter(([, spec]) => spec.kind !== 'palette'),
+    ];
+    const parent = this.colorFolder.domElement.querySelector('.children') ?? this.colorFolder.domElement;
+    const anchor = parent.firstElementChild;
+    for (const [key, spec] of ordered) {
+      this.addUniformRow(this.colorFolder, key, spec);
+      const ctrl = this.uniformControllers.get(key);
+      if (!ctrl) continue;
+      this.modeColorControllers.push(ctrl);
+      if (anchor) parent.insertBefore(ctrl.domElement, anchor);
+    }
+    this.ensureInvertRow();
+  }
+
+  ensureInvertRow() {
+    const parent = this.colorFolder?.domElement?.querySelector(':scope > .children');
+    if (!parent) return;
+    if (this.state.uInvert === undefined) this.state.uInvert = 0;
+
+    let row = parent.querySelector(':scope > .invert-row');
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'controller boolean invert-row';
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = 'Invert';
+      const widget = document.createElement('div');
+      widget.className = 'widget';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.setAttribute('aria-label', 'Invert');
+      input.addEventListener('change', () => {
+        this.state.uInvert = input.checked ? 1 : 0;
+        this.handleValueChange();
+      });
+      widget.append(input);
+      row.append(name, widget);
+      this.invertInput = input;
+      row.dataset.help = tipFor('uInvert');
+    }
+
+    parent.insertBefore(row, parent.firstElementChild);
+    if (this.invertInput) this.invertInput.checked = Number(this.state.uInvert) > 0.5;
+  }
+
   rebuildShaderFolder(shaderId) {
     const savedDrift = new Map();
     if (this.shaderFolder) {
@@ -995,14 +1923,22 @@ export class SettingsPanel {
       }
       this.shaderFolder.destroy();
       this.folderDriftActions = this.folderDriftActions.filter(
-        (entry) => entry.specs === this.globalSpecs || entry.specs === BACKGROUND_UNIFORMS,
+        (entry) => entry.specs === this.globalSpecs || entry.specs === this.colorSpecs,
       );
     }
+    for (const ctrl of this.modeColorControllers ?? []) {
+      this.uniformControllers.delete(ctrl.property);
+      this.driftToggles.delete(ctrl.property);
+      this.driftManager.unregister(ctrl.property);
+      ctrl.destroy();
+    }
+    this.modeColorControllers = [];
 
     const shader = SHADERS[shaderId];
     mergeShaderDefaults(this.state, shaderId);
     this.shaderFolder = this.gui.addFolder(shader.label);
     this.addUniformControls(this.shaderFolder, shader.uniforms);
+    this.addModeColorControls(shader.uniforms);
 
     for (const [key] of savedDrift) {
       const spec = shader.uniforms[key];
@@ -1015,13 +1951,18 @@ export class SettingsPanel {
       }
     }
 
-    this.placeShaderFolderAfterGlobal();
+    this.placeMenuOrder();
+    this.shaderFolder?.close();
+    this.colorFolder?.close();
+    this.attachPresetOverride(this.shaderFolder, 'Mode');
+    this.patchNumberControllers();
     const focusKey = this.navigableItems[this.gamepadFocusIndex]?.key;
     this.refreshGamepadMenuAfterRebuild(focusKey);
     this.notifyDriftStateChange();
   }
 
   labelFor(key, spec) {
+    if (spec?.label) return spec.label;
     const names = {
       uSegments: 'Mirrors',
       uCenterShape: 'Center Shape',
@@ -1102,8 +2043,12 @@ export class SettingsPanel {
 
   syncGuiValues(values) {
     if (!values) return;
-    for (const [key, value] of Object.entries(values)) {
-      if (key.startsWith('u')) this.state[key] = value;
+    const allowed = this.withoutLockedPresetValues(values);
+    for (const [key, value] of Object.entries(allowed)) {
+      if (key.startsWith('u') || this.looseDriftApply?.has(key)) this.state[key] = value;
+    }
+    for (const [key, apply] of this.looseDriftApply ?? []) {
+      if (Object.prototype.hasOwnProperty.call(allowed, key)) apply(this.state[key]);
     }
     this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
   }
@@ -1121,6 +2066,7 @@ export class SettingsPanel {
   handleValueChange(rebuild = false, syncSmooth = false) {
     const values = this.getValues();
     this.visualizer.applyValues(values, { syncSmooth });
+    this.pushOverlay();
     this.onChange?.({ shader: this.state.shader, values, rebuild });
   }
 
@@ -1129,7 +2075,7 @@ export class SettingsPanel {
   }
 
   applyDisplaySettings(display) {
-    if (!display) return;
+    if (!display || this.isPresetFolderLocked('Display')) return;
     if (display.motionTrails !== undefined) {
       this.state.motionTrails = Math.max(0, Math.min(100, Math.round(display.motionTrails)));
     } else if (
@@ -1166,9 +2112,11 @@ export class SettingsPanel {
     }
 
     if (values) {
-      Object.assign(this.state, values);
+      Object.assign(this.state, this.withoutLockedPresetValues(values));
       this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
+      this.ensureInvertRow();
     }
+    this.fitComplexityControl(this.state.shader);
 
     if (display) {
       this.applyDisplaySettings(display);
@@ -1190,12 +2138,154 @@ export class SettingsPanel {
     }
   }
 
+  applyMusicRoute(name) {
+    if (!this.musicMode) return;
+    this.musicMode.applyRoute(name);
+    for (let i = 0; i < 10; i++) {
+      this.state[`musicCh${i}`] = this.musicMode.channels[i] || 'off';
+    }
+    this.rebuildAudioLinks();
+    this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  stepIfDropdown(folder, controller, label) {
+    if (Array.isArray(controller?._values) && controller._values.length > 1) {
+      this.addOptionStepper(folder, controller, label);
+    }
+  }
+
+  stepRemainingDropdowns() {
+    const pending = [];
+    this.gui.controllersRecursive().forEach((controller) => {
+      if (controller.domElement?.dataset?.stepped) return;
+      if (!Array.isArray(controller._values) || controller._values.length < 2) return;
+      pending.push(controller);
+    });
+    for (const controller of pending) {
+      controller.domElement.dataset.stepped = '1';
+      if (controller.parent) this.addOptionStepper(controller.parent, controller, controller._name || 'option');
+    }
+  }
+
+  addOptionStepper(folder, controller, label) {
+    if (controller.domElement) controller.domElement.dataset.stepped = '1';
+    const step = (delta) => {
+      const values = controller._values;
+      if (!Array.isArray(values) || values.length < 2) return;
+      const current = controller.getValue();
+      let index = values.findIndex((value) => String(value) === String(current));
+      if (index < 0) index = 0;
+      controller.setValue(values[(index + delta + values.length) % values.length]);
+    };
+    folder.add({ prev: () => step(-1) }, 'prev').name(`Previous ${label}`);
+    folder.add({ next: () => step(1) }, 'next').name(`Next ${label}`);
+  }
+
+  noteIncomingMidi({ cc, note } = {}) {
+    if (cc != null) {
+      this.lastHeardCc = cc;
+      this.state.midiHeard = `Last CC ${cc}`;
+    } else if (note != null) {
+      this.lastHeardNote = note;
+      this.state.midiHeard = `Last note ${note}`;
+    }
+    this.midiHeardCtrl?.updateDisplay();
+  }
+
+  captureHeardMidi() {
+    if (this.lastHeardCc == null || !this.midiMap?.cc?.[0]) return;
+    this.midiMap.cc[0].cc = this.lastHeardCc;
+    this.state.midiCc0 = this.lastHeardCc;
+    saveMidiMap(this.midiMap);
+    this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  fillMidiMapState() {
+    this.midiMap.cc.forEach((row, index) => {
+      this.state[`midiCc${index}`] = row.cc;
+      this.state[`midiCcTarget${index}`] = row.target;
+    });
+    this.midiMap.notes.forEach((row, index) => {
+      this.state[`midiNote${index}`] = row.note;
+      this.state[`midiNoteAction${index}`] = row.action;
+    });
+  }
+
+  buildMidiMapFolder(menu) {
+    this.midiMap = loadMidiMap();
+    const folder = menu.addFolder('MIDI map');
+    folder.add({
+      reset: () => {
+        this.midiMap = defaultMidiMap();
+        saveMidiMap(this.midiMap);
+        this.fillMidiMapState();
+        this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+      },
+    }, 'reset').name('Reset to FLX4 / Launchkey');
+    this.state.midiHeard = 'Move a knob or pad';
+    this.midiHeardCtrl = folder.add(this.state, 'midiHeard').name('Heard');
+    this.midiHeardCtrl.disable();
+    folder.add({
+      capture: () => this.captureHeardMidi(),
+    }, 'capture').name('Put last CC in slot 1');
+    this.fillMidiMapState();
+    this.midiMap.cc.forEach((_row, index) => {
+      folder.add(this.state, `midiCc${index}`, 0, 127, 1).name(`CC slot ${index + 1}`).onChange((value) => {
+        this.midiMap.cc[index].cc = Math.round(value);
+        saveMidiMap(this.midiMap);
+      });
+      folder.add(this.state, `midiCcTarget${index}`, MIDI_CC_TARGETS).name(`CC ${index + 1} controls`).onChange((value) => {
+        this.midiMap.cc[index].target = value;
+        saveMidiMap(this.midiMap);
+      });
+    });
+    this.midiMap.notes.forEach((_row, index) => {
+      folder.add(this.state, `midiNote${index}`, 0, 127, 1).name(`Note slot ${index + 1}`).onChange((value) => {
+        this.midiMap.notes[index].note = Math.round(value);
+        saveMidiMap(this.midiMap);
+      });
+      folder.add(this.state, `midiNoteAction${index}`, MIDI_NOTE_ACTIONS).name(`Note ${index + 1} does`).onChange((value) => {
+        this.midiMap.notes[index].action = value;
+        saveMidiMap(this.midiMap);
+      });
+    });
+  }
+
+  rebuildAudioLinks() {
+    if (!this.audioLinks || !this.musicMode) return;
+    [...this.audioLinks.controllers].forEach((controller) => controller.destroy());
+    const specs = getSpecMap(this.state.shader);
+    const choices = { Off: 'off' };
+    for (let i = 0; i < 10; i++) choices[`Channel ${i}`] = String(i);
+    for (const [key, spec] of Object.entries(specs)) {
+      if (spec?.max == null || spec.kind === 'toggle' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'pointShape' || spec.kind === 'stampShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode' || spec.kind === 'patternType' || spec.kind === 'trailShape' || spec.kind === 'fieldShape' || spec.kind === 'flowMotion' || spec.kind === 'starMotion' || spec.kind === 'colorMode') {
+        continue;
+      }
+      const stored = this.musicMode.assignments[key];
+      this.state[`audioLink_${key}`] = stored == null ? 'off' : String(stored);
+      const linkCtrl = this.audioLinks
+        .add(this.state, `audioLink_${key}`, choices)
+        .name(this.labelFor(key, spec))
+        .onChange((value) => this.musicMode.setAssignment(key, value));
+      this.stepIfDropdown(this.audioLinks, linkCtrl, this.labelFor(key, spec));
+    }
+  }
+
   refreshMusicMeters() {
     if (!this.musicMode) return;
-    this.state.musicLevel = this.musicMode.level;
-    this.state.musicStatus = this.musicMode.status;
+    const mm = this.musicMode;
+    this.state.musicLevel = mm.level;
+    this.state.musicStatus = mm.status;
+    this.state.musicKick = Math.round((mm.smoothed.kick || 0) * 100);
+    this.state.musicHihat = Math.round((mm.smoothed.hihat || 0) * 100);
+    this.state.musicBass = Math.round((mm.smoothed.bass || 0) * 100);
+    this.state.musicMid = Math.round((mm.smoothed.mid || 0) * 100);
+    this.state.musicHigh = Math.round((mm.smoothed.high || mm.smoothed.treble || 0) * 100);
+    this.state.musicBeat = Math.round((mm.smoothed.beat || 0) * 100);
+    this.state.musicBpm = Math.round(mm.bpm || 0);
     this.musicLevelCtrl?.updateDisplay();
     this.musicStatusCtrl?.updateDisplay();
+    Object.values(this.musicMeters || {}).forEach((ctrl) => ctrl.updateDisplay());
   }
 
   setVisible(visible) {
@@ -1214,7 +2304,6 @@ export class SettingsPanel {
 
   openPanel() {
     this.gui.open();
-    this.gui.foldersRecursive().forEach((folder) => folder.open());
   }
 
   /** Hidden → toolbar → full options → hidden. On a phone, hidden ↔ full sliders. */
@@ -1262,11 +2351,7 @@ export class SettingsPanel {
   }
 
   getSpecForKey(key) {
-    if (GLOBAL_UNIFORMS[key]) return GLOBAL_UNIFORMS[key];
-    if (BACKGROUND_UNIFORMS[key]) return BACKGROUND_UNIFORMS[key];
-    const shader = SHADERS[this.state.shader];
-    if (shader?.uniforms[key]) return shader.uniforms[key];
-    return null;
+    return getSpecMap(this.state.shader)[key] ?? null;
   }
 
   collectNavigableItems(gui = this.gui) {
@@ -1348,7 +2433,6 @@ export class SettingsPanel {
 
   openGuiForGamepadMenu() {
     this.gui.open();
-    this.gui.foldersRecursive().forEach((folder) => folder.open());
   }
 
   enterGamepadMenu() {

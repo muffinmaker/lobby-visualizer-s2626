@@ -1,14 +1,18 @@
 import { loadCustomShaders } from './shaders/loader.js';
 import { Visualizer } from './Visualizer.js';
 import { PresetManager, SHADER_IDS } from './PresetManager.js';
+import { downloadPresetFile, presetsFromImport } from './SavedPresetStore.js';
 import { SettingsPanel } from './SettingsPanel.js';
 import { DriftManager } from './DriftManager.js';
 import { MusicMode } from './MusicMode.js';
 import { createTutorial } from './Tutorial.js';
 import { mountTransportBar } from './TransportBar.js';
+import { mountHelpMode } from './helpMode.js';
 import { mountMobileBar } from './MobileBar.js';
-import { mountTouchGestures } from './touchGestures.js';
-import { applyMenuBigMode, loadMenuBigMode } from './menuBigMode.js';
+import { consumePinch, mountTouchGestures } from './touchGestures.js';
+import { createMidiInput, midiCcTarget, midiNoteAction } from './midiInput.js';
+import { getSpecMap } from './uniformMap.js';
+import { applyMenuScale, loadMenuScale } from './menuBigMode.js';
 import { createGamepadController, showGamepadToast } from './GamepadController.js';
 import { createGamepadChaos } from './gamepadChaos.js';
 import { createGamepadPsyche } from './gamepadPsyche.js';
@@ -48,6 +52,18 @@ import {
   loadStoredTextLineHeight,
   loadStoredTextPosition,
   loadStoredTextSize,
+  loadStoredTextFont,
+  loadStoredTextEffect,
+  loadStoredTextEffectSpeed,
+  loadStoredTextDrift,
+  loadStoredTextDriftSpeed,
+  loadStoredTextDriftDirection,
+  loadStoredTextTracking,
+  loadStoredTextStroke,
+  loadStoredTextAlign,
+  loadStoredTextEffectAmount,
+  loadStoredTextShadow,
+  loadStoredTextCaps,
 } from './textOverlay.js';
 import { LITE_MODE_KEY } from './liteMode.js';
 
@@ -354,6 +370,18 @@ async function start() {
     initialTextPosition: loadStoredTextPosition(),
     initialTextAutoFit: loadStoredTextAutoFit(),
     initialTextLineHeight: loadStoredTextLineHeight(),
+    initialTextFont: loadStoredTextFont(),
+    initialTextEffect: loadStoredTextEffect(),
+    initialTextEffectSpeed: loadStoredTextEffectSpeed(),
+    initialTextDrift: loadStoredTextDrift(),
+    initialTextDriftSpeed: loadStoredTextDriftSpeed(),
+    initialTextDriftDirection: loadStoredTextDriftDirection(),
+    initialTextTracking: loadStoredTextTracking(),
+    initialTextStroke: loadStoredTextStroke(),
+    initialTextAlign: loadStoredTextAlign(),
+    initialTextEffectAmount: loadStoredTextEffectAmount(),
+    initialTextShadow: loadStoredTextShadow(),
+    initialTextCaps: loadStoredTextCaps(),
     onTextEnabledChange: (value) => {
       textOverlay.setEnabled(value);
     },
@@ -375,6 +403,30 @@ async function start() {
     onTextLineHeightChange: (value) => {
       textOverlay.setLineHeight(value);
     },
+    onTextFontChange: (value) => {
+      textOverlay.setFont(value);
+    },
+    onTextEffectChange: (value) => {
+      textOverlay.setEffect(value);
+    },
+    onTextEffectSpeedChange: (value) => {
+      textOverlay.setEffectSpeed(value);
+    },
+    onTextDriftChange: (value) => {
+      textOverlay.setDrift(value);
+    },
+    onTextDriftSpeedChange: (value) => {
+      textOverlay.setDriftSpeed(value);
+    },
+    onTextDriftDirectionChange: (value) => {
+      textOverlay.setDriftDirection(value);
+    },
+    onTextTrackingChange: (value) => textOverlay.setTracking(value),
+    onTextStrokeChange: (value) => textOverlay.setStroke(value),
+    onTextAlignChange: (value) => textOverlay.setAlign(value),
+    onTextEffectAmountChange: (value) => textOverlay.setEffectAmount(value),
+    onTextShadowChange: (value) => textOverlay.setShadow(value),
+    onTextCapsChange: (value) => textOverlay.setCaps(value),
     onOpenNotepad: () => {
       textOverlay.openNotepad();
     },
@@ -476,7 +528,223 @@ async function start() {
       values: result.values,
       presetName: result.name,
     });
+    downloadPresetFile(result);
+    settings.refreshPresetDropdown?.();
+    refreshPresetTransportLabel();
   }
+
+  const presetFileInput = document.createElement('input');
+  presetFileInput.type = 'file';
+  presetFileInput.accept = 'application/json,.json';
+  presetFileInput.hidden = true;
+  document.body.append(presetFileInput);
+
+  function openPresetFile() {
+    presetFileInput.value = '';
+    presetFileInput.click();
+  }
+
+  function importPresetEntries(entries) {
+    const imported = [];
+    for (const entry of entries) {
+      if (!SHADER_IDS.includes(entry.shader)) continue;
+      let name = entry.name;
+      if (presetManager.isBuiltin(name)) {
+        const base = `${name} copy`;
+        name = base;
+        let n = 2;
+        while (presetManager.isBuiltin(name) || presetManager.findIndexByName(name) >= 0) {
+          name = `${base} ${n}`;
+          n += 1;
+        }
+      }
+      const saved = presetManager.saveCurrent({
+        name,
+        shader: entry.shader,
+        values: entry.values,
+        overwrite: true,
+      });
+      if (saved && !saved.error && !saved.conflict) imported.push(saved);
+    }
+    return imported;
+  }
+
+  async function onUploadPresetFile(file) {
+    if (!file) return;
+    let entries = [];
+    try {
+      entries = presetsFromImport(JSON.parse(await file.text()));
+    } catch {
+      window.alert('That file is not preset JSON.');
+      return;
+    }
+    if (!entries.length) {
+      window.alert('No presets found. Use a file saved from this visualizer.');
+      return;
+    }
+    const imported = importPresetEntries(entries);
+    if (!imported.length) {
+      window.alert('None of those presets match a mode in this visualizer.');
+      return;
+    }
+    const last = imported[imported.length - 1];
+    presetManager.goToByName(last.name, {
+      shader: last.shader,
+      immediate: true,
+      randomize: false,
+    });
+    settings.refreshPresetDropdown?.();
+    refreshPresetTransportLabel();
+    showGamepadToast(imported.length === 1 ? `Loaded ${last.name}` : `Loaded ${imported.length} presets`);
+  }
+
+  presetFileInput.addEventListener('change', () => {
+    onUploadPresetFile(presetFileInput.files?.[0]);
+  });
+  document.addEventListener('lobby-upload-preset', openPresetFile);
+  document.addEventListener('lobby-shader-prev', onShaderPrev);
+  document.addEventListener('lobby-shader-next', onShaderNext);
+  document.addEventListener('lobby-preset-next', onPresetNext);
+  document.addEventListener('lobby-save-preset', onSavePreset);
+  document.addEventListener('lobby-drift-all', () => {
+    const enabled = settings.toggleDriftAll();
+    transport?.setDriftAllActive?.(enabled);
+    phoneBar?.setDriftAllActive?.(enabled);
+  });
+  document.addEventListener('lobby-smooth', () => {
+    presetManager.setSmoothTransitions(!presetManager.smoothTransitions);
+  });
+  document.addEventListener('lobby-autocycle', () => presetManager.setAutoCycle(!presetManager.autoCycle));
+
+  const performance = {
+    on: false,
+    autoCycle: false,
+    smooth: true,
+    interval: 45,
+    randomize: true,
+    driftKeys: [],
+    steps: 0,
+    skipShaderStep: false,
+  };
+
+  function setPerformanceMode(on) {
+    if (on === performance.on) return;
+    performance.on = on;
+    settings.performanceLive = on;
+    if (on) {
+      performance.autoCycle = presetManager.autoCycle;
+      performance.smooth = presetManager.smoothTransitions;
+      performance.interval = presetManager.cycleInterval;
+      performance.randomize = presetManager.randomizeOnCycle;
+      performance.steps = 0;
+      presetManager.randomizeOnCycle = false;
+      performance.overlayOn = settings.state.overlayOn;
+      performance.overlayShader = settings.state.overlayShader;
+      presetManager.cycleInterval = settings.state.performanceInterval ?? 18;
+      settings.state.cycleInterval = presetManager.cycleInterval;
+      if (settings.state.performanceIncludeOverlay) {
+        settings.state.overlayOn = true;
+        if (!settings.state.overlayShader || settings.state.overlayShader === settings.state.shader) {
+          settings.state.overlayShader = SHADER_IDS.find((id) => id !== settings.state.shader) || settings.state.overlayShader;
+        }
+        if ((settings.state.overlayMix ?? 0) < 5) settings.state.overlayMix = 40;
+        settings.pushOverlay(musicMode);
+      }
+      presetManager.setSmoothTransitions(true);
+      presetManager.setAutoCycle(true);
+      performance.driftKeys = settings.setPerformanceDrift(true);
+      showGamepadToast('Performance on');
+    } else {
+      presetManager.randomizeOnCycle = performance.randomize;
+      presetManager.cycleInterval = performance.interval;
+      settings.state.cycleInterval = performance.interval;
+      if (performance.overlayOn !== undefined) {
+        settings.state.overlayOn = performance.overlayOn;
+        settings.state.overlayShader = performance.overlayShader;
+        settings.pushOverlay(musicMode);
+      }
+      settings.setPerformanceDrift(false, performance.driftKeys);
+      performance.driftKeys = [];
+      presetManager.setSmoothTransitions(performance.smooth);
+      presetManager.setAutoCycle(performance.autoCycle);
+      showGamepadToast('Performance off');
+    }
+    settings.setControlActive(settings.performanceCtrl, on);
+    settings.gui?.controllersRecursive?.().forEach((controller) => controller.updateDisplay());
+  }
+
+  let midi = null;
+  let lastMidiNoteAt = 0;
+
+  function setMidiEnabled(on) {
+    if (!midi) {
+      midi = createMidiInput({
+        onNote(note, _velocity, down) {
+          if (down) settings.noteIncomingMidi({ note });
+          const action = midiNoteAction(settings.midiMap, note);
+          if (action === 'invert') {
+            if (!down) return;
+            settings.state.uInvert = Number(settings.state.uInvert) > 0.5 ? 0 : 1;
+            settings.ensureInvertRow();
+            settings.handleValueChange();
+            showGamepadToast(settings.state.uInvert ? 'Invert on' : 'Invert off');
+            return;
+          }
+          if (action === 'blackout') {
+            visualizer.blackout = down;
+            return;
+          }
+          if (action === 'strobe') {
+            visualizer.strobe = down;
+            return;
+          }
+          if (action === 'performance') {
+            if (down) setPerformanceMode(!performance.on);
+            return;
+          }
+          if (action === 'swap') {
+            if (down) settings.swapOverlayLayers();
+            return;
+          }
+          if (!down) return;
+          const now = performance.now();
+          if (now - lastMidiNoteAt < 120) return;
+          lastMidiNoteAt = now;
+          onPresetNext();
+        },
+        onCc(cc, value) {
+          settings.noteIncomingMidi({ cc });
+          const key = midiCcTarget(settings.midiMap, cc);
+          if (key === 'overlayMix') {
+            settings.state.overlayOn = true;
+            settings.state.overlayMix = Math.round((value / 127) * 100);
+            settings.pushOverlay(musicMode);
+            settings.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+            return;
+          }
+          if (!key) return;
+          const spec = getSpecMap(settings.state.shader)[key];
+          if (!spec) return;
+          const span = (spec.max ?? 100) - (spec.min ?? 0);
+          const next = Math.round((spec.min ?? 0) + (value / 127) * span);
+          settings.state[key] = next;
+          settings.uniformControllers.get(key)?.setValue(next);
+          settings.handleValueChange();
+        },
+        onStatus(message) {
+          showGamepadToast(message);
+        },
+      });
+    }
+    if (on && !midi.enabled) midi.start();
+    else if (!on && midi.enabled) midi.stop();
+    settings.setControlActive(settings.midiCtrl, Boolean(midi.enabled));
+  }
+
+  document.addEventListener('lobby-performance', () => setPerformanceMode(!performance.on));
+  document.addEventListener('lobby-midi', () => setMidiEnabled(!midi?.enabled));
+  document.addEventListener('lobby-tutorial', () => tutorial.toggle());
+  document.addEventListener('lobby-help', () => helpMode?.toggle());
 
   function refreshPresetTransportLabel() {
     presetManager.setActiveShader(settings.state.shader);
@@ -510,8 +778,9 @@ async function start() {
     onPresetPrev,
     onPresetNext,
     onSave: onSavePreset,
+    onUpload: openPresetFile,
     onInfo: () => tutorial.toggle(),
-    onSettings: () => settings.toggleVisible(),
+    onHelpToggle: () => helpMode?.toggle(),
   });
 
   phoneBar = mountMobileBar({
@@ -536,11 +805,17 @@ async function start() {
     onPresetPrev,
     onPresetNext,
     onSave: onSavePreset,
+    onUpload: openPresetFile,
     onInfo: () => tutorial.toggle(),
-    onSettings: () => settings.toggleVisible(),
     onHide: () => setUiHidden(true),
     onShow: () => setUiHidden(false),
+    onHelpToggle: () => helpMode?.toggle(),
   });
+
+  const helpMode = mountHelpMode(
+    [settings.gui.domElement, phoneBar?.element].filter(Boolean),
+    [transport?.help, phoneBar?.help],
+  );
 
   function setUiHidden(hidden) {
     uiHidden = Boolean(hidden);
@@ -638,6 +913,33 @@ async function start() {
     if (event === 'activeShaderChanged') {
       refreshShaderTransportLabel(detail.shader);
       refreshPresetTransportLabel();
+      if (performance.on) {
+        performance.driftKeys.push(...settings.setPerformanceDrift(true));
+      }
+    }
+    if (event === 'transitionEnd' && performance.on) {
+      if (performance.skipShaderStep) {
+        performance.skipShaderStep = false;
+      } else {
+        performance.steps += 1;
+        if (performance.steps % 3 === 0) {
+          performance.skipShaderStep = true;
+          const heavy = new Set(['spocks', 'flow', 'orb', 'tunnel', 'chamber', 'starspin']);
+          const lite = settings.state.liteMode || settings.state.performancePreset === 'lite';
+          const skipHeavy = lite && settings.state.performanceSkipHeavy !== false;
+          const pool = SHADER_IDS.filter((id) => !(skipHeavy && heavy.has(id)));
+          const list = pool.length ? pool : SHADER_IDS;
+          const idx = Math.max(0, list.indexOf(presetManager.activeShader));
+          const nextId = list[(idx + 1) % list.length];
+          if (nextId !== presetManager.activeShader) presetManager.switchToShader(nextId);
+          if (settings.state.performanceIncludeOverlay) {
+            const layer = list.find((id) => id !== nextId) || nextId;
+            settings.state.overlayOn = true;
+            settings.state.overlayShader = layer;
+            settings.pushOverlay(musicMode);
+          }
+        }
+      }
     }
     if (
       event === 'preset' ||
@@ -660,8 +962,13 @@ async function start() {
   function applyPresetState(
     { shader, values, display },
     presetName,
-    { updateGui = true, changeShader = false, syncSmooth = false } = {},
+    { updateGui = true, changeShader = false, syncSmooth = false, clearTrails = true } = {},
   ) {
+    values = settings.withoutLockedPresetValues({ ...values, uPanX: 50, uPanY: 50 });
+    if (settings.isPresetFolderLocked('Global')) {
+      values.uPanX = settings.state.uPanX;
+      values.uPanY = settings.state.uPanY;
+    }
     const trailSettings = {
       motionTrails: settings.state.motionTrails,
       trailsNeverDecay: settings.state.trailsNeverDecay,
@@ -671,6 +978,7 @@ async function start() {
       presetManager.setActiveShader(shader);
     }
     visualizer.applyValues({ ...values, ...trailSettings }, { syncSmooth });
+    if (clearTrails) visualizer.clearTrailBuffers();
     if (updateGui) {
       settings.applyExternalState({
         ...(changeShader && shader ? { shader } : {}),
@@ -707,7 +1015,7 @@ async function start() {
       applyPresetState(
         { values: detail.values, display: detail.preset?.display },
         detail.preset.name,
-        { syncSmooth: true },
+        { syncSmooth: true, clearTrails: false },
       );
     }
     if (event === 'preset') {
@@ -741,9 +1049,21 @@ async function start() {
     }
   });
 
+  let perfFrames = 0;
+  let perfAccum = 0;
+
   function tick() {
     if (!running) return;
+    settings.pushOverlay(musicMode);
     const dt = visualizer.render();
+    perfFrames += 1;
+    perfAccum += dt;
+    if (perfAccum >= 0.5) {
+      const fps = perfFrames / perfAccum;
+      settings.notePerf(fps, 1000 / Math.max(fps, 0.01));
+      perfFrames = 0;
+      perfAccum = 0;
+    }
 
     const driftValues =
       !musicMode.enabled && !presetManager.isTransitioning
@@ -764,6 +1084,8 @@ async function start() {
     const shader = settings.state.shader;
     const shaderChanged = shader !== visualizer.currentShaderId;
 
+    visualizer.audioBeat = musicMode.enabled ? (musicMode.smoothed.beat || 0) : 0;
+
     if (musicMode.enabled && !presetManager.isTransitioning) {
       musicMode.currentShader = shader;
       const modulated = musicMode.update(dt);
@@ -779,7 +1101,7 @@ async function start() {
       visualizer.setShader(shader, values);
       visualizer.applyValues(values);
     } else if (presetManager.isTransitioning) {
-      visualizer.applyValues(values, { deferRebuild: true });
+      visualizer.applyValues(settings.withoutLockedPresetValues(values), { deferRebuild: true });
     }
 
     if (presetManager.isTransitioning) {
@@ -794,8 +1116,8 @@ async function start() {
     requestAnimationFrame(tick);
   }
 
-  const desktopHint = hint.textContent;
-  const phoneHint = 'Slide for rotate/speed  ·  pinch to zoom  ·  two-finger drag to look around';
+  const desktopHint = 'P · performance  |  M · MIDI  |  pinch · zoom  |  H · fps';
+  const phoneHint = 'Drag to look  ·  pinch to zoom  ·  two fingers to look  ·  double-tap for the menu';
 
   function isPhoneLayout() {
     const narrow = window.matchMedia('(max-width: 768px)').matches;
@@ -809,6 +1131,11 @@ async function start() {
     return narrow;
   }
 
+  function syncVisualHeight() {
+    const height = window.visualViewport?.height || window.innerHeight;
+    document.documentElement.style.setProperty('--app-height', `${Math.round(height)}px`);
+  }
+
   function measurePhoneBar() {
     const visible =
       phoneBar?.element &&
@@ -820,15 +1147,29 @@ async function start() {
 
   function applyPhoneLayout(matches) {
     document.body.classList.toggle('phone-ui', matches);
+    settings.midiMapCtrl?.domElement.classList.toggle('is-hidden', matches);
+    const landscape = window.matchMedia('(orientation: landscape)').matches;
+    document.body.classList.toggle('phone-landscape', matches && landscape);
+    try {
+      if (matches && !localStorage.getItem('lobby-phone-perf')) {
+        localStorage.setItem('lobby-phone-perf', '1');
+        if (!settings.state.liteMode && settings.state.performancePreset !== 'balanced') {
+          settings.setPerformancePreset('balanced');
+        }
+      }
+    } catch {
+      /* private mode */
+    }
     phoneBar.element.hidden = !matches;
     if (matches) {
-      settings.gui.domElement.classList.remove('menu-big-mode');
+      settings.setMenuScaleAvailable(false);
       hint.textContent = phoneHint;
       if (!uiHidden) settings.setVisible(false);
       phoneBar?.setBarVisible?.(!uiHidden);
     } else {
       document.body.classList.remove('phone-sheet');
-      applyMenuBigMode(settings.gui.domElement, loadMenuBigMode());
+      settings.setMenuScaleAvailable(true);
+      applyMenuScale(settings.gui.domElement, loadMenuScale());
       hint.textContent = desktopHint;
       phoneBar?.setBarVisible?.(true);
       if (!uiHidden) {
@@ -844,7 +1185,13 @@ async function start() {
   }
 
   syncPhoneLayout();
-  window.addEventListener('resize', syncPhoneLayout);
+  syncVisualHeight();
+  window.addEventListener('resize', () => {
+    syncPhoneLayout();
+    syncVisualHeight();
+  });
+  window.visualViewport?.addEventListener('resize', syncVisualHeight);
+  window.addEventListener('orientationchange', syncPhoneLayout);
   window.matchMedia('(hover: hover) and (pointer: fine)').addEventListener('change', syncPhoneLayout);
   window.matchMedia('(pointer: coarse)').addEventListener('change', syncPhoneLayout);
   if (typeof ResizeObserver !== 'undefined') {
@@ -852,10 +1199,27 @@ async function start() {
     barObserver.observe(phoneBar.element);
   }
 
+  function showMenu() {
+    if (uiHidden) setUiHidden(false);
+    settings.setVisible(true);
+    settings.openPanel();
+  }
+
+  function isMenuGestureTarget(target) {
+    if (document.querySelector('.tutorial:not(.hidden)')) return false;
+    if (document.getElementById('notepad-panel')?.classList.contains('is-open')) return false;
+    return !target?.closest?.(
+      '.phone-bar, .lil-gui, .tutorial, .notepad-card, button, a, input, textarea, select, label, .phone-show-btn',
+    );
+  }
+
   let pinchZoomLabel = '';
   mountTouchGestures({
+    onDoubleTap() {
+      showMenu();
+    },
     onDrag(dx, dy) {
-      psyche.adjustSlideDrag(dx, dy);
+      psyche.adjustPan(dx, dy);
     },
     onPan(dx, dy) {
       psyche.adjustPan(dx, dy);
@@ -878,6 +1242,44 @@ async function start() {
     },
   });
 
+  let wheelZoomCarry = 0;
+  let gestureScale = 1;
+
+  function zoomFromRatio(ratio) {
+    const pinch = consumePinch(wheelZoomCarry, ratio);
+    wheelZoomCarry = pinch.carry;
+    if (!pinch.steps) return;
+    psyche.adjustVertical(pinch.steps, { silent: true });
+    const zoom = settings.state.uZoom ?? settings.state.uScale;
+    if (zoom != null) showGamepadToast(`Zoom ${Math.round(zoom)}`);
+  }
+
+  window.addEventListener('wheel', (event) => {
+    if (!isMenuGestureTarget(event.target)) return;
+    event.preventDefault();
+    if (event.ctrlKey || event.metaKey) {
+      zoomFromRatio(Math.exp(-event.deltaY / 100));
+      return;
+    }
+    psyche.adjustPan(-event.deltaX, -event.deltaY);
+  }, { passive: false });
+
+  window.addEventListener('gesturestart', (event) => {
+    if (!isMenuGestureTarget(event.target)) return;
+    event.preventDefault();
+    gestureScale = event.scale || 1;
+    wheelZoomCarry = 0;
+  }, { passive: false });
+
+  window.addEventListener('gesturechange', (event) => {
+    if (!isMenuGestureTarget(event.target)) return;
+    event.preventDefault();
+    const next = event.scale || 1;
+    const ratio = next / (gestureScale || 1);
+    gestureScale = next;
+    zoomFromRatio(ratio);
+  }, { passive: false });
+
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen?.();
@@ -890,8 +1292,21 @@ async function start() {
     setUiHidden(!uiHidden);
   }
 
+  let perfHidden = false;
+
+  function togglePerfReadout() {
+    perfHidden = !perfHidden;
+    document.getElementById('perf-readout')?.classList.toggle('is-hidden', perfHidden);
+  }
+
   const DOUBLE_SPACE_MS = 400;
   let lastSpacePressAt = 0;
+
+  window.addEventListener('dblclick', (event) => {
+    if (document.body.classList.contains('phone-ui')) return;
+    if (!isMenuGestureTarget(event.target)) return;
+    showMenu();
+  });
 
   window.addEventListener('keydown', (e) => {
     const notepadOpen = notepadPanel?.classList.contains('is-open');
@@ -912,7 +1327,9 @@ async function start() {
       tutorial.toggle();
       return;
     }
-    if (e.code === 'Space') {
+    if (e.code === 'Space' || e.key === ' ') {
+      if (e.repeat) return;
+      if (e.target instanceof HTMLTextAreaElement) return;
       e.preventDefault();
       const now = performance.now();
       if (now - lastSpacePressAt < DOUBLE_SPACE_MS) {
@@ -922,10 +1339,13 @@ async function start() {
         return;
       }
       lastSpacePressAt = now;
+      if (uiHidden) setUiHidden(false);
       settings.toggleVisible();
     }
     if (e.code === 'KeyF') toggleFullscreen();
-    if (e.code === 'KeyH') toggleUI();
+    if (e.code === 'KeyH') togglePerfReadout();
+    if (e.code === 'KeyP') setPerformanceMode(!performance.on);
+    if (e.code === 'KeyM') setMidiEnabled(!midi?.enabled);
     if (e.code === 'ArrowRight') psyche.adjustHorizontal(1);
     if (e.code === 'ArrowLeft') psyche.adjustHorizontal(-1);
     if (e.code === 'ArrowUp') psyche.adjustVertical(1);
@@ -953,8 +1373,8 @@ async function start() {
     '%cLobby Visualizer',
     'font-weight:bold;font-size:14px',
     `\nShaders: ${SHADER_IDS.join(', ')}`,
-    '\nSpace: settings | Space×2: move menu | ?: tutorial | F: fullscreen | H: hide UI | [ ]: prev/next pack logo | ↑/↓: zoom | ←/→: element counts | Z/C/X/B/V: motion/colors/shapes/party/preset | USB gamepad: see tutorial',
-    '\nPhone: slide for rotate/speed, pinch to zoom, two-finger drag to look around',
+    '\nSpace: settings | Space×2: move menu | ?: tutorial | F: fullscreen | H: show/hide fps | [ ]: prev/next pack logo | ↑/↓: zoom | ←/→: element counts | Z/C/X/B/V: motion/colors/shapes/party/preset | USB gamepad: see tutorial',
+    '\nDouble-click (desktop) or double-tap (phone) opens the menu. Phone: slide for rotate/speed, pinch to zoom, two-finger drag to look around',
   );
 }
 

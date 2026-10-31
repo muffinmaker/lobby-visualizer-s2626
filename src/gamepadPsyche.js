@@ -24,6 +24,9 @@ const PSYCHE_PROFILES = {
   ribbons: {
     horizontal: { key: 'uRibbonCount', label: 'Ribbons' },
   },
+  layers: {
+    horizontal: { key: 'uLayerCount', label: 'Layers' },
+  },
 };
 
 function getZoomEntry(shaderId) {
@@ -81,7 +84,9 @@ export function createGamepadPsyche({ settings, onToast }) {
     const controller = entry.global
       ? settings.gui.controllersRecursive().find((c) => c.property === entry.key)
       : settings.uniformControllers.get(entry.key);
-    controller?.setValue(next);
+    if (!controller) return;
+    controller.setValue(next);
+    controller.updateDisplay();
   }
 
   function nudgeEntry(entry, delta) {
@@ -107,10 +112,12 @@ export function createGamepadPsyche({ settings, onToast }) {
 
   function adjustVertical(delta, { silent = false } = {}) {
     const entry = getZoomEntry(settings.state.shader);
-    const result = nudgeEntry(entry, delta);
+    const spec = getSpec(settings, entry.key, entry.global);
+    // Pinch apart and Arrow Up zoom in. Inverted sliders store zoom-out at the high end.
+    const signed = spec?.invert ? -delta : delta;
+    const result = nudgeEntry(entry, signed);
     if (!result) return null;
 
-    const spec = getSpec(settings, entry.key, entry.global);
     applyChanges([result], Boolean(spec?.rebuild));
     if (!silent) onToast?.(`${result.label} ${result.value}`);
     return [result];

@@ -14,7 +14,8 @@
       html,
       body {
         width: 100%;
-        height: 100%;
+        height: var(--app-height, 100%);
+        min-height: 100%;
         overflow: hidden;
         background: #000;
         font-family: system-ui, -apple-system, sans-serif;
@@ -38,6 +39,30 @@
         display: flex;
         align-items: center;
         justify-content: center;
+      }
+
+      #perf-readout {
+        position: fixed;
+        top: calc(0.55rem + env(safe-area-inset-top));
+        left: calc(0.6rem + env(safe-area-inset-left));
+        z-index: 25;
+        max-width: min(46rem, 92vw);
+        color: rgba(255, 255, 255, 0.72);
+        font: 500 0.72rem/1.35 system-ui, sans-serif;
+        letter-spacing: 0.01em;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+        pointer-events: none;
+      }
+
+      #perf-readout.is-hidden {
+        display: none;
+      }
+
+      .quality-readout {
+        margin: -0.15rem 0.35rem 0.35rem;
+        padding-left: 42%;
+        color: rgba(255, 255, 255, 0.78);
+        font: 500 0.72rem/1.2 system-ui, sans-serif;
       }
 
       #hint {
@@ -73,11 +98,15 @@
         overflow-x: hidden;
       }
 
+      .lil-gui.root:not(.phone-bar) {
+        width: min(92vw, 292px);
+        max-width: min(92vw, 292px);
+      }
+
       .lil-gui.root {
         -webkit-backdrop-filter: blur(10px);
         backdrop-filter: blur(10px);
         overflow-x: hidden;
-        max-width: var(--width, 360px);
         position: fixed;
         z-index: 30;
         margin: 0;
@@ -88,7 +117,7 @@
 
       .lil-gui.root.menu-big-mode,
       .lil-gui.root.menu-big-mode .lil-gui {
-        --menu-scale: 3;
+        /* --menu-scale is set from the Display → Menu size slider (1–3). */
         --font-size: calc(11px * var(--menu-scale));
         --input-font-size: calc(11px * var(--menu-scale));
         --widget-height: calc(20px * var(--menu-scale));
@@ -108,8 +137,8 @@
       }
 
       .lil-gui.root.menu-big-mode {
-        width: 60vw;
-        max-width: 60vw;
+        width: calc(292px + (52vw - 292px) * (var(--menu-scale) - 1) / 2);
+        max-width: min(92vw, calc(292px + (52vw - 292px) * (var(--menu-scale) - 1) / 2));
       }
 
       .lil-gui.root.menu-big-mode .controller {
@@ -166,16 +195,6 @@
         flex: 0 0 var(--slider-input-min-width);
       }
 
-      .lil-gui.root.menu-big-mode .drift-toggle {
-        width: 4.05rem;
-        height: 4.05rem;
-        margin-left: 0.75rem;
-        border-radius: 0.75rem;
-      }
-
-      .lil-gui.root.menu-big-mode .drift-toggle-icon {
-        font-size: 2.16rem;
-      }
 
       .lil-gui.root.menu-big-mode .title.gui-title-row {
         min-height: auto;
@@ -233,10 +252,10 @@
       }
 
       .lil-gui.root.menu-big-mode .transport-shader-label {
-        flex: 0 0 18rem;
-        width: 18rem;
-        min-width: 18rem;
-        max-width: 18rem;
+        flex: 0 1 auto;
+        width: auto;
+        min-width: 0;
+        max-width: 8rem;
         font-size: 1.74rem;
         padding: 0 0.36rem;
       }
@@ -277,6 +296,19 @@
         width: 4.05rem;
         height: 3.75rem;
         font-size: 2.16rem;
+      }
+
+      .lil-gui.root.menu-big-mode .title.gui-title-row .transport-btn.save-btn .save-icon {
+        width: 2.15rem;
+        height: 2.15rem;
+      }
+
+      .lil-gui.root.menu-big-mode .title.gui-title-row .transport-btn.transport-preset-btn {
+        min-width: 7.05rem;
+        height: 4.5rem;
+        padding: 0 0.6rem;
+        border-radius: 0.9rem;
+        font-size: 1.68rem;
       }
 
       .lil-gui.root.menu-big-mode .controller.gamepad-menu-focus,
@@ -354,6 +386,13 @@
         text-overflow: ellipsis;
         white-space: nowrap;
         min-width: 0;
+        flex: 0 0 42%;
+        width: 42%;
+      }
+
+      .lil-gui .controller {
+        position: relative;
+        box-sizing: border-box;
       }
 
       .lil-gui .controller .widget {
@@ -370,6 +409,26 @@
         text-align: right;
         overflow: hidden;
         text-overflow: clip;
+      }
+
+      .lil-gui .controller.number.hasSlider .slider {
+        position: relative;
+      }
+
+      .lil-gui .preset-mark {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        margin-left: -1px;
+        background: #fff;
+        opacity: 0.85;
+        pointer-events: none;
+        z-index: 2;
+      }
+
+      .lil-gui .controller > .name {
+        cursor: pointer;
       }
 
       .lil-gui .controller.number.hasSlider .slider {
@@ -397,36 +456,112 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 1.35rem;
-        height: 1.35rem;
-        margin-left: 0.25rem;
-        border-radius: 0.25rem;
+        flex: 0 0 auto;
+        margin: 0 0.35rem 0 0;
         cursor: pointer;
-        opacity: 0.45;
-        transition: opacity 0.15s ease, background 0.15s ease;
-        flex-shrink: 0;
       }
 
-      .lil-gui .drift-toggle:hover {
-        opacity: 0.85;
-        background: rgba(255, 255, 255, 0.08);
+      .lil-gui .controller .drift-toggle input[type=checkbox] {
+        appearance: none;
+        width: 14px !important;
+        height: 14px !important;
+        min-width: 14px;
+        min-height: 14px;
+        flex: 0 0 14px;
+        margin: 0;
+        cursor: pointer;
       }
 
-      .lil-gui .drift-toggle.is-active {
-        opacity: 1;
-        background: rgba(120, 180, 255, 0.18);
+      .lil-gui .controller .drift-toggle input[type=checkbox]:checked:before {
+        font-size: 12px;
+        line-height: 14px;
       }
 
-      .lil-gui .drift-toggle input {
+      .lil-gui .invert-row {
+        display: flex;
+        align-items: center;
+      }
+
+      .lil-gui .invert-row .widget {
+        display: flex;
+        align-items: center;
+      }
+
+      .lil-gui .invert-row input[type=checkbox] {
+        appearance: auto;
+        width: 16px !important;
+        height: 16px !important;
+        min-width: 16px;
+        min-height: 16px;
+        margin: 0;
+        accent-color: rgb(180, 200, 255);
+        cursor: pointer;
+      }
+
+      .lil-gui:not(.root) > .title {
+        display: flex;
+        align-items: center;
+      }
+
+      .lil-gui .preset-override {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        cursor: pointer;
+      }
+
+      .lil-gui .preset-override input[type=checkbox] {
+        appearance: auto;
+        width: 14px !important;
+        height: 14px !important;
+        min-width: 14px;
+        min-height: 14px;
+        margin: 0;
+        accent-color: rgb(180, 200, 255);
+        cursor: pointer;
+      }
+
+      .lil-gui .controller.drift-all-wide {
+        display: flex;
+      }
+
+      .lil-gui .controller.drift-all-wide.function > .name {
+        display: none;
+      }
+
+      .lil-gui .controller.drift-all-wide.boolean {
+        position: relative;
+      }
+
+      .lil-gui .controller.drift-all-wide.boolean > .name {
         position: absolute;
-        opacity: 0;
+        left: 0.55rem;
+        top: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        width: auto;
+        flex: none;
         pointer-events: none;
+        z-index: 1;
       }
 
-      .lil-gui .drift-toggle-icon {
-        font-size: 0.72rem;
-        line-height: 1;
-        color: rgba(255, 255, 255, 0.85);
+      .lil-gui .controller.drift-all-wide .widget {
+        flex: 1 1 100%;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .lil-gui .controller.drift-all-wide input[type=checkbox],
+      .lil-gui .controller.drift-all-wide button {
+        width: 100% !important;
+        height: var(--widget-height);
+        min-height: var(--widget-height);
+      }
+
+      .lil-gui .controller.drift-all-wide input[type=checkbox]:checked:before {
+        font-size: 0.8rem;
+        line-height: var(--widget-height);
       }
 
       .lil-gui .controller.partial-drift .name {
@@ -463,10 +598,9 @@
         left: 50%;
         width: min(92vw, 56rem);
         padding: 0 1.5rem;
-        transform: translateX(-50%) scale(calc(var(--text-size, 1) * var(--text-fit-scale, 1)));
         transform-origin: center center;
-        opacity: var(--text-opacity, 1);
         color: #fff;
+        font-family: var(--text-font, system-ui, -apple-system, sans-serif);
         font-size: clamp(1.1rem, 3.2vw, 2.4rem);
         font-weight: 600;
         line-height: var(--text-line-height, 1.35);
@@ -479,13 +613,24 @@
         pointer-events: none;
       }
 
+      #hero-text[data-align='left'] {
+        left: 4vw;
+        right: auto;
+        text-align: left;
+      }
+
+      #hero-text[data-align='right'] {
+        left: auto;
+        right: 4vw;
+        text-align: right;
+      }
+
       #hero-text[data-position='top'] {
         top: 8vh;
       }
 
       #hero-text[data-position='center'] {
         top: 50%;
-        transform: translate(-50%, -50%) scale(calc(var(--text-size, 1) * var(--text-fit-scale, 1)));
       }
 
       #hero-text[data-position='bottom'] {
@@ -676,10 +821,10 @@
       }
 
       .transport-shader-label {
-        flex: 0 0 6rem;
-        width: 6rem;
-        min-width: 6rem;
-        max-width: 6rem;
+        flex: 0 1 auto;
+        width: auto;
+        min-width: 0;
+        max-width: 5.4rem;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -852,6 +997,24 @@
         font-size: 0.68rem;
       }
 
+      .lil-gui .title.gui-title-row .transport-btn.save-btn .save-icon {
+        width: 0.92rem;
+        height: 0.92rem;
+        display: block;
+      }
+
+      .lil-gui .title.gui-title-row .transport-btn.transport-preset-btn {
+        width: auto;
+        min-width: 2.5rem;
+        height: 1.7rem;
+        padding: 0 0.4rem;
+        border-radius: 0.3rem;
+        font-size: 0.56rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
+      }
+
       .tutorial {
         position: fixed;
         inset: 0;
@@ -991,11 +1154,17 @@
         color: rgba(255, 255, 255, 0.9);
       }
 
+      .lil-gui.phone-bar,
+      body:not(.phone-ui) .phone-bar,
+      body:not(.phone-ui) .phone-show-btn {
+        display: none !important;
+      }
+
       .phone-bar {
         display: none;
         position: fixed;
-        left: 0.45rem;
-        right: 0.45rem;
+        left: calc(0.45rem + env(safe-area-inset-left));
+        right: calc(0.45rem + env(safe-area-inset-right));
         bottom: calc(0.45rem + env(safe-area-inset-bottom));
         z-index: 36;
         width: auto;
@@ -1013,7 +1182,7 @@
       }
 
       body.phone-ui .phone-bar:not([hidden]) {
-        display: block;
+        display: block !important;
       }
 
       body.phone-ui.ui-hidden .phone-bar {
@@ -1050,12 +1219,11 @@
         font-size: 0.78rem;
       }
 
-      .phone-bar .transport-preset-label {
-        flex: 0 0 2.8rem;
-        width: 2.8rem;
-        min-width: 2.8rem;
-        max-width: 2.8rem;
-        font-size: 0.72rem;
+      .phone-bar .title.gui-title-row .transport-btn.transport-preset-btn {
+        min-width: 3.4rem;
+        height: 2.4rem;
+        padding: 0 0.55rem;
+        font-size: 0.78rem;
       }
 
       .phone-bar .title.gui-title-row .transport-btn--primary {
@@ -1080,25 +1248,9 @@
         font-size: 0.85rem;
       }
 
-      .phone-bar .title.gui-title-row .transport-btn.phone-settings-btn {
-        width: auto;
-        min-width: 3.6rem;
-        height: 1.9rem;
-        padding: 0 0.55rem;
-        border-radius: 0.3rem;
-        font-size: 0.72rem;
-        font-weight: 600;
-        letter-spacing: 0.03em;
-        text-transform: none;
-        color: rgba(255, 255, 255, 0.9);
-        border-color: rgba(120, 180, 255, 0.45);
-        background: rgba(80, 130, 210, 0.28);
-      }
-
-      .phone-bar .title.gui-title-row .transport-btn.phone-settings-btn.is-active {
-        color: #fff;
-        border-color: rgba(120, 180, 255, 0.7);
-        background: rgba(80, 130, 210, 0.45);
+      .phone-bar .title.gui-title-row .transport-btn.save-btn .save-icon {
+        width: 1.05rem;
+        height: 1.05rem;
       }
 
       .phone-bar .title.gui-title-row .transport-btn.phone-hide-btn {
@@ -1140,6 +1292,14 @@
         justify-content: center;
       }
 
+      body.phone-ui.phone-landscape .lil-gui.root:not(.phone-bar) {
+        max-height: min(42dvh, calc(100dvh - var(--phone-bar-h, 3.2rem) - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
+      }
+
+      .controller.is-hidden {
+        display: none !important;
+      }
+
       body.phone-ui #hint {
         bottom: calc(var(--phone-bar-h, 4rem) + 0.9rem);
         width: min(92vw, 26rem);
@@ -1166,16 +1326,17 @@
         --slider-input-width: 3.1rem;
         --slider-input-min-width: 3.1rem;
         position: fixed !important;
-        left: 0.45rem !important;
-        right: 0.45rem !important;
-        top: auto !important;
-        bottom: calc(var(--phone-bar-h, 4rem) + 0.55rem) !important;
-        width: auto !important;
-        max-width: none !important;
-        max-height: min(58dvh, calc(100dvh - var(--phone-bar-h, 4rem) - 1.2rem - env(safe-area-inset-bottom))) !important;
+        width: min(92vw, 22rem) !important;
+        max-width: min(92vw, 22rem) !important;
+        max-height: min(58dvh, calc(100dvh - var(--phone-bar-h, 4rem) - 1.2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
         border-radius: 0.35rem;
         box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.45);
         font-size: 15px;
+      }
+
+      body.phone-ui .lil-gui.root.menu-pos-bottom-right,
+      body.phone-ui .lil-gui.root.menu-pos-bottom-left {
+        bottom: calc(var(--phone-bar-h, 4rem) + 0.45rem);
       }
 
       body.phone-ui .lil-gui.root:not(.phone-bar) > .title.gui-title-row {
@@ -1194,6 +1355,28 @@
       body.phone-ui .lil-gui.root:not(.phone-bar) .controller.number .slider {
         height: 2.25rem;
         min-height: 2.25rem;
+      }
+
+      .help-tip {
+        position: fixed;
+        z-index: 80;
+        max-width: 16rem;
+        padding: 0.45rem 0.55rem;
+        border-radius: 0.35rem;
+        background: rgba(12, 12, 14, 0.94);
+        color: rgba(255, 255, 255, 0.92);
+        font: 12px/1.35 system-ui, sans-serif;
+        pointer-events: none;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+      }
+
+      .lil-gui.help-mode .controller:hover {
+        outline: 1px solid rgba(140, 190, 255, 0.45);
+      }
+
+      .lil-gui .title.gui-title-row .transport-btn.help-btn,
+      .lil-gui .title.gui-title-row .transport-btn.upload-btn {
+        width: 1.25rem;
       }
 
       @media (max-width: 840px) {
@@ -1236,7 +1419,8 @@
         <p class="notepad-hint">Saved automatically. Toggle “Text overlay” in settings to show on screen.</p>
       </div>
     </div>
-    <div id="hint">Space · settings &nbsp;|&nbsp; ? · tutorial &nbsp;|&nbsp; F · fullscreen &nbsp;|&nbsp; H · hide UI</div>
+    <div id="perf-readout" aria-live="polite">Measuring…</div>
+    <div id="hint">Space · settings &nbsp;|&nbsp; ? · tutorial &nbsp;|&nbsp; F · fullscreen &nbsp;|&nbsp; H · fps</div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

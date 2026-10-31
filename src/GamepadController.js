@@ -544,25 +544,3 @@ export function createGamepadController(handlers = {}, { isMenuMode = () => fals
 
   return { update, destroy, ACTIONS };
 }
-
-export const GAMEPAD_BUTTON_MAP = [
-  { input: 'L shoulder', action: 'Previous shader' },
-  { input: 'R shoulder', action: 'Next shader' },
-  { input: 'D-pad ▲ ▼', action: 'Zoom / warp + psychedelic motion (hold to slide)' },
-  { input: 'D-pad ◀ ▶', action: 'Spirograph: rotate · others: fewer / more elements (hold)' },
-  { input: 'Start', action: 'Toggle fullscreen' },
-  { input: 'Select', action: 'Toolbar → options → hidden (cycle)' },
-  { input: 'A', action: 'Random motion (speed, bloom, trails…)' },
-  { input: 'B', action: 'Party burst — random motion, colors, and shapes' },
-  { input: 'X', action: 'Random colors (palette, tints, hues…)' },
-  { input: 'Y', action: 'Random preset (same shader)' },
-];
-
-export const GAMEPAD_MENU_BUTTON_MAP = [
-  { input: 'D-pad Up / Down', action: 'Move highlight between settings' },
-  { input: 'D-pad Left / Right', action: 'Adjust setting, or expand/collapse section heading' },
-  { input: 'B', action: 'Random value for highlighted setting' },
-  { input: 'Select', action: 'Toolbar → options → hidden (cycle)' },
-  { input: 'A / X / Y', action: 'Same random actions as normal mode' },
-  { input: 'Start', action: 'Toggle fullscreen' },
-];
