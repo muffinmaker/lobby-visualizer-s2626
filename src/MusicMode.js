@@ -22,14 +22,15 @@ const SIGNED_SPIN_KEYS = new Set(['uRotate', 'uTwistAmount']);
 
 const SHADER_MODS = {
   spiro: ['uPulse', 'uTwist', 'uZoom'],
+  starspin: ['uSpin', 'uWobble', 'uNoise', 'uPulse', 'uZoom'],
   flow: ['uFieldScale', 'uNoiseScale', 'uTrailAlpha'],
   spocks: ['uRotate', 'uMyTime', 'uZoom'],
   kaleido: ['uWarp', 'uLineWidth', 'uShapeMorph', 'uCenterStrength'],
-  metaballs: ['uEdgeGlow', 'uSoftness', 'uDrift', 'uWarp'],
-  wormhole: ['uTunnelDepth', 'uSwirl', 'uHorizonGlow', 'uColorSpeed'],
-  ribbons: ['uTwistAmount', 'uThickness', 'uWave', 'uGlow'],
-  layers: ['uMix', 'uSpeedOffset', 'uLayerScale'],
-  orb: ['uSpin', 'uWarp', 'uGlow', 'uZoom'],
+  metaballs: ['uEdgeGlow', 'uSoftness', 'uDrift', 'uWarp', 'uNoise'],
+  wormhole: ['uTunnelDepth', 'uSwirl', 'uNoise', 'uHorizonGlow', 'uColorSpeed'],
+  ribbons: ['uTwistAmount', 'uThickness', 'uWave', 'uGlow', 'uNoise'],
+  layers: ['uMix', 'uSpeedOffset', 'uLayerScale', 'uNoise'],
+  orb: ['uSpin', 'uWarp', 'uGlow', 'uNoise', 'uZoom'],
   tunnel: ['uTwist', 'uWarp', 'uGlow', 'uZoom'],
   chamber: ['uSpin', 'uWarp', 'uGlow', 'uZoom'],
 };

@@ -25,6 +25,7 @@ export default {
     uniform float uWave;
     uniform float uGlow;
     uniform float uSpread;
+    uniform float uNoise;
     uniform float uZoom;
     uniform float uPanX;
     uniform float uPanY;
@@ -43,6 +44,7 @@ export default {
     float ribbon(vec2 p, float phase, float t) {
       p = rot(t * 0.2 * uTwistAmount + phase) * p;
       float wave = sin(p.x * 4.0 * uComplexity + t * 1.6 + phase * 3.0);
+      wave += sin(p.x * 11.0 + t * 2.4 + phase) * uNoise * 0.65;
       float curve = p.y - wave * (0.18 + uWave * 0.45) * max(uScale, 0.2);
       float line = uThickness / (abs(curve) + 0.002);
       float glow = exp(-abs(curve) * (18.0 + (1.0 - uGlow) * 16.0)) * (0.25 + uGlow * 0.55);
@@ -63,7 +65,7 @@ export default {
         p.x += sin(t * 0.55 + fi) * 0.22;
         p.y += (fi - 3.0) * uSpread * 0.16;
         float r = ribbon(p, phase, t);
-        col += namedPalette(fi * 0.17 + t * 0.16, uPalette) * r;
+        col += namedPalette(colorLook(fi / 10.0, p, t * 0.2, fi * 0.17 + t * 0.16), uPalette) * r;
       }
 
       col *= uBrightness * 1.15;

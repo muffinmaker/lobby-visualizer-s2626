@@ -65,7 +65,7 @@ const fullPalette = (value = 0) => ({
   label: 'Colors (palette)',
 });
 
-const objectScale = () => ({ ...pct(50, 0.25, 1.75), label: 'Object scale' });
+const objectScale = () => ({ ...pct(50, 0.25, 1.75), shaderFar: 16, label: 'Object scale' });
 
 export const BACKGROUND_UNIFORMS = {
   uBgRed: rgb(2),
@@ -83,6 +83,17 @@ export const SPIRO_COMPLEXITY = {
   shaderMax: 20,
 };
 
+export const POST_UNIFORMS = {
+  uVignette: { ...pct(0, 0, 1), label: 'Vignette' },
+  uGrain: { ...pct(0, 0, 1), label: 'Grain' },
+  uChroma: { ...pct(0, 0, 1), label: 'Chromatic' },
+  uContrast: { ...pct(50, 0.5, 1.5), label: 'Contrast' },
+  uGlobalHue: { ...pct(0, 0, 1), label: 'Global hue' },
+  uScanlines: { ...pct(0, 0, 1), label: 'Scanlines' },
+  uPosterize: { ...pct(0, 0, 1), label: 'Posterize' },
+  uBeatPunch: { ...pct(0, 0, 1), label: 'Beat punch' },
+};
+
 export const GLOBAL_UNIFORMS = {
   ...BACKGROUND_UNIFORMS,
   uSpeed: { value: 3, min: 0, max: 100, step: 1, kind: 'speed', shaderMin: 0, shaderMax: 2.4 },
@@ -91,6 +102,8 @@ export const GLOBAL_UNIFORMS = {
   uBrightness: pct(50, 0.2, 2.5),
   uSaturation: pct(67, 0, 1.5),
   uBloom: pct(40, 0, 2),
+  uColorMode: { value: 0, min: 0, max: 5, step: 1, kind: 'colorMode', label: 'Color along' },
+  uColorPhase: { ...pct(0, 0, 1), label: 'Color phase' },
   uWhiteness: { ...pct(0, 0, 1), label: 'Whiteness' },
   uBlackness: { ...pct(0, 0, 1), label: 'Blackness' },
   uInvert: { ...toggle(0), label: 'Invert' },
@@ -125,7 +138,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uBlue: rgb(155),
     uLineWidth: { ...pct(36, 0.5, 5), label: 'Line thickness' },
     uIterations: count(80, 20, 180),
-    uTrailDecay: pct(92, 0.85, 1),
+    uTrailDecay: { value: 92, min: 0, max: 100, step: 1, kind: 'trailDecay', label: 'Trail decay' },
     uWidthRand: toggle(0),
     uHeightRand: toggle(0),
     uDepthPulse: toggle(1),
@@ -161,7 +174,8 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uLineSpacing: { ...pct(50, 0.04, 0.2), label: 'Line spacing' },
     uSpacingMode: { value: 0, min: 0, max: 4, step: 1, kind: 'spacingMode', label: 'Spacing mode' },
     uWarp: pct(30, 0.05, 2),
-    uLineWidth: { value: 8, min: 0, max: 100, step: 1, shaderMin: 0.002, shaderMax: 0.2, label: 'Line thickness' },
+    uNoise: { ...pct(20, 0, 1), label: 'Noise' },
+    uLineWidth: { value: 8, min: 0, max: 100, step: 1, shaderMin: 0.002, shaderMax: 0.2, shaderFar: 4, label: 'Line thickness' },
     uMirrorAngle: { ...center(50, -3.1416, 3.1416), label: 'Mirror angle' },
     uSymmetry: { value: 1, min: 0, max: 3, step: 1, kind: 'symmetry', label: 'Symmetry' },
     uCenterShape: { value: 1, min: 0, max: 7, step: 1, kind: 'shape' },
@@ -196,6 +210,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uFieldScale: pct(40, 0.5, 6),
     uNoiseScale: pct(32, 0.3, 5),
     uTrailAlpha: pct(24, 0.02, 0.25),
+    uTrailDecay: { value: 96, min: 0, max: 100, step: 1, kind: 'trailDecay', label: 'Trail decay' },
     uLogoCollider: toggle(0),
     uLogoColliderBounce: pct(48, 0.2, 2.6),
     uPalette: fullPalette(0),
@@ -207,6 +222,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uEdgeGlow: pct(40, 0, 3),
     uDrift: { ...pct(55, 0, 1.2), label: 'Drift' },
     uWarp: { ...pct(30, 0, 1), label: 'Wander' },
+    uNoise: { ...pct(0, 0, 1), label: 'Noise' },
     uZoom: { value: 10, min: 0, max: 100, step: 1, shaderMin: 0.4, shaderMax: 8.8, shaderFar: 22 },
     uPalette: fullPalette(0),
     uObjectScale: objectScale(),
@@ -217,6 +233,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uRingWidth: pct(38, 0.15, 1.2),
     uTunnelDepth: pct(58, 0.35, 2.2),
     uSwirl: pct(48, 0, 3.2),
+    uNoise: { ...pct(0, 0, 1), label: 'Noise' },
     uHorizonGlow: pct(68, 0, 2.5),
     uChevronGlow: pct(52, 0, 2.2),
     uLineThickness: { ...pct(50, 0.2, 1.8), label: 'Line thickness' },
@@ -255,7 +272,29 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uDetail: { ...pct(45, 0, 1), label: 'Detail' },
     uGlow: { ...pct(60, 0, 1.8), label: 'Rim glow' },
     uWarp: { ...pct(40, 0.2, 2.4), label: 'Surface' },
+    uNoise: { ...pct(0, 0, 1), label: 'Noise' },
     uZoom: { ...pct(55, 0.18, 2.2), shaderFar: 7 },
+  },
+  starspin: {
+    uPointSize: { ...pct(55, 0.35, 2.8), label: 'Orbit size' },
+    uPointShape: { value: 4, min: 0, max: 9, step: 1, kind: 'pointShape', label: 'Point shape' },
+    uMotion: { value: 1, min: 0, max: 5, step: 1, kind: 'starMotion', label: 'Motion' },
+    uSpin: { ...pct(48, 0, 2.4), label: 'Spin' },
+    uWobble: { ...pct(35, 0, 1), label: 'Wobble' },
+    uNoise: { ...pct(25, 0, 1), label: 'Noise' },
+    uArms: { ...pct(60, 3, 9), label: 'Star arms' },
+    uPointRotation: { ...center(50, -3.1416, 3.1416), label: 'Point rotation' },
+    uTransparency: { ...pct(18, 1, 0.08), label: 'Transparency' },
+    uTrailDecay: { value: 100, min: 0, max: 100, step: 1, kind: 'trailDecay', label: 'Trail decay' },
+    uOrbitCount: count(48, 1, 200),
+    uTwist: pct(36, 0, 3),
+    uPulse: pct(28, 0, 0.8),
+    uZoom: { value: 58, min: 0, max: 100, step: 1, kind: 'zoom', shaderMin: -5.2, shaderMax: 6.4, invert: true },
+    uPalette: fullPalette(5),
+    uObjectScale: objectScale(),
+    uHueShift: pct(40, 0, 1),
+    uColorSpeed: pct(55, 0, 2),
+    uColorSpread: pct(70, 0.2, 1.5),
   },
   ribbons: {
     uPalette: fullPalette(0),
@@ -265,6 +304,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uWave: { ...pct(38, 0, 1), label: 'Wave' },
     uGlow: { ...pct(45, 0, 1), label: 'Glow' },
     uSpread: { ...pct(0, 0, 1), label: 'Spread' },
+    uNoise: { ...pct(20, 0, 1), label: 'Noise' },
     uZoom: { ...pct(50, 0.2, 2.5), shaderFar: 8 },
   },
   layers: {
@@ -276,6 +316,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uMix: { ...pct(55, 0, 1), label: 'Layer mix' },
     uLayerScale: { ...pct(40, 0.15, 1.2), label: 'Layer scale' },
     uSpeedOffset: { ...pct(35, 0, 1.6), label: 'Speed offset' },
+    uNoise: { ...pct(0, 0, 1), label: 'Noise' },
     uZoom: { value: 13, min: 0, max: 100, step: 1, shaderMin: 0.35, shaderMax: 8.95, shaderFar: 24 },
     uObjectScale: objectScale(),
   },

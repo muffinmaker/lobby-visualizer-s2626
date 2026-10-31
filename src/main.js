@@ -680,6 +680,7 @@ async function start() {
     if (!midi) {
       midi = createMidiInput({
         onNote(note, _velocity, down) {
+          if (down) settings.noteIncomingMidi({ note });
           const action = midiNoteAction(settings.midiMap, note);
           if (action === 'invert') {
             if (!down) return;
@@ -712,6 +713,7 @@ async function start() {
           onPresetNext();
         },
         onCc(cc, value) {
+          settings.noteIncomingMidi({ cc });
           const key = midiCcTarget(settings.midiMap, cc);
           if (key === 'overlayMix') {
             settings.state.overlayOn = true;
@@ -922,7 +924,7 @@ async function start() {
         performance.steps += 1;
         if (performance.steps % 3 === 0) {
           performance.skipShaderStep = true;
-          const heavy = new Set(['spocks', 'flow', 'orb', 'tunnel', 'chamber']);
+          const heavy = new Set(['spocks', 'flow', 'orb', 'tunnel', 'chamber', 'starspin']);
           const lite = settings.state.liteMode || settings.state.performancePreset === 'lite';
           const skipHeavy = lite && settings.state.performanceSkipHeavy !== false;
           const pool = SHADER_IDS.filter((id) => !(skipHeavy && heavy.has(id)));
@@ -1081,6 +1083,8 @@ async function start() {
 
     const shader = settings.state.shader;
     const shaderChanged = shader !== visualizer.currentShaderId;
+
+    visualizer.audioBeat = musicMode.enabled ? (musicMode.smoothed.beat || 0) : 0;
 
     if (musicMode.enabled && !presetManager.isTransitioning) {
       musicMode.currentShader = shader;
@@ -1323,7 +1327,9 @@ async function start() {
       tutorial.toggle();
       return;
     }
-    if (e.code === 'Space') {
+    if (e.code === 'Space' || e.key === ' ') {
+      if (e.repeat) return;
+      if (e.target instanceof HTMLTextAreaElement) return;
       e.preventDefault();
       const now = performance.now();
       if (now - lastSpacePressAt < DOUBLE_SPACE_MS) {
@@ -1333,6 +1339,7 @@ async function start() {
         return;
       }
       lastSpacePressAt = now;
+      if (uiHidden) setUiHidden(false);
       settings.toggleVisible();
     }
     if (e.code === 'KeyF') toggleFullscreen();

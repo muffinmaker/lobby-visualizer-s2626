@@ -60,6 +60,24 @@ export const FIELD_SHAPE_OPTIONS = {
   Cross: 8,
 };
 
+export const COLOR_ALONG_OPTIONS = {
+  'Along path': 0,
+  'By speed': 1,
+  'By angle': 2,
+  Noise: 3,
+  Bands: 4,
+  'Gradient phase': 5,
+};
+
+export const STAR_MOTION_OPTIONS = {
+  Spiro: 0,
+  'Star orbit': 1,
+  Lissajous: 2,
+  'Figure 8': 3,
+  Spiral: 4,
+  Rose: 5,
+};
+
 export const FLOW_MOTION_OPTIONS = {
   Flow: 0,
   Sine: 1,

@@ -27,30 +27,6 @@ const DISCRETE_KEYS = new Set([
   'uChevrons',
 ]);
 
-const KEY_SMOOTH_TIMES = {
-  uSpeed: 8,
-  uComplexity: 7,
-  uWarp: 7,
-  uTwist: 7,
-  uTwistAmount: 7,
-  uSwirl: 6,
-  uBgRed: 1.4,
-  uBgGreen: 1.4,
-  uBgBlue: 1.4,
-  uRotate: 1.8,
-  uMyTime: 1.8,
-  uScaleY: 2.0,
-  uScaleZ: 2.0,
-  uUp: 1.8,
-  uDown: 1.8,
-  uZoom: 2.5,
-  uPanX: 1.6,
-  uPanY: 1.6,
-  uWidth: 1.6,
-  uHeight: 1.6,
-  uParticleCount: 1.8,
-};
-
 export class UniformSmoother {
   constructor(smoothTime = 1.4) {
     this.smoothTime = smoothTime;
@@ -58,8 +34,14 @@ export class UniformSmoother {
     this.targets = {};
   }
 
-  smoothTimeFor(key) {
-    return KEY_SMOOTH_TIMES[key] ?? this.smoothTime;
+  setEaseSeconds(seconds) {
+    const next = Number(seconds);
+    this.easeSeconds = Number.isFinite(next) ? Math.max(0, Math.min(10, next)) : 0.8;
+  }
+
+  smoothTimeFor() {
+    if (this.easeSeconds != null) return this.easeSeconds;
+    return this.smoothTime;
   }
 
   setTargets(values) {
@@ -99,7 +81,11 @@ export class UniformSmoother {
       }
       const current = this.current[key] ?? target;
       const delta = target - current;
-      const smoothTime = this.smoothTimeFor(key);
+      const smoothTime = this.smoothTimeFor();
+      if (smoothTime <= 0.02) {
+        this.current[key] = target;
+        continue;
+      }
       const k = 1 - Math.exp(-dt / smoothTime);
       if (Math.abs(delta) < 1e-5) {
         this.current[key] = target;

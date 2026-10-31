@@ -1418,6 +1418,42 @@ const PRESET_LIST = [
     },
   },
   {
+    name: 'Star Garden',
+    shader: 'starspin',
+    values: {
+      uSpeed: 4, uScale: 16, uComplexity: 40, uBrightness: 70, uSaturation: 80, uBloom: 40,
+      uPointShape: 4, uMotion: 1, uSpin: 42, uWobble: 28, uArms: 70, uOrbitCount: 56,
+      uTwist: 30, uPulse: 22, uZoom: 58, uTrailDecay: 100, uPointSize: 52,
+    },
+  },
+  {
+    name: 'Spiral Stars',
+    shader: 'starspin',
+    values: {
+      uSpeed: 5, uScale: 18, uComplexity: 44, uBrightness: 66, uSaturation: 74, uBloom: 36,
+      uPointShape: 4, uMotion: 4, uSpin: 55, uWobble: 18, uArms: 50, uOrbitCount: 72,
+      uTwist: 40, uPulse: 16, uZoom: 60, uTrailDecay: 100, uPointSize: 40,
+    },
+  },
+  {
+    name: 'Rose Drift',
+    shader: 'starspin',
+    values: {
+      uSpeed: 3, uScale: 20, uComplexity: 32, uBrightness: 72, uSaturation: 68, uBloom: 44,
+      uPointShape: 4, uMotion: 5, uSpin: 28, uWobble: 22, uArms: 78, uOrbitCount: 40,
+      uTwist: 18, uPulse: 30, uZoom: 64, uTrailDecay: 100, uPointSize: 58,
+    },
+  },
+  {
+    name: 'Lissajous Stars',
+    shader: 'starspin',
+    values: {
+      uSpeed: 7, uScale: 14, uComplexity: 55, uBrightness: 64, uSaturation: 88, uBloom: 52,
+      uPointShape: 4, uMotion: 2, uSpin: 70, uWobble: 55, uArms: 40, uOrbitCount: 36,
+      uTwist: 62, uPulse: 48, uZoom: 50, uTrailDecay: 92, uPointSize: 46,
+    },
+  },
+  {
     name: 'Prism Orb',
     shader: 'orb',
     values: {
@@ -1509,6 +1545,10 @@ const PRESET_COLOR_PROFILES = {
   'Drift Room': { uPalette: 16, uHueShift: 48 },
   'Helix Tunnel': { uPalette: 14, uHueShift: 36 },
   'Ribbed Tunnel': { uPalette: 17, uHueShift: 12 },
+  'Star Garden': { uPalette: 5, uHueShift: 18 },
+  'Lissajous Stars': { uPalette: 20, uHueShift: 64 },
+  'Spiral Stars': { uPalette: 9, uHueShift: 30 },
+  'Rose Drift': { uPalette: 16, uHueShift: 42 },
   'Pale Orb': { uPalette: 15, uHueShift: 8 },
   'Prism Orb': { uPalette: 12, uHueShift: 55 },
 };

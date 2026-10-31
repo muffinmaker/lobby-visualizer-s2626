@@ -88,7 +88,7 @@ export default {
         vec3 lamp = vec3(0.0, 0.7, 0.2 + sin(uTime * (0.3 + uSpeed * 0.2)));
         float light = clamp(dot(n, normalize(lamp - p)), 0.0, 1.0);
         float fog = exp(-t * (0.1 + uFog * 0.32));
-        float hue = 0.1 + p.y * 0.2 + floor(p.x * 2.0) * 0.08;
+        float hue = colorLook(p.y, p.xz, uTime * 0.08, 0.1 + p.y * 0.2 + floor(p.x * 2.0) * 0.08);
         vec3 ink = namedPalette(hue, uPalette);
         col = ink * (0.08 + light * 0.95) * fog;
         col += ink * pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 2.0) * (uBloom + uGlow) * 0.28;

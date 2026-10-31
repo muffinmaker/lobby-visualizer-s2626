@@ -20,6 +20,7 @@ export async function loadCustomShaders() {
 
       SHADERS[shader.id] = {
         label: shader.label ?? shader.id,
+        points: Boolean(shader.points),
         uniforms: {
           ...(SHADER_UNIFORM_TEMPLATES[shader.id] ?? {}),
           ...(shader.uniforms ?? {}),

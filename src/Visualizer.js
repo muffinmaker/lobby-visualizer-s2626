@@ -41,20 +41,67 @@ void main() {
   gl_FragColor = vec4(prev.rgb, 1.0);
 }`;
 
+const POST_GLSL = `
+uniform float uVignette;
+uniform float uGrain;
+uniform float uChroma;
+uniform float uContrast;
+uniform float uGlobalHue;
+uniform float uScanlines;
+uniform float uPosterize;
+uniform float uBeatPunch;
+uniform float uBeat;
+
+vec3 applyPost(sampler2D tex, vec2 uv) {
+  vec2 c = uv - 0.5;
+  vec2 dir = normalize(c + vec2(0.0001));
+  float shift = uChroma * 0.012;
+  vec3 color = texture2D(tex, uv).rgb;
+  color.r = mix(color.r, texture2D(tex, uv + dir * shift).r, clamp(uChroma, 0.0, 1.0));
+  color.b = mix(color.b, texture2D(tex, uv - dir * shift).b, clamp(uChroma, 0.0, 1.0));
+  float gray = dot(color, vec3(0.299, 0.587, 0.114));
+  color = mix(vec3(gray), color, uContrast);
+  float hue = uGlobalHue * 6.2831853;
+  float cs = cos(hue);
+  float sn = sin(hue);
+  vec3 axis = vec3(0.57735027);
+  vec3 crossed = vec3(
+    axis.y * color.z - axis.z * color.y,
+    axis.z * color.x - axis.x * color.z,
+    axis.x * color.y - axis.y * color.x
+  );
+  color = color * cs + crossed * sn + axis * dot(axis, color) * (1.0 - cs);
+  float vig = smoothstep(0.8, 0.2, length(c * vec2(1.2, 1.0)));
+  color *= mix(1.0, vig, clamp(uVignette, 0.0, 1.0));
+  float grain = fract(sin(dot(uv * vec2(140.0, 90.0) + uTime, vec2(12.9898, 78.233))) * 43758.5453);
+  color += (grain - 0.5) * uGrain * 0.28;
+  float scan = 0.72 + 0.28 * sin(uv.y * 240.0);
+  color *= mix(1.0, scan, clamp(uScanlines, 0.0, 1.0));
+  float levels = mix(18.0, 3.0, clamp(uPosterize, 0.0, 1.0));
+  vec3 posted = floor(color * levels + 0.001) / levels;
+  color = mix(color, posted, smoothstep(0.02, 0.2, uPosterize));
+  float hit = max(uBeat, 0.35 * smoothstep(0.72, 0.98, 0.5 + 0.5 * sin(uTime * 2.4)));
+  color *= 1.0 + uBeatPunch * hit * 0.85;
+  color += vec3(uBeatPunch * hit * 0.18);
+  return clamp(color, 0.0, 1.0);
+}
+`;
+
 const PRESENT_FRAG = `
 uniform sampler2D uMap;
 uniform float uInvert;
 uniform float uBlackout;
 uniform float uStrobe;
 uniform float uTime;
+${POST_GLSL}
 varying vec2 vUv;
 
 void main() {
-  vec4 color = texture2D(uMap, vUv);
-  if (uInvert > 0.5) color.rgb = vec3(1.0) - color.rgb;
-  if (uStrobe > 0.5 && fract(uTime * 9.0) > 0.5) color.rgb = vec3(1.0);
-  if (uBlackout > 0.5) color.rgb = vec3(0.0);
-  gl_FragColor = vec4(color.rgb, 1.0);
+  vec3 color = applyPost(uMap, vUv);
+  if (uInvert > 0.5) color = vec3(1.0) - color;
+  if (uStrobe > 0.5 && fract(uTime * 9.0) > 0.5) color = vec3(1.0);
+  if (uBlackout > 0.5) color = vec3(0.0);
+  gl_FragColor = vec4(color, 1.0);
 }`;
 
 const MIX_FRAG = `
@@ -66,10 +113,11 @@ uniform float uInvert;
 uniform float uBlackout;
 uniform float uStrobe;
 uniform float uTime;
+${POST_GLSL}
 varying vec2 vUv;
 
 void main() {
-  vec3 a = texture2D(uA, vUv).rgb;
+  vec3 a = applyPost(uA, vUv);
   vec3 b = texture2D(uB, vUv).rgb;
   float m = clamp(uMix, 0.0, 1.0);
   vec3 color = mix(a, b, m);
@@ -105,7 +153,7 @@ function buildUniforms(shaderId, uiValues = {}) {
 }
 
 function isPointShader(id) {
-  return id === 'spiro' || id === 'flow';
+  return id === 'spiro' || id === 'flow' || id === 'starspin' || Boolean(SHADERS[id]?.points);
 }
 
 function usesFeedbackTrails(shaderId) {
@@ -245,7 +293,8 @@ export class Visualizer {
     this.resolutionScale = defaultResolutionScale();
     this.liteMode = false;
     this.backgroundColor = new THREE.Color(0x020208);
-    this.uniformSmoother = new UniformSmoother(1.4);
+    this.uniformSmoother = new UniformSmoother(0.8);
+    this.uniformSmoother.setEaseSeconds(0.8);
     this.animPhase = 0;
     this.lastAnimSpeed = null;
 
@@ -290,6 +339,15 @@ export class Visualizer {
         uBlackout: { value: 0 },
         uStrobe: { value: 0 },
         uTime: { value: 0 },
+        uVignette: { value: 0 },
+        uGrain: { value: 0 },
+        uChroma: { value: 0 },
+        uContrast: { value: 1 },
+        uGlobalHue: { value: 0 },
+        uScanlines: { value: 0 },
+        uPosterize: { value: 0 },
+        uBeatPunch: { value: 0 },
+        uBeat: { value: 0 },
       },
       vertexShader: FULLSCREEN_VERT,
       fragmentShader: wrapFragment(PRESENT_FRAG),
@@ -314,6 +372,15 @@ export class Visualizer {
         uBlackout: { value: 0 },
         uStrobe: { value: 0 },
         uTime: { value: 0 },
+        uVignette: { value: 0 },
+        uGrain: { value: 0 },
+        uChroma: { value: 0 },
+        uContrast: { value: 1 },
+        uGlobalHue: { value: 0 },
+        uScanlines: { value: 0 },
+        uPosterize: { value: 0 },
+        uBeatPunch: { value: 0 },
+        uBeat: { value: 0 },
       },
       vertexShader: FULLSCREEN_VERT,
       fragmentShader: wrapFragment(MIX_FRAG),
@@ -364,7 +431,7 @@ export class Visualizer {
       transparent: trailBlended,
       depthTest: false,
       depthWrite: false,
-      blending: id === 'flow' ? THREE.AdditiveBlending : THREE.NormalBlending,
+      blending: THREE.NormalBlending,
     });
     if (id === 'flow') {
       material.uniforms.uLogoColliderVisible = { value: 0 };
@@ -463,7 +530,7 @@ export class Visualizer {
       this.uniformSmoother.snap(shaderValues);
       this.lastAnimSpeed = null;
       this.clearTrailBuffers();
-      if (shaderId === 'spiro' && shaderValues.uOrbitCount !== undefined) {
+      if ((shaderId === 'spiro' || shaderId === 'starspin') && shaderValues.uOrbitCount !== undefined) {
         const pens = Math.min(
           SPIRO_MAX_ORBITS,
           Math.max(1, Math.floor(shaderValues.uOrbitCount)),
@@ -495,6 +562,10 @@ export class Visualizer {
     }
 
     this.applyTrailSettingsFromUi(uiValues);
+  }
+
+  setEaseSeconds(seconds) {
+    this.uniformSmoother.setEaseSeconds(seconds);
   }
 
   setResolutionScale(scale) {
@@ -551,11 +622,8 @@ export class Visualizer {
     const minDecay = 0.68 + (1 - trailStrength) * 0.22;
     let decay = minDecay + (baseDecay - minDecay) * trailStrength;
     const persistTrails = this.currentShaderId === 'spocks' && (values.uTrailPersist ?? 0) > 0.5;
-    if (persistTrails) {
+    if (persistTrails || this.trailsNeverDecay || baseDecay >= 0.995) {
       decay = 1;
-    }
-    if (this.trailsNeverDecay) {
-      decay = Math.min(decay, 0.93);
     }
     this.trailMaterial.uniforms.uDecay.value = decay;
     this.trailMaterial.uniforms.uPreserveHue.value = usesFeedbackTrails(this.currentShaderId) ? 1 : 0;
@@ -584,7 +652,7 @@ export class Visualizer {
 
     if (deferRebuild) return;
 
-    if (this.currentShaderId === 'spiro' && shaderValues.uOrbitCount !== undefined) {
+    if ((this.currentShaderId === 'spiro' || this.currentShaderId === 'starspin') && shaderValues.uOrbitCount !== undefined) {
       const pens = Math.min(
         SPIRO_MAX_ORBITS,
         Math.max(1, Math.floor(shaderValues.uOrbitCount)),
@@ -628,12 +696,40 @@ export class Visualizer {
     this.onViewportResize?.();
   }
 
+  postActive() {
+    const fx = this.postFx || {};
+    return (fx.uVignette ?? 0) > 0.01
+      || (fx.uGrain ?? 0) > 0.01
+      || (fx.uChroma ?? 0) > 0.01
+      || Math.abs((fx.uContrast ?? 1) - 1) > 0.03
+      || (fx.uGlobalHue ?? 0) > 0.01
+      || (fx.uScanlines ?? 0) > 0.01
+      || (fx.uPosterize ?? 0) > 0.02
+      || (fx.uBeatPunch ?? 0) > 0.01;
+  }
+
+  applyPostUniforms(material) {
+    const fx = this.postFx || {};
+    const uniforms = material?.uniforms;
+    if (!uniforms) return;
+    if (uniforms.uVignette) uniforms.uVignette.value = fx.uVignette ?? 0;
+    if (uniforms.uGrain) uniforms.uGrain.value = fx.uGrain ?? 0;
+    if (uniforms.uChroma) uniforms.uChroma.value = fx.uChroma ?? 0;
+    if (uniforms.uContrast) uniforms.uContrast.value = fx.uContrast ?? 1;
+    if (uniforms.uGlobalHue) uniforms.uGlobalHue.value = fx.uGlobalHue ?? 0;
+    if (uniforms.uScanlines) uniforms.uScanlines.value = fx.uScanlines ?? 0;
+    if (uniforms.uPosterize) uniforms.uPosterize.value = fx.uPosterize ?? 0;
+    if (uniforms.uBeatPunch) uniforms.uBeatPunch.value = fx.uBeatPunch ?? 0;
+    if (uniforms.uBeat) uniforms.uBeat.value = this.audioBeat ?? 0;
+  }
+
   present(texture) {
     this.compositeMaterial.uniforms.uMap.value = texture;
     this.compositeMaterial.uniforms.uInvert.value = this.invertColors ? 1 : 0;
     this.compositeMaterial.uniforms.uBlackout.value = this.blackout ? 1 : 0;
     this.compositeMaterial.uniforms.uStrobe.value = this.strobe ? 1 : 0;
     this.compositeMaterial.uniforms.uTime.value = this.animPhase;
+    this.applyPostUniforms(this.compositeMaterial);
     this.renderer.setRenderTarget(null);
     this.renderer.setClearColor(this.backgroundColor, 1);
     this.renderer.clear();
@@ -685,6 +781,7 @@ export class Visualizer {
     this.mixMaterial.uniforms.uBlackout.value = this.blackout ? 1 : 0;
     this.mixMaterial.uniforms.uStrobe.value = this.strobe ? 1 : 0;
     this.mixMaterial.uniforms.uTime.value = this.animPhase;
+    this.applyPostUniforms(this.mixMaterial);
     this.renderer.setRenderTarget(null);
     this.renderer.setClearColor(this.backgroundColor, 1);
     this.renderer.clear();
@@ -725,6 +822,16 @@ export class Visualizer {
     this.lastAnimSpeed = nextSpeed;
     material.uniforms.uTime.value = this.animPhase;
     this.invertColors = (smoothed.uInvert ?? 0) > 0.5;
+    this.postFx = {
+      uVignette: smoothed.uVignette ?? 0,
+      uGrain: smoothed.uGrain ?? 0,
+      uChroma: smoothed.uChroma ?? 0,
+      uContrast: smoothed.uContrast ?? 1,
+      uGlobalHue: smoothed.uGlobalHue ?? 0,
+      uScanlines: smoothed.uScanlines ?? 0,
+      uPosterize: smoothed.uPosterize ?? 0,
+      uBeatPunch: smoothed.uBeatPunch ?? 0,
+    };
 
     const useTrails = this.usesTrails(shaderId);
 
@@ -744,7 +851,7 @@ export class Visualizer {
       this.presentMix(next.texture);
 
       this.trailTargets.reverse();
-    } else if ((this.invertColors || this.blackout || this.strobe || this.overlay.enabled) && this.presentTarget) {
+    } else if ((this.invertColors || this.blackout || this.strobe || this.overlay.enabled || this.postActive()) && this.presentTarget) {
       this.renderScene(this.presentTarget);
       this.presentMix(this.presentTarget.texture);
     } else {

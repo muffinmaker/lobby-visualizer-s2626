@@ -1,4 +1,4 @@
-import { BACKGROUND_UNIFORMS, GLOBAL_UNIFORMS, SHADER_UNIFORM_TEMPLATES } from '../uniformSpecs.js';
+import { BACKGROUND_UNIFORMS, GLOBAL_UNIFORMS, POST_UNIFORMS, SHADER_UNIFORM_TEMPLATES } from '../uniformSpecs.js';
 import { PALETTE_FN, PALETTE_UNIFORMS } from '../paletteGlsl.js';
 
 export const SHADERS = {
@@ -196,8 +196,12 @@ export const SHADERS = {
 
           float layerDepth = i / iterDenom;
           float localRadial = clamp(length(local) * scalePow.x / max(uScale * 0.75, 0.15), 0.0, 1.35);
-          float hueT = layerDepth * 1.45 + radial * 0.55 + localRadial * 0.35
-            + t * uColorSpeed * 0.55;
+          float hueT = colorLook(
+            layerDepth,
+            local,
+            t * uColorSpeed,
+            layerDepth * 1.45 + radial * 0.55 + localRadial * 0.35 + t * uColorSpeed * 0.55
+          );
           vec3 layerCol = applyTint(neonPalette(hueT + layerDepth * 0.8));
 
           accCol += layerCol * layerEdge;
@@ -273,7 +277,7 @@ export const SHADERS = {
 
       vec3 palette(float lane, float radial, float t) {
         float p = floor(uPalette + 0.5);
-        float hue = lane * 1.45 + radial * 0.65 + t * uColorSpeed * 0.55 + uHueShift;
+        float hue = colorLook(lane, vec2(lane, radial), t * uColorSpeed, lane * 1.45 + radial * 0.65 + t * uColorSpeed * 0.55 + uHueShift);
         vec3 col = namedPalette(hue, uPalette);
         if (p > 6.5 && p < 7.5) return applyTint(col);
         col = mix(vec3(0.55), col, uColorSpread);
@@ -331,7 +335,7 @@ export const SHADERS = {
         vec4 mvPosition = modelViewMatrix * vec4(pos, 0.0, 1.0);
         gl_Position = projectionMatrix * mvPosition;
         float size = 34.0 * (220.0 / -mvPosition.z) * (0.85 + lane * 0.15) / 55.0;
-        gl_PointSize = clamp(size * max(uObjectScale, 0.05), 8.0, 90.0);
+        gl_PointSize = clamp(size * max(uObjectScale, 0.05), 8.0, 420.0);
       }
     `,
     fragment: /* glsl */ `
@@ -443,6 +447,7 @@ export const SHADERS = {
       uniform float uSpacingMode;
       uniform float uWarp;
       uniform float uLineWidth;
+      uniform float uNoise;
       uniform float uMirrorAngle;
       uniform float uSymmetry;
       uniform float uCenterShape;
@@ -622,7 +627,7 @@ export const SHADERS = {
           } else {
             spread = fi * (0.45 + 0.9 * (0.5 + 0.5 * sin(fi * 1.7 + tp * 0.6)));
           }
-          float r = spread * gap;
+          float r = spread * gap * (1.0 + sin(fi * 4.7 + tp) * uNoise * 0.35);
           float wobble = sin(tp * (0.9 + fi * 0.15) + fi) * uWarp * 0.12;
           float ringDist = abs(length(p) - r - wobble);
           rings += thick / max(ringDist, 0.004);
@@ -658,7 +663,7 @@ export const SHADERS = {
         float soft = patternVal * 0.45;
         float intensity = soft / (1.0 + abs(soft));
 
-        float hue = atan(p.y, p.x) * 0.4 + length(p) * 1.6 + intensity * 1.4 + t * anim * 0.2;
+        float hue = colorLook(length(p), p, t * anim, atan(p.y, p.x) * 0.4 + length(p) * 1.6 + intensity * 1.4 + t * anim * 0.2);
         vec3 col = palette(hue);
         col *= (0.18 + intensity) * uBrightness * 2.4;
 
@@ -928,7 +933,7 @@ export const SHADERS = {
         float density = sqrt(3200.0 / max(uParticleCount, 800.0));
         vCover = clamp(density, 0.22, 1.35);
 
-        vColor = palette(life * 3.0 + t * 0.06 + length(pos) * 0.2);
+        vColor = palette(colorLook(life, pos, t * 0.15, life * 3.0 + t * 0.06 + length(pos) * 0.2));
         vAlpha = (0.35 + 0.45 * sin(t * 2.0 + life * 40.0)) * vCover;
 
         vec4 mvPosition = modelViewMatrix * vec4(pos, 0.0, 1.0);
@@ -993,6 +998,7 @@ export const SHADERS = {
       uniform float uEdgeGlow;
       uniform float uDrift;
       uniform float uWarp;
+      uniform float uNoise;
       uniform float uZoom;
       uniform float uPanX;
       uniform float uPanY;
@@ -1019,6 +1025,7 @@ export const SHADERS = {
           float radius = uScale * uObjectScale * (0.22 + 0.2 * sin(t * (0.35 + uDrift) + fi));
           vec2 center = vec2(cos(angle), sin(angle)) * radius;
           center += vec2(sin(t * 1.3 + fi * 1.3), cos(t * 1.1 + fi)) * (0.16 + uWarp * 0.2) * uComplexity;
+          center += vec2(sin(fi * 9.1 + t * 2.2), cos(fi * 6.3 - t * 1.7)) * uNoise * 0.28;
           float d = length(uv - center);
           field += uSoftness / (d * d + 0.002);
         }
@@ -1026,7 +1033,7 @@ export const SHADERS = {
         float edge = smoothstep(0.95, 1.05, field);
         float glow = exp(-abs(field - 1.0) * 3.0) * uEdgeGlow;
 
-        vec3 col = palette(field * 0.22 + t * 0.18 + length(uv) * 0.8);
+        vec3 col = palette(colorLook(length(uv), uv, t * 0.2, field * 0.22 + t * 0.18 + length(uv) * 0.8));
         col *= edge * uBrightness * 1.3 + glow * uBloom * 1.4;
         col += palette(field * 0.1 + 0.35) * glow * 0.45;
 
@@ -1061,6 +1068,7 @@ export const SHADERS = {
       uniform float uRingWidth;
       uniform float uTunnelDepth;
       uniform float uSwirl;
+      uniform float uNoise;
       uniform float uHorizonGlow;
       uniform float uChevronGlow;
       uniform float uLineThickness;
@@ -1291,6 +1299,7 @@ export const SHADERS = {
         float bend = sin(t * 0.41) * 0.22 * uSwirl + cos(t * 0.88) * 0.12 * uSwirl;
 
         vec2 rel = uv - starPos;
+        rel += vec2(sin(t * 2.3 + travel), cos(t * 1.7)) * uNoise * 0.18;
         rel = rot(roll) * rel;
         rel.x += rel.y * bend;
         rel.y += rel.y * rel.y * sin(t * 0.57) * 0.1 * uSwirl;
@@ -1323,7 +1332,7 @@ export const SHADERS = {
 
         float colorDrift = travel * 0.08 * (0.35 + uColorSpeed)
           + sin(t * (0.55 + uColorSpeed * 1.4) + tdir.x * 2.4 + tdir.y * 1.6) * 0.14 * uColorSpread;
-        float colorPhase = depth * 0.24 + structure * 0.72 + r * 0.38 + colorDrift + uHueShift;
+        float colorPhase = colorLook(depth * 0.05, tdir, t * uColorSpeed, depth * 0.24 + structure * 0.72 + r * 0.38 + colorDrift + uHueShift);
 
         vec3 col = palette(colorPhase);
         col *= 0.28 + structure * 1.85 * wallShade;
@@ -1376,6 +1385,7 @@ export const SHADERS = {
       uniform float uMix;
       uniform float uLayerScale;
       uniform float uSpeedOffset;
+      uniform float uNoise;
       uniform float uZoom;
       uniform float uPanX;
       uniform float uPanY;
@@ -1444,13 +1454,14 @@ export const SHADERS = {
           float fi = i;
           float lt = t * (1.0 + (0.15 + uSpeedOffset) * fi);
           vec2 lp = uv * (1.0 + uLayerScale * fi);
+          lp += vec2(sin(lp.y * 8.0 + lt), cos(lp.x * 8.0 - lt)) * uNoise * 0.08;
           float slot = mod(fi, 3.0);
           float patternId = uPatternA;
           if (slot > 0.5 && slot < 1.5) patternId = uPatternB;
           else if (slot > 1.5) patternId = uPatternC;
           float sig = patternSignal(lp, lt, patternId);
           float band = smoothstep(0.05, 0.82, sig * 0.5 + 0.5);
-          vec3 ink = namedPalette(fi * 0.37 + band * 0.9 + lt * 0.08 + uComplexity * 0.05, uPalette);
+          vec3 ink = namedPalette(colorLook(fi / count, lp, lt, fi * 0.37 + band * 0.9 + lt * 0.08 + uComplexity * 0.05), uPalette);
           float fade = mix(1.0, 1.0 / (fi + 1.0), clamp(uMix, 0.0, 1.0));
           acc += ink * (0.15 + band * 1.35) * fade;
           weightSum += fade;
@@ -1482,4 +1493,4 @@ export function getShaderChoices() {
   return choices;
 }
 
-export { BACKGROUND_UNIFORMS, GLOBAL_UNIFORMS };
+export { BACKGROUND_UNIFORMS, GLOBAL_UNIFORMS, POST_UNIFORMS };

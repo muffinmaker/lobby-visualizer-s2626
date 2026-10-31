@@ -4,6 +4,7 @@ import {
   SHADERS,
   BACKGROUND_UNIFORMS,
   GLOBAL_UNIFORMS,
+  POST_UNIFORMS,
   SHADER_IDS,
   getShaderChoices,
 } from './shaders/index.js';
@@ -17,7 +18,7 @@ import {
   saveMidiMap,
 } from './midiInput.js';
 import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
-import { FIELD_SHAPE_OPTIONS, FLOW_MOTION_OPTIONS, PATTERN_OPTIONS, POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, SPACING_OPTIONS, STAMP_SHAPE_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
+import { COLOR_ALONG_OPTIONS, FIELD_SHAPE_OPTIONS, FLOW_MOTION_OPTIONS, PATTERN_OPTIONS, POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, SPACING_OPTIONS, STAMP_SHAPE_OPTIONS, STAR_MOTION_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
 import { TEXT_ALIGNS, TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
 import { AUDIO_FEATURES, MUSIC_ROUTES } from './MusicMode.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
@@ -47,7 +48,7 @@ import {
 } from './logoPacks.js';
 import { TEXT_POSITIONS } from './textOverlay.js';
 
-const TRAIL_SHADERS = new Set(['spocks', 'spiro', 'flow']);
+const TRAIL_SHADERS = new Set(['spocks', 'spiro', 'flow', 'starspin']);
 const QUALITY_STEPS = ['full', 'balanced', 'lite'];
 const QUALITY_LABELS = ['Full', 'Balanced', 'Lite'];
 const FLOW_LOGO_COLLIDER_KEYS = new Set(['uLogoCollider', 'uLogoColliderBounce']);
@@ -344,6 +345,7 @@ export class SettingsPanel {
       ...loadOverlayPrefs(),
       ...loadPerformancePrefs(),
       resolutionScale: visualizer.resolutionScale ?? defaultResolutionScale(),
+      easeSeconds: 0.8,
       liteMode: loadLiteMode(),
       qualityStep: loadLiteMode() ? 2 : 0,
       qualityLabel: loadLiteMode() ? 'Lite' : 'Full',
@@ -470,7 +472,7 @@ export class SettingsPanel {
         this.state.musicStatus = mm.status;
         this.musicStatusCtrl?.updateDisplay();
       });
-      music
+      const sourceCtrl = music
         .add(this.state, 'musicSource', { Microphone: 'mic', 'Tab / screen audio': 'tab' })
         .name('Source')
         .onChange(async (src) => {
@@ -480,7 +482,8 @@ export class SettingsPanel {
             mm.currentShader = this.state.shader;
           }
         });
-      music.add(this.state, 'musicSensitivity', 10, 100, 1).name('Sensitivity').onChange((v) => {
+      this.stepIfDropdown(music, sourceCtrl, 'source');
+      const sensitivityCtrl = music.add(this.state, 'musicSensitivity', 10, 100, 1).name('Sensitivity').onChange((v) => {
         mm.sensitivity = v;
       });
       music.add(this.state, 'musicResponse', 10, 100, 1).name('Response').onChange((v) => {
@@ -515,10 +518,11 @@ export class SettingsPanel {
       const channels = music.addFolder('Channels');
       for (let i = 0; i < 10; i++) {
         this.state[`musicCh${i}`] = mm.channels[i] || 'off';
-        channels
+        const channelCtrl = channels
           .add(this.state, `musicCh${i}`, AUDIO_FEATURES)
           .name(`Channel ${i}`)
           .onChange((value) => mm.setChannelFeature(i, value));
+        this.stepIfDropdown(channels, channelCtrl, `channel ${i}`);
       }
 
       this.audioLinks = music.addFolder('Setting links');
@@ -553,7 +557,9 @@ export class SettingsPanel {
     this.applyMenuScale(this.state.menuScale);
     this.applyComplexityForShader(this.state.shader);
     this.placeMenuOrder();
+    this.visualizer.setEaseSeconds(this.state.easeSeconds);
     this.patchNumberControllers();
+    this.stepRemainingDropdowns();
     this.closeAllFolders();
     this.attachAllPresetOverrides();
     this.gui.close();
@@ -877,9 +883,10 @@ export class SettingsPanel {
     this.menuFolder = menu;
     const fire = (name) => document.dispatchEvent(new CustomEvent(name));
 
-    menu.add(this.state, 'shader', getShaderChoices()).name('Shader').onChange((id) => {
+    const shaderCtrl = menu.add(this.state, 'shader', getShaderChoices()).name('Shader').onChange((id) => {
       this.setShader(id);
     });
+    this.stepIfDropdown(menu, shaderCtrl, 'shader');
     this.presetController = menu
       .add(this.state, 'preset', pm.getPresetNames(this.state.shader))
       .name('Preset')
@@ -888,6 +895,7 @@ export class SettingsPanel {
         pm.syncCurrentIndexForShader(name);
         pm.goToByName(name, { randomize: false, shader: this.state.shader });
       });
+    this.stepIfDropdown(menu, this.presetController, 'preset');
     this.resetPresetCtrl = menu
       .add({ resetPreset: () => pm.resetToOriginals() }, 'resetPreset')
       .name('Reset preset');
@@ -936,7 +944,7 @@ export class SettingsPanel {
     overlay.add(this.state, 'overlayShader', choices).name('Mode B').onChange(sync);
     overlay.add(this.state, 'overlayMix', 0, 100, 1).name('Mix').onChange(sync);
     const blendCtrl = overlay.add(this.state, 'overlayBlend', { Mix: 'Mix', Add: 'Add', Multiply: 'Multiply' }).name('Blend').onChange(sync);
-    this.addOptionStepper(overlay, blendCtrl, 'blend');
+    this.stepIfDropdown(overlay, blendCtrl, 'blend');
     overlay.add(this.state, 'overlayAudio').name('Audio mix').onChange(sync);
     overlay.add({ swapLayers: () => this.swapOverlayLayers() }, 'swapLayers').name('Swap A and B');
     this.pushOverlay();
@@ -979,6 +987,7 @@ export class SettingsPanel {
       .onChange((step) => {
         const index = Math.max(0, Math.min(2, Math.round(step)));
         this.state.qualityStep = index;
+        this.fpsQualityCeiling = index;
         this.setPerformancePreset(QUALITY_STEPS[index]);
       });
     this.qualityCtrl.domElement.dataset.help = tipFor('performancePreset');
@@ -989,7 +998,9 @@ export class SettingsPanel {
     this.perfNoteCtrl = display.add(this.state, 'perfNote').name('Load');
     this.perfNoteCtrl.disable(true);
     this.menuPositionCtrl = display
-      .add(this.state, 'menuPosition', MENU_POSITION_LABELS)
+      .add(this.state, 'menuPosition', Object.fromEntries(
+        MENU_POSITIONS.map((id) => [MENU_POSITION_LABELS[id], id]),
+      ))
       .name('Menu position')
       .onChange((position) => {
         this.setMenuPosition(position);
@@ -1006,17 +1017,40 @@ export class SettingsPanel {
       .onChange((v) => {
         this.applyMenuOpacity(v);
       });
-    display
+    this.state.fpsLock = false;
+    this.state.fpsTarget = 30;
+    this.fpsCeiling = this.state.resolutionScale;
+    this.fpsQualityCeiling = this.state.qualityStep ?? 0;
+    this.fpsUnder = 0;
+    this.fpsOver = 0;
+    display.add(this.state, 'fpsLock').name('FPS lock').onChange((on) => {
+      if (on) {
+        this.fpsCeiling = this.state.resolutionScale;
+        this.fpsQualityCeiling = this.state.qualityStep ?? 0;
+      }
+    });
+    display.add(this.state, 'fpsTarget', 20, 60, 1).name('FPS target');
+    display.add(this.state, 'easeSeconds', 0, 10, 0.1).name('Ease (s)').onChange((seconds) => {
+      this.visualizer.setEaseSeconds(seconds);
+    });
+    const post = display.addFolder('Post FX');
+    for (const [key, spec] of Object.entries(POST_UNIFORMS)) {
+      this.addUniformRow(post, key, spec);
+    }
+    const resolutionCtrl = display
       .add(this.state, 'resolutionScale', 25, 100, 1)
       .name('Resolution %')
       .onChange((v) => {
         if (this.state.liteMode) {
           v = Math.min(v, 50);
           this.state.resolutionScale = v;
-          this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
         }
+        this.fpsCeiling = v;
         this.visualizer.setResolutionScale(v);
       });
+    this.attachLooseDrift(resolutionCtrl, 'resolutionScale', 25, 100, (value) => {
+      this.visualizer.setResolutionScale(value);
+    });
     this.motionTrailsCtrl = display
       .add(this.state, 'motionTrails', 0, 100, 1)
       .name('Motion Trails')
@@ -1099,9 +1133,10 @@ export class SettingsPanel {
       ['uPal2R', 'uPal2G', 'uPal2B', 'Stop 3'],
     ];
     for (const [r, g, b, name] of stops) {
-      this.colorFolder.add(this.state, r, 0, 255, 1).name(`${name} red`).onChange(() => this.handleValueChange());
-      this.colorFolder.add(this.state, g, 0, 255, 1).name(`${name} green`).onChange(() => this.handleValueChange());
-      this.colorFolder.add(this.state, b, 0, 255, 1).name(`${name} blue`).onChange(() => this.handleValueChange());
+      for (const [key, part] of [[r, 'red'], [g, 'green'], [b, 'blue']]) {
+        const spec = { value: this.state[key] ?? 0, min: 0, max: 255, step: 1, kind: 'rgb', label: `${name} ${part}` };
+        this.addUniformRow(this.colorFolder, key, spec);
+      }
     }
   }
 
@@ -1130,6 +1165,67 @@ export class SettingsPanel {
     this.gui.controllersRecursive().forEach((controller) => {
       configureNumberController(controller);
       this.attachSliderClicks(controller);
+      this.attachPresetMark(controller);
+      this.attachNameReset(controller);
+    });
+  }
+
+  presetDefaultFor(key) {
+    const preset = this.presetManager?.currentPreset;
+    if (!preset) return undefined;
+    const original = this.presetManager.getBuiltinOriginal?.(preset.name, preset.shader);
+    const source = original?.values ?? preset.values ?? {};
+    if (Object.prototype.hasOwnProperty.call(source, key)) return source[key];
+    return this.getSpecForKey(key)?.value;
+  }
+
+  attachPresetMark(controller) {
+    const slider = controller?.domElement?.querySelector?.('.slider');
+    if (!slider) return;
+    let mark = slider.querySelector('.preset-mark');
+    if (!mark) {
+      mark = document.createElement('div');
+      mark.className = 'preset-mark';
+      slider.appendChild(mark);
+    }
+    const min = controller._min;
+    const max = controller._max;
+    const value = this.presetDefaultFor(controller.property);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || !Number.isFinite(Number(value)) || max === min) {
+      mark.hidden = true;
+      return;
+    }
+    const t = (Number(value) - min) / (max - min);
+    mark.hidden = false;
+    mark.style.left = `${Math.max(0, Math.min(1, t)) * 100}%`;
+  }
+
+  refreshPresetMarks() {
+    this.gui.controllersRecursive().forEach((controller) => this.attachPresetMark(controller));
+  }
+
+  jumpToPresetDefault(controller) {
+    const key = controller?.property;
+    const spec = this.getSpecForKey(key);
+    const min = spec?.min ?? controller?._min;
+    const max = spec?.max ?? controller?._max;
+    let next = this.presetDefaultFor(key);
+    if (!Number.isFinite(Number(next))) return;
+    const step = spec?.step ?? controller?._step ?? 1;
+    if (step) next = Math.round(next / step) * step;
+    if (Number.isFinite(min) && Number.isFinite(max)) next = Math.min(max, Math.max(min, next));
+    controller.setValue(next);
+  }
+
+  attachNameReset(controller) {
+    const name = controller?.domElement?.querySelector?.(':scope > .name');
+    if (!name || name.dataset.presetReset === '1') return;
+    if (!controller.domElement.classList.contains('number')) return;
+    name.dataset.presetReset = '1';
+    name.addEventListener('dblclick', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.jumpToPresetDefault(controller);
     });
   }
 
@@ -1277,11 +1373,52 @@ export class SettingsPanel {
 
   notePerf(fps, frameMs) {
     const load = describeModeLoad(this.state.shader, this.state);
-    const text = `${Number(fps).toFixed(1)} fps · ${Number(frameMs).toFixed(1)} ms · ${load}`;
+    const lock = this.state.fpsLock ? ` · lock ${this.state.fpsTarget || 30}` : '';
+    const text = `${Number(fps).toFixed(1)} fps · ${Number(frameMs).toFixed(1)} ms · ${load}${lock}`;
     this.state.perfNote = text;
     this.perfNoteCtrl?.updateDisplay();
     const badge = document.getElementById('perf-readout');
     if (badge) badge.textContent = text;
+    this.enforceFpsLock(fps);
+  }
+
+  enforceFpsLock(fps) {
+    if (!this.state.fpsLock) return;
+    const target = this.state.fpsTarget || 30;
+    if (fps < target - 1) {
+      this.fpsUnder = (this.fpsUnder || 0) + 1;
+      this.fpsOver = 0;
+    } else if (fps > target + 12) {
+      this.fpsOver = (this.fpsOver || 0) + 1;
+      this.fpsUnder = 0;
+    } else {
+      this.fpsUnder = 0;
+      this.fpsOver = 0;
+    }
+    if (this.fpsUnder >= 2) {
+      this.fpsUnder = 0;
+      if (this.state.resolutionScale > 30) {
+        this.state.resolutionScale = Math.max(30, this.state.resolutionScale - 10);
+        this.visualizer.setResolutionScale(this.state.resolutionScale);
+      } else if ((this.state.qualityStep ?? 0) < 2) {
+        this.setPerformancePreset(QUALITY_STEPS[(this.state.qualityStep ?? 0) + 1]);
+      }
+      this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    } else if (this.fpsOver >= 4 && this.state.resolutionScale < (this.fpsCeiling ?? 100)) {
+      this.fpsOver = 0;
+      const cap = this.state.liteMode ? 50 : (this.fpsCeiling ?? 100);
+      this.state.resolutionScale = Math.min(cap, this.state.resolutionScale + 5);
+      this.visualizer.setResolutionScale(this.state.resolutionScale);
+      this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    }
+  }
+
+  attachLooseDrift(controller, key, min, max, apply) {
+    const spec = { min, max, step: 1, value: this.state[key] };
+    this.driftManager.register(key, spec, this.state[key]);
+    this.attachDriftToggle(controller, key, spec);
+    if (!this.looseDriftApply) this.looseDriftApply = new Map();
+    this.looseDriftApply.set(key, apply);
   }
 
   setLiteMode(enabled, { silent = false, skipSave = false, init = false } = {}) {
@@ -1472,7 +1609,6 @@ export class SettingsPanel {
           }
           this.handleValueChange();
         });
-      this.addOptionStepper(folder, controller, 'palette');
     } else if (spec.kind === 'shape') {
       controller = folder
         .add(this.state, key, { ...SHAPE_OPTIONS })
@@ -1526,6 +1662,21 @@ export class SettingsPanel {
     } else if (spec.kind === 'fieldShape') {
       controller = folder
         .add(this.state, key, { ...FIELD_SHAPE_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
+    } else if (spec.kind === 'colorMode') {
+      controller = folder
+        .add(this.state, key, { ...COLOR_ALONG_OPTIONS })
+        .name(label)
+        .onChange(() => this.handleValueChange());
+    } else if (spec.kind === 'starMotion') {
+      controller = folder
+        .add(this.state, key, { ...STAR_MOTION_OPTIONS })
         .name(label)
         .onChange(() => {
           if (this.driftManager.isEnabled(key)) {
@@ -1587,6 +1738,7 @@ export class SettingsPanel {
     if (canDrift(spec)) {
       this.attachDriftToggle(controller, key, spec);
     }
+    this.stepIfDropdown(folder, controller, label);
   }
 
   attachDriftToggle(controller, key, spec) {
@@ -1893,7 +2045,10 @@ export class SettingsPanel {
     if (!values) return;
     const allowed = this.withoutLockedPresetValues(values);
     for (const [key, value] of Object.entries(allowed)) {
-      if (key.startsWith('u')) this.state[key] = value;
+      if (key.startsWith('u') || this.looseDriftApply?.has(key)) this.state[key] = value;
+    }
+    for (const [key, apply] of this.looseDriftApply ?? []) {
+      if (Object.prototype.hasOwnProperty.call(allowed, key)) apply(this.state[key]);
     }
     this.gui.controllersRecursive().forEach((c) => c.updateDisplay());
   }
@@ -1993,7 +2148,27 @@ export class SettingsPanel {
     this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
   }
 
+  stepIfDropdown(folder, controller, label) {
+    if (Array.isArray(controller?._values) && controller._values.length > 1) {
+      this.addOptionStepper(folder, controller, label);
+    }
+  }
+
+  stepRemainingDropdowns() {
+    const pending = [];
+    this.gui.controllersRecursive().forEach((controller) => {
+      if (controller.domElement?.dataset?.stepped) return;
+      if (!Array.isArray(controller._values) || controller._values.length < 2) return;
+      pending.push(controller);
+    });
+    for (const controller of pending) {
+      controller.domElement.dataset.stepped = '1';
+      if (controller.parent) this.addOptionStepper(controller.parent, controller, controller._name || 'option');
+    }
+  }
+
   addOptionStepper(folder, controller, label) {
+    if (controller.domElement) controller.domElement.dataset.stepped = '1';
     const step = (delta) => {
       const values = controller._values;
       if (!Array.isArray(values) || values.length < 2) return;
@@ -2004,6 +2179,25 @@ export class SettingsPanel {
     };
     folder.add({ prev: () => step(-1) }, 'prev').name(`Previous ${label}`);
     folder.add({ next: () => step(1) }, 'next').name(`Next ${label}`);
+  }
+
+  noteIncomingMidi({ cc, note } = {}) {
+    if (cc != null) {
+      this.lastHeardCc = cc;
+      this.state.midiHeard = `Last CC ${cc}`;
+    } else if (note != null) {
+      this.lastHeardNote = note;
+      this.state.midiHeard = `Last note ${note}`;
+    }
+    this.midiHeardCtrl?.updateDisplay();
+  }
+
+  captureHeardMidi() {
+    if (this.lastHeardCc == null || !this.midiMap?.cc?.[0]) return;
+    this.midiMap.cc[0].cc = this.lastHeardCc;
+    this.state.midiCc0 = this.lastHeardCc;
+    saveMidiMap(this.midiMap);
+    this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
   }
 
   fillMidiMapState() {
@@ -2028,6 +2222,12 @@ export class SettingsPanel {
         this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
       },
     }, 'reset').name('Reset to FLX4 / Launchkey');
+    this.state.midiHeard = 'Move a knob or pad';
+    this.midiHeardCtrl = folder.add(this.state, 'midiHeard').name('Heard');
+    this.midiHeardCtrl.disable();
+    folder.add({
+      capture: () => this.captureHeardMidi(),
+    }, 'capture').name('Put last CC in slot 1');
     this.fillMidiMapState();
     this.midiMap.cc.forEach((_row, index) => {
       folder.add(this.state, `midiCc${index}`, 0, 127, 1).name(`CC slot ${index + 1}`).onChange((value) => {
@@ -2058,15 +2258,16 @@ export class SettingsPanel {
     const choices = { Off: 'off' };
     for (let i = 0; i < 10; i++) choices[`Channel ${i}`] = String(i);
     for (const [key, spec] of Object.entries(specs)) {
-      if (spec?.max == null || spec.kind === 'toggle' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'pointShape' || spec.kind === 'stampShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode' || spec.kind === 'patternType' || spec.kind === 'trailShape' || spec.kind === 'fieldShape' || spec.kind === 'flowMotion') {
+      if (spec?.max == null || spec.kind === 'toggle' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'pointShape' || spec.kind === 'stampShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode' || spec.kind === 'patternType' || spec.kind === 'trailShape' || spec.kind === 'fieldShape' || spec.kind === 'flowMotion' || spec.kind === 'starMotion' || spec.kind === 'colorMode') {
         continue;
       }
       const stored = this.musicMode.assignments[key];
       this.state[`audioLink_${key}`] = stored == null ? 'off' : String(stored);
-      this.audioLinks
+      const linkCtrl = this.audioLinks
         .add(this.state, `audioLink_${key}`, choices)
         .name(this.labelFor(key, spec))
         .onChange((value) => this.musicMode.setAssignment(key, value));
+      this.stepIfDropdown(this.audioLinks, linkCtrl, this.labelFor(key, spec));
     }
   }
 

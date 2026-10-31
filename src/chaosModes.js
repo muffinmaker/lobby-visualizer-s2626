@@ -52,7 +52,7 @@ const MOTION_GLOBAL_KEYS = new Set(['uSpeed', 'uScale', 'uComplexity', 'uBrightn
 function isMotionKey(key, spec) {
   if (spec.rebuild) return false;
   if (isColorKey(key, spec) || isStructureKey(key, spec)) return false;
-  if (spec.kind === 'flowMotion') return true;
+  if (spec.kind === 'flowMotion' || spec.kind === 'starMotion') return true;
   if (key === 'uWarp' || key === 'uTwistAmount' || key === 'uThickness' || key === 'uSizeSpread') return true;
   if (MOTION_GLOBAL_KEYS.has(key)) return true;
   if (/Speed|Scale|Bright|Bloom|Complex|Trail|Point|Pulse|Twist|Rotate|Time|Field|Noise|Width|Height|Decay|Alpha|Softness|Glow|Thickness|Iteration|Orbit|Ribbon|Ball|Particle|Rand|Tunnel|Swirl|Horizon|Chevron/i.test(key)) {

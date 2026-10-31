@@ -11,6 +11,8 @@ uniform float uPal2G;
 uniform float uPal2B;
 uniform float uWhiteness;
 uniform float uBlackness;
+uniform float uColorMode;
+uniform float uColorPhase;
 `;
 
 export const PALETTE_FN = /* glsl */ `
@@ -42,6 +44,18 @@ vec3 tonePalette(vec3 ink) {
   ink = mix(ink, vec3(1.0), clamp(uWhiteness, 0.0, 1.0));
   ink = mix(ink, vec3(0.0), clamp(uBlackness, 0.0, 1.0));
   return ink;
+}
+
+float colorLook(float along, vec2 p, float motion, float fallback) {
+  float m = floor(uColorMode + 0.5);
+  if (m < 0.5) return fallback;
+  float ang = atan(p.y, p.x) * 0.1591549;
+  float n = sin(dot(p, vec2(5.2, 3.7)) + along * 4.0);
+  if (m < 1.5) return motion + uColorPhase;
+  if (m < 2.5) return ang * 2.0 + along * 0.25 + uColorPhase;
+  if (m < 3.5) return n + uColorPhase;
+  if (m < 4.5) return floor((along + ang) * 6.0) / 6.0 + uColorPhase;
+  return uColorPhase * 4.0 + along * 1.6;
 }
 
 vec3 namedPalette(float hue, float paletteId) {

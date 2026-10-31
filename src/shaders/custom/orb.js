@@ -24,6 +24,7 @@ export default {
     uniform float uDetail;
     uniform float uGlow;
     uniform float uWarp;
+    uniform float uNoise;
     uniform float uPalette;
     uniform vec2 uResolution;
     uniform float uAspect;
@@ -43,6 +44,7 @@ export default {
       float radius = 0.72;
       float freq = 3.0 + uWarp * 6.0;
       float wobble = sin(p.x * freq + uTime) * sin(p.y * freq) * sin(p.z * freq);
+      wobble += sin(p.x * 13.0 + p.z * 9.0) * uNoise * 0.35;
       return length(p) - radius - wobble * (0.04 + uDetail * 0.16);
     }
 
@@ -77,7 +79,7 @@ export default {
         vec3 n = normalAt(p);
         float light = clamp(dot(n, normalize(vec3(0.4, 0.7, 0.5))), 0.0, 1.0);
         float rim = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 2.2);
-        float hue = 0.15 + n.y * 0.35 + uTime * 0.05;
+        float hue = colorLook(n.y, p.xy, uTime * 0.1, 0.15 + n.y * 0.35 + uTime * 0.05);
         vec3 ink = namedPalette(hue, uPalette);
         col = ink * (0.18 + light * 0.9) + ink * rim * (0.25 + uGlow);
         col += namedPalette(hue + 0.2, uPalette) * uBloom * rim * (0.2 + uGlow * 0.45);

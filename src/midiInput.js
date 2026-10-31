@@ -64,6 +64,16 @@ export const MIDI_CC_TARGETS = {
   Bloom: 'uBloom',
   Brightness: 'uBrightness',
   'Overlay mix': 'overlayMix',
+  Vignette: 'uVignette',
+  Grain: 'uGrain',
+  Chromatic: 'uChroma',
+  Contrast: 'uContrast',
+  'Global hue': 'uGlobalHue',
+  Scanlines: 'uScanlines',
+  Posterize: 'uPosterize',
+  'Beat punch': 'uBeatPunch',
+  'Color along': 'uColorMode',
+  'Color phase': 'uColorPhase',
 };
 
 export const MIDI_NOTE_ACTIONS = {
