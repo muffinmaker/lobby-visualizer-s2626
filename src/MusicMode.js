@@ -99,6 +99,9 @@ export class MusicMode {
     this.beatEnv = 0;
     this.beatTimes = [];
     this.bpm = 0;
+    /** 0 = follow the mic only. Above 0 drives a beat when the mic is quiet. */
+    this.manualBpm = 120;
+    this.drivePhase = 0;
     this.channels = this.loadChannels();
     this.assignments = this.loadAssignments();
     this.onDisabled = null;
@@ -227,8 +230,13 @@ export class MusicMode {
       });
     }
 
+    // Speech processing gates a room / PA mic down to silence. Leave AGC on.
     return navigator.mediaDevices.getUserMedia({
-      audio: true,
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: true,
+      },
       video: false,
     });
   }
@@ -264,10 +272,15 @@ export class MusicMode {
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 2048;
       this.analyser.smoothingTimeConstant = 0.35;
+      this.analyser.minDecibels = -96;
+      this.analyser.maxDecibels = -12;
       this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+      this.timeData = new Uint8Array(this.analyser.fftSize);
 
       this.gainNode = this.audioContext.createGain();
-      this.gainNode.gain.value = 0;
+      // Chrome drops a MediaStream source whose only output is a true-zero gain,
+      // so the analyser stays at 0. A near-silent tap keeps the graph running.
+      this.gainNode.gain.value = 0.0001;
 
       this.sourceNode = this.audioContext.createMediaStreamSource(stream);
       this.sourceNode.connect(this.analyser);
@@ -277,6 +290,7 @@ export class MusicMode {
       this.status = this.source === 'tab' ? 'Tab audio' : 'Microphone';
 
       const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack?.muted) this.status = 'Mic muted in the browser';
       audioTrack.addEventListener('ended', () => {
         this.enabled = false;
         this.stopCapture();
@@ -302,6 +316,7 @@ export class MusicMode {
     this.analyser = null;
     this.gainNode = null;
     this.freqData = null;
+    this.timeData = null;
 
     if (this.stream) {
       this.stream.getTracks().forEach((t) => t.stop());
@@ -320,7 +335,21 @@ export class MusicMode {
       return { bass: 0, mid: 0, treble: 0, high: 0, energy: 0, beat: 0, kick: 0, hihat: 0 };
     }
 
+    if (this.audioContext?.state === 'suspended') {
+      this.audioContext.resume().catch(() => {});
+    }
+
     this.analyser.getByteFrequencyData(this.freqData);
+    if (!this.timeData || this.timeData.length !== this.analyser.fftSize) {
+      this.timeData = new Uint8Array(this.analyser.fftSize);
+    }
+    this.analyser.getByteTimeDomainData(this.timeData);
+    let rmsSum = 0;
+    for (let i = 0; i < this.timeData.length; i++) {
+      const v = (this.timeData[i] - 128) / 128;
+      rmsSum += v * v;
+    }
+    const rms = Math.sqrt(rmsSum / this.timeData.length);
     const len = this.freqData.length;
     const nyquist = (this.audioContext?.sampleRate || 48000) / 2;
     const binHz = nyquist / len;
@@ -340,7 +369,7 @@ export class MusicMode {
     const treble = high;
     let total = 0;
     for (let i = 0; i < len; i++) total += this.freqData[i];
-    const energy = total / len / 255;
+    const energy = Math.max(total / len / 255, Math.min(1, rms * 3.2));
 
     if (energy > this.peakEnergy) this.peakEnergy = lerp(this.peakEnergy, energy, 0.2);
     else this.peakEnergy *= 0.997;
@@ -360,6 +389,29 @@ export class MusicMode {
     if (!this.enabled || !this.baseValues) return null;
 
     const raw = this.analyze();
+    // Mic (or a future MIDI clock) wins when it is actually moving.
+    // There is no MIDI clock in this build. The BPM slider drives the beat
+    // whenever the analyser is near silence.
+    const micLive = raw.energy > 0.035;
+    const drive = this.manualBpm > 0 && !micLive;
+    if (drive) {
+      this.bpm = this.manualBpm;
+      this.drivePhase += dt * (this.manualBpm / 60);
+      let pulse = 0;
+      if (this.drivePhase >= 1) {
+        this.drivePhase -= Math.floor(this.drivePhase);
+        pulse = 1;
+      }
+      raw.beat = Math.max(raw.beat, pulse);
+      raw.energy = Math.max(raw.energy, pulse ? 0.85 : 0.12);
+      raw.kick = Math.max(raw.kick, pulse ? 1 : 0);
+      raw.bass = Math.max(raw.bass, pulse ? 0.7 : 0.08);
+      if (!this.status?.includes('denied') && !this.status?.includes('muted')) {
+        this.status = `Drive ${Math.round(this.manualBpm)} BPM`;
+      }
+    } else if (micLive && this.status?.startsWith('Drive')) {
+      this.status = this.source === 'tab' ? 'Tab audio' : 'Microphone';
+    }
     const k = 1 - Math.exp(-dt / (0.05 + (100 - this.response) / 200));
     this.clock += dt;
     if (raw.beat > 0.5) {

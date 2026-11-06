@@ -18,7 +18,7 @@ import {
   saveMidiMap,
 } from './midiInput.js';
 import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
-import { COLOR_ALONG_OPTIONS, FIELD_SHAPE_OPTIONS, FLOW_MOTION_OPTIONS, PATTERN_OPTIONS, POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, SPACING_OPTIONS, STAMP_SHAPE_OPTIONS, STAR_MOTION_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
+import { CHAMBER_FORM_OPTIONS, COLOR_ALONG_OPTIONS, FIELD_SHAPE_OPTIONS, FLOW_MOTION_OPTIONS, PATTERN_OPTIONS, POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, SPACING_OPTIONS, SPIRO_MOTION_OPTIONS, STAMP_SHAPE_OPTIONS, STAR_MOTION_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
 import { TEXT_ALIGNS, TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
 import { AUDIO_FEATURES, MUSIC_ROUTES } from './MusicMode.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
@@ -358,6 +358,7 @@ export class SettingsPanel {
       musicSource: 'mic',
       musicSensitivity: 65,
       musicResponse: 55,
+      musicDriveBpm: 120,
       musicLevel: 0,
       musicStatus: 'Off',
       musicKick: 0,
@@ -449,6 +450,7 @@ export class SettingsPanel {
       const mm = this.musicMode;
       mm.sensitivity = this.state.musicSensitivity;
       mm.response = this.state.musicResponse;
+      mm.manualBpm = this.state.musicDriveBpm;
       mm.source = this.state.musicSource;
       mm.onDisabled = () => {
         this.state.musicEnabled = false;
@@ -489,6 +491,11 @@ export class SettingsPanel {
       music.add(this.state, 'musicResponse', 10, 100, 1).name('Response').onChange((v) => {
         mm.response = v;
       });
+      const bpmCtrl = music.add(this.state, 'musicDriveBpm', 0, 200, 1).name('BPM').onChange((v) => {
+        mm.manualBpm = v;
+      });
+      bpmCtrl.domElement.dataset.help =
+        'Sets the beat when the mic is silent. 0 follows the microphone only. A live mic (or MIDI clock, when one is connected) overrides this slider.';
       this.musicLevelCtrl = music.add(this.state, 'musicLevel', 0, 100, 1).name('Level').listen(false);
       this.musicLevelCtrl.disable(true);
       this.musicStatusCtrl = music.add(this.state, 'musicStatus').name('Status');
@@ -1684,6 +1691,21 @@ export class SettingsPanel {
           }
           this.handleValueChange();
         });
+    } else if (spec.kind === 'spiroMotion') {
+      controller = folder
+        .add(this.state, key, { ...SPIRO_MOTION_OPTIONS })
+        .name(label)
+        .onChange(() => {
+          if (this.driftManager.isEnabled(key)) {
+            this.driftManager.resetFrom(key, this.state[key]);
+          }
+          this.handleValueChange();
+        });
+    } else if (spec.kind === 'chamberForm') {
+      controller = folder
+        .add(this.state, key, { ...CHAMBER_FORM_OPTIONS })
+        .name(label)
+        .onChange(() => this.handleValueChange());
     } else if (spec.kind === 'flowMotion') {
       controller = folder
         .add(this.state, key, { ...FLOW_MOTION_OPTIONS })
@@ -1956,6 +1978,7 @@ export class SettingsPanel {
     this.colorFolder?.close();
     this.attachPresetOverride(this.shaderFolder, 'Mode');
     this.patchNumberControllers();
+    this.stepRemainingDropdowns();
     const focusKey = this.navigableItems[this.gamepadFocusIndex]?.key;
     this.refreshGamepadMenuAfterRebuild(focusKey);
     this.notifyDriftStateChange();
@@ -2177,8 +2200,14 @@ export class SettingsPanel {
       if (index < 0) index = 0;
       controller.setValue(values[(index + delta + values.length) % values.length]);
     };
-    folder.add({ prev: () => step(-1) }, 'prev').name(`Previous ${label}`);
-    folder.add({ next: () => step(1) }, 'next').name(`Next ${label}`);
+    const prevCtrl = folder.add({ prev: () => step(-1) }, 'prev').name(`Previous ${label}`);
+    const nextCtrl = folder.add({ next: () => step(1) }, 'next').name(`Next ${label}`);
+    const anchor = controller.domElement;
+    const parent = anchor?.parentElement;
+    if (parent && prevCtrl.domElement && nextCtrl.domElement) {
+      parent.insertBefore(nextCtrl.domElement, anchor.nextSibling);
+      parent.insertBefore(prevCtrl.domElement, anchor.nextSibling);
+    }
   }
 
   noteIncomingMidi({ cc, note } = {}) {
@@ -2258,7 +2287,7 @@ export class SettingsPanel {
     const choices = { Off: 'off' };
     for (let i = 0; i < 10; i++) choices[`Channel ${i}`] = String(i);
     for (const [key, spec] of Object.entries(specs)) {
-      if (spec?.max == null || spec.kind === 'toggle' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'pointShape' || spec.kind === 'stampShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode' || spec.kind === 'patternType' || spec.kind === 'trailShape' || spec.kind === 'fieldShape' || spec.kind === 'flowMotion' || spec.kind === 'starMotion' || spec.kind === 'colorMode') {
+      if (spec?.max == null || spec.kind === 'toggle' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'pointShape' || spec.kind === 'stampShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode' || spec.kind === 'patternType' || spec.kind === 'trailShape' || spec.kind === 'fieldShape' || spec.kind === 'flowMotion' || spec.kind === 'starMotion' || spec.kind === 'spiroMotion' || spec.kind === 'chamberForm' || spec.kind === 'colorMode') {
         continue;
       }
       const stored = this.musicMode.assignments[key];

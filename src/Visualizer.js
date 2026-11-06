@@ -253,11 +253,14 @@ function feedbackScale(shaderId, resolutionScale = 100, liteMode = false) {
   if (shaderId === 'spocks' && !liteMode) {
     base *= SPOCKS_RESOLUTION_MULT;
   }
+  // Spiro Flow trails were stored at 70% of the canvas and looked soft.
+  if (shaderId === 'spiro' && !liteMode) base = 1;
   return Math.min(1, base) * (resolutionScale / 100);
 }
 
 function shaderPixelRatioCap(shaderId, liteMode = false) {
   if (shaderId === 'spocks') return 1;
+  if (shaderId === 'spiro' && !liteMode) return 2;
   return liteMode ? 1 : 1.5;
 }
 
@@ -286,7 +289,7 @@ export class Visualizer {
   constructor(container) {
     this.container = container;
     this.clock = new THREE.Clock();
-    this.currentShaderId = 'spocks';
+    this.currentShaderId = 'flow';
     this.values = {};
     this.motionTrails = 100;
     this.trailsNeverDecay = false;

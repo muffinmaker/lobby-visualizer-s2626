@@ -253,6 +253,7 @@ export const SHADERS = {
       uniform float uObjectScale;
       uniform float uGravity;
       uniform float uGravityAngle;
+      uniform float uMotion;
       ${PALETTE_UNIFORMS}
       ${PALETTE_FN}
 
@@ -306,11 +307,32 @@ export const SHADERS = {
         float omega = 1.35 + orbit * 0.12;
         float a = t * omega;
         float b = -t * k * twist + orbit * 1.5707963;
+        float motion = floor(uMotion + 0.5);
 
         vec2 pos = vec2(
           R * cos(a) + r * cos(b),
           R * sin(a) + r * sin(b)
         );
+        if (motion > 0.5 && motion < 1.5) {
+          pos = vec2(sin(a) * R, sin(b * 0.73) * R * 0.72);
+        } else if (motion < 2.5) {
+          float petals = 3.0 + mod(orbit, 5.0);
+          float ang = a + lane * 6.2831853;
+          pos = vec2(cos(ang), sin(ang)) * (R * abs(cos(petals * ang)));
+        } else if (motion < 3.5) {
+          pos = vec2(sin(a), sin(a) * cos(a)) * R;
+        } else if (motion < 4.5) {
+          float turns = a * 1.4;
+          float rad = fract(a * 0.08 + lane) * R;
+          pos = vec2(cos(turns), sin(turns)) * rad;
+        } else if (motion < 5.5) {
+          pos = vec2(cos(a) * R, sin(a) * R * (0.35 + lane * 0.4));
+        } else if (motion > 5.5) {
+          pos = vec2(
+            (lane - 0.5) * R * 2.2 + sin(a + lane * 8.0) * r * 3.0,
+            sin(a * 1.7 + lane * 4.0) * R * 0.55
+          );
+        }
 
         float pulse = 1.0 + uPulse * 0.08 * sin(t * 1.4 + orbit);
         pos *= pulse;
@@ -335,7 +357,7 @@ export const SHADERS = {
         vec4 mvPosition = modelViewMatrix * vec4(pos, 0.0, 1.0);
         gl_Position = projectionMatrix * mvPosition;
         float size = 34.0 * (220.0 / -mvPosition.z) * (0.85 + lane * 0.15) / 55.0;
-        gl_PointSize = clamp(size * max(uObjectScale, 0.05), 8.0, 420.0);
+        gl_PointSize = clamp(size * max(uObjectScale, 0.05) * 0.62, 2.0, 96.0);
       }
     `,
     fragment: /* glsl */ `

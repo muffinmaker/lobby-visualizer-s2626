@@ -148,6 +148,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uTrailPersist: toggle(0),
   },
   spiro: {
+    uMotion: { value: 0, min: 0, max: 6, step: 1, kind: 'spiroMotion', label: 'Motion' },
     uPointSize: { ...pct(48, 0.35, 2.8), label: 'Orbit size' },
     uPointShape: { value: 1, min: 0, max: 9, step: 1, kind: 'pointShape', label: 'Point shape' },
     uPointRotation: { ...center(50, -3.1416, 3.1416), label: 'Point rotation' },
@@ -250,6 +251,7 @@ export const SHADER_UNIFORM_TEMPLATES = {
   },
   chamber: {
     uPalette: fullPalette(9),
+    uForm: { value: 0, min: 0, max: 5, step: 1, kind: 'chamberForm', label: 'Form' },
     uDetail: { ...pct(42, 0, 1), label: 'Pillars' },
     uSpin: { ...pct(25, 0, 1.5), label: 'Drift' },
     uGlow: { ...pct(48, 0, 1.4), label: 'Glow' },

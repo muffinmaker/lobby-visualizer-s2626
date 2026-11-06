@@ -25,6 +25,7 @@ export default {
     uniform float uGlow;
     uniform float uFog;
     uniform float uWarp;
+    uniform float uForm;
     uniform float uPalette;
     uniform float uAspect;
     ${PALETTE_UNIFORMS}
@@ -42,15 +43,49 @@ export default {
       return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
     }
 
+    float sdCappedCylinder(vec3 p, float h, float r) {
+      vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h);
+      return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+    }
+
+    float sdTorus(vec3 p, vec2 t) {
+      vec2 q = vec2(length(p.xz) - t.x, p.y);
+      return length(q) - t.y;
+    }
+
+    float sdOcta(vec3 p, float s) {
+      p = abs(p);
+      return (p.x + p.y + p.z - s) * 0.57735027;
+    }
+
     float mapScene(vec3 p) {
-      float room = -sdBox(p, vec3(1.6 + uWarp * 0.35, 1.15, 2.4));
+      float form = floor(uForm + 0.5);
       p.y += sin(p.z * 2.0 + uTime * 0.3) * uWarp * 0.08;
+      float shell;
+      if (form < 0.5) {
+        shell = -sdBox(p, vec3(1.6 + uWarp * 0.35, 1.15, 2.4));
+      } else if (form < 1.5) {
+        shell = -sdCappedCylinder(p.xzy, 2.6, 1.15 + uWarp * 0.25);
+      } else if (form < 2.5) {
+        shell = -sdBox(p, vec3(2.2, 1.6, 2.2));
+        shell = max(shell, length(p - vec3(0.0, 0.35, 0.0)) - (1.55 + uWarp * 0.2));
+      } else if (form < 3.5) {
+        shell = -sdTorus(p, vec2(1.35 + uWarp * 0.2, 0.55 + uDetail * 0.15));
+      } else if (form < 4.5) {
+        shell = -sdOcta(p, 1.7 + uWarp * 0.25);
+      } else {
+        vec3 q = p;
+        q.z = mod(q.z + 0.8, 1.6) - 0.8;
+        float slab = sdBox(q, vec3(1.5, 0.08 + uDetail * 0.05, 0.55));
+        shell = min(-sdBox(p, vec3(1.7, 1.4, 2.8)), slab);
+      }
       vec3 column = p;
       column.x = abs(column.x) - 0.85;
       column.z = mod(column.z + 1.2, 2.4) - 1.2;
       float pillars = length(column.xz) - (0.12 + uDetail * 0.08);
       float doorway = sdBox(p - vec3(0.0, -0.15, 2.2), vec3(0.42, 0.7, 0.08));
-      return min(room, min(pillars, doorway));
+      if (form > 0.5 && form < 4.5) doorway = 4.0;
+      return min(shell, min(pillars, doorway));
     }
 
     vec3 normalAt(vec3 p) {

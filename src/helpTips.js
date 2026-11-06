@@ -12,6 +12,8 @@ const TIPS = {
   uPanY: 'Look up and down. 50 is the center.',
   uTrailDecay: 'How long marks stay. 100 keeps them so you can paint. Lower values fade the stroke.',
   uGravity: 'How hard Spiro Flow pens are pulled. 0 is the normal orbit.',
+  uMotion: 'Path the travelers follow. Spiro Flow: hypotrochoid, Lissajous, rose, figure-8, spiral, ellipse, sine ribbon. Flow Field has its own motion list.',
+  uForm: 'Chamber shell: hall, cylinder, dome, torus, crystal, or stacked slabs. Pillars still sit inside.',
   uGravityAngle: 'The direction that gravity pulls the pens.',
   uPointSize: 'Size of each pen or particle.',
   uPointShape: 'The shape stamped by each pen.',

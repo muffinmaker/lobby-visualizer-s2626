@@ -78,6 +78,25 @@ export const STAR_MOTION_OPTIONS = {
   Rose: 5,
 };
 
+export const SPIRO_MOTION_OPTIONS = {
+  Hypotrochoid: 0,
+  Lissajous: 1,
+  Rose: 2,
+  'Figure 8': 3,
+  Spiral: 4,
+  Ellipse: 5,
+  'Sine ribbon': 6,
+};
+
+export const CHAMBER_FORM_OPTIONS = {
+  Hall: 0,
+  Cylinder: 1,
+  Dome: 2,
+  Torus: 3,
+  Crystal: 4,
+  Stack: 5,
+};
+
 export const FLOW_MOTION_OPTIONS = {
   Flow: 0,
   Sine: 1,

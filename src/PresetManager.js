@@ -1358,7 +1358,47 @@ const PRESET_LIST = [
     shader: 'chamber',
     values: {
       uSpeed: 8, uScale: 14, uComplexity: 48, uBrightness: 66, uSaturation: 76, uBloom: 44,
-      uDetail: 18, uSpin: 82, uZoom: 60, uPanX: 70, uPanY: 40,
+      uDetail: 18, uSpin: 82, uZoom: 60, uPanX: 70, uPanY: 40, uForm: 0,
+    },
+  },
+  {
+    name: 'Pipe',
+    shader: 'chamber',
+    values: {
+      uSpeed: 5, uScale: 18, uComplexity: 28, uBrightness: 60, uSaturation: 68, uBloom: 32,
+      uDetail: 22, uSpin: 30, uZoom: 50, uPanX: 50, uPanY: 48, uForm: 1, uFog: 28,
+    },
+  },
+  {
+    name: 'Dome',
+    shader: 'chamber',
+    values: {
+      uSpeed: 3, uScale: 16, uComplexity: 24, uBrightness: 64, uSaturation: 58, uBloom: 40,
+      uDetail: 36, uSpin: 16, uZoom: 46, uPanX: 50, uPanY: 62, uForm: 2, uGlow: 62,
+    },
+  },
+  {
+    name: 'Ring Well',
+    shader: 'chamber',
+    values: {
+      uSpeed: 6, uScale: 14, uComplexity: 40, uBrightness: 58, uSaturation: 80, uBloom: 48,
+      uDetail: 55, uSpin: 40, uZoom: 44, uPanX: 58, uPanY: 42, uForm: 3, uWarp: 22,
+    },
+  },
+  {
+    name: 'Crystal',
+    shader: 'chamber',
+    values: {
+      uSpeed: 4, uScale: 12, uComplexity: 34, uBrightness: 70, uSaturation: 74, uBloom: 52,
+      uDetail: 48, uSpin: 24, uZoom: 40, uPanX: 46, uPanY: 54, uForm: 4, uGlow: 70,
+    },
+  },
+  {
+    name: 'Slab Stack',
+    shader: 'chamber',
+    values: {
+      uSpeed: 7, uScale: 18, uComplexity: 44, uBrightness: 56, uSaturation: 66, uBloom: 30,
+      uDetail: 64, uSpin: 18, uZoom: 52, uPanX: 42, uPanY: 50, uForm: 5, uFog: 40,
     },
   },
   {
@@ -1563,8 +1603,9 @@ export class PresetManager {
   constructor() {
     this.presets = [...PRESETS];
     this.loadSavedPresets();
-    this.currentIndex = 0;
-    this.activeShader = this.presets[0]?.shader ?? SHADER_IDS[0];
+    const flowIndex = this.presets.findIndex((preset) => preset.shader === 'flow');
+    this.currentIndex = flowIndex >= 0 ? flowIndex : 0;
+    this.activeShader = this.presets[this.currentIndex]?.shader ?? 'flow';
     this.getLiveValues = null;
     this.autoCycle = false;
     this.cycleInterval = 45;
