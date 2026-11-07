@@ -1065,10 +1065,22 @@ async function start() {
       perfAccum = 0;
     }
 
-    const driftValues =
-      !musicMode.enabled && !presetManager.isTransitioning
-        ? driftManager.update(dt, settings.getValues())
-        : null;
+    const shader = settings.state.shader;
+    const shaderChanged = shader !== visualizer.currentShaderId;
+
+    visualizer.audioBeat = musicMode.enabled ? (musicMode.smoothed.beat || 0) : 0;
+
+    if (musicMode.enabled && !presetManager.isTransitioning) {
+      musicMode.currentShader = shader;
+      musicMode.driftManager = driftManager;
+      musicMode.getLiveValues = () => settings.getValues();
+      musicMode.update(dt);
+      settings.refreshMusicMeters();
+    }
+
+    const driftValues = !presetManager.isTransitioning
+      ? driftManager.update(dt, settings.getValues())
+      : null;
     if (driftValues) {
       settings.applyDrift(driftValues);
     }
@@ -1081,23 +1093,7 @@ async function start() {
       ? transition.values
       : settings.getValues();
 
-    const shader = settings.state.shader;
-    const shaderChanged = shader !== visualizer.currentShaderId;
-
-    visualizer.audioBeat = musicMode.enabled ? (musicMode.smoothed.beat || 0) : 0;
-
-    if (musicMode.enabled && !presetManager.isTransitioning) {
-      musicMode.currentShader = shader;
-      const modulated = musicMode.update(dt);
-      if (modulated) {
-        values = modulated;
-        if (shaderChanged) {
-          visualizer.setShader(shader, modulated);
-        }
-        visualizer.applyValues(modulated);
-      }
-      settings.refreshMusicMeters();
-    } else if (shaderChanged) {
+    if (shaderChanged) {
       visualizer.setShader(shader, values);
       visualizer.applyValues(values);
     } else if (presetManager.isTransitioning) {

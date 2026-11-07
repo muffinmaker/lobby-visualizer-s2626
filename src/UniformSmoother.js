@@ -1,5 +1,14 @@
 const SNAP_KEYS = new Set(['uResolution', 'uAspect', 'uTime']);
 
+const IMMEDIATE_KEYS = new Set([
+  'uInvert',
+  'uPalette',
+  'uColorMode',
+  'uForm',
+  'uMotion',
+  'uFieldShape',
+]);
+
 const DISCRETE_KEYS = new Set([
   'uSegments',
   'uRingCount',
@@ -75,7 +84,7 @@ export class UniformSmoother {
   update(dt) {
     for (const key of Object.keys(this.targets)) {
       const target = this.targets[key];
-      if (DISCRETE_KEYS.has(key)) {
+      if (DISCRETE_KEYS.has(key) || IMMEDIATE_KEYS.has(key)) {
         this.current[key] = target;
         continue;
       }

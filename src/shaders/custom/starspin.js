@@ -78,7 +78,7 @@ export default {
       pos /= clamp(max(pow(max(abs(uZoom), 0.02), 0.65) * 0.25, 0.09), 0.09, 2.4);
       pos -= vec2(uPanX, uPanY);
       float hue = colorLook(lane, pos, t * uColorSpeed, lane * 1.4 + t * uColorSpeed * 0.4 + uHueShift);
-      vColor = mix(vec3(0.55), namedPalette(hue, uPalette), uColorSpread);
+      vColor = namedPalette(hue, uPalette);
       vPenAngle = a + uPointRotation;
       vec4 mv = modelViewMatrix * vec4(pos, 0.0, 1.0);
       gl_Position = projectionMatrix * mv;

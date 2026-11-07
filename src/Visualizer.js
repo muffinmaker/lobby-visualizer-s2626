@@ -824,7 +824,17 @@ export class Visualizer {
     this.animPhase += dt * (prevSpeed + nextSpeed) * 0.5;
     this.lastAnimSpeed = nextSpeed;
     material.uniforms.uTime.value = this.animPhase;
-    this.invertColors = (smoothed.uInvert ?? 0) > 0.5;
+    const paletteNow = smoothed.uPalette ?? 0;
+    const invertNow = (smoothed.uInvert ?? 0) > 0.5;
+    if (
+      this.usesTrails(shaderId) &&
+      (this.lastPresentedPalette !== paletteNow || this.lastPresentedInvert !== invertNow)
+    ) {
+      this.clearTrailBuffers();
+    }
+    this.lastPresentedPalette = paletteNow;
+    this.lastPresentedInvert = invertNow;
+    this.invertColors = invertNow;
     this.postFx = {
       uVignette: smoothed.uVignette ?? 0,
       uGrain: smoothed.uGrain ?? 0,
@@ -854,7 +864,7 @@ export class Visualizer {
       this.presentMix(next.texture);
 
       this.trailTargets.reverse();
-    } else if ((this.invertColors || this.blackout || this.strobe || this.overlay.enabled || this.postActive()) && this.presentTarget) {
+    } else if (this.presentTarget) {
       this.renderScene(this.presentTarget);
       this.presentMix(this.presentTarget.texture);
     } else {

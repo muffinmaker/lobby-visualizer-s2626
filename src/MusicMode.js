@@ -105,6 +105,8 @@ export class MusicMode {
     this.channels = this.loadChannels();
     this.assignments = this.loadAssignments();
     this.onDisabled = null;
+    this.driftManager = null;
+    this.driftArmed = new Set();
   }
 
   loadChannels() {
@@ -190,6 +192,7 @@ export class MusicMode {
       return this.enabled;
     }
 
+    this.releaseDrift();
     await this.stopCapture();
     this.enabled = false;
     this.baseValues = null;
@@ -438,7 +441,50 @@ export class MusicMode {
       clamp((this.smoothed.energy * 0.5 + this.smoothed.bass * 0.3 + this.smoothed.beat * 0.2) * 100, 0, 100),
     );
 
-    return this.getModulatedValues();
+    this.driveDrift();
+    return null;
+  }
+
+  /** Music only sets drift pace and direction. It does not take over sliders. */
+  driveDrift() {
+    const drift = this.driftManager;
+    if (!drift) return;
+    if (this.driftArmed.size) this.releaseDrift();
+
+    const bands = [
+      ['kick', this.smoothed.kick, 'ltr'],
+      ['bass', this.smoothed.bass, 'pingpong'],
+      ['mid', this.smoothed.mid, 'random'],
+      ['high', this.smoothed.high, 'rtl'],
+      ['beat', this.smoothed.beat, 'pingpong'],
+    ];
+    let best = bands[0];
+    for (const row of bands) if (row[1] > best[1]) best = row;
+    drift.setMode(best[2]);
+    const energy = this.smoothed.energy || 0;
+    const tempo = Math.max(this.bpm || this.manualBpm || 0, 0);
+    drift.speedAuto = false;
+    drift.speed = clamp(12 + (tempo / 180) * 35 + energy * 45, 8, 100);
+    drift.interval = Math.round(72 - energy * 48);
+    drift.duration = Math.round(48 - energy * 22);
+  }
+
+  releaseDrift() {
+    const drift = this.driftManager;
+    if (!drift) {
+      this.driftArmed.clear();
+      return;
+    }
+    const specs = getSpecMap(this.currentShader);
+    const live = this.getLiveValues?.() ?? this.baseValues ?? {};
+    for (const key of this.driftArmed) {
+      const spec = specs[key];
+      if (spec) drift.setEnabled(key, spec, false, live[key] ?? spec.value);
+    }
+    this.driftArmed.clear();
+    drift.speedAuto = true;
+    drift.interval = 90;
+    drift.duration = 55;
   }
 
   getModulatedValues() {

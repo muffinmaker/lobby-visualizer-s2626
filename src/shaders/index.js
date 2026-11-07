@@ -281,7 +281,6 @@ export const SHADERS = {
         float hue = colorLook(lane, vec2(lane, radial), t * uColorSpeed, lane * 1.45 + radial * 0.65 + t * uColorSpeed * 0.55 + uHueShift);
         vec3 col = namedPalette(hue, uPalette);
         if (p > 6.5 && p < 7.5) return applyTint(col);
-        col = mix(vec3(0.55), col, uColorSpread);
         return applyTint(col);
       }
 
@@ -734,6 +733,8 @@ export const SHADERS = {
       uniform float uLogoColliderShape;
       uniform float uObjectScale;
       uniform float uPalette;
+      uniform float uHueShift;
+      uniform float uColorSpeed;
       ${PALETTE_UNIFORMS}
       ${PALETTE_FN}
 
@@ -955,7 +956,7 @@ export const SHADERS = {
         float density = sqrt(3200.0 / max(uParticleCount, 800.0));
         vCover = clamp(density, 0.22, 1.35);
 
-        vColor = palette(colorLook(life, pos, t * 0.15, life * 3.0 + t * 0.06 + length(pos) * 0.2));
+        vColor = palette(colorLook(life, pos, t * (0.15 + uColorSpeed), life * 3.0 + t * 0.06 + length(pos) * 0.2 + uHueShift));
         vAlpha = (0.35 + 0.45 * sin(t * 2.0 + life * 40.0)) * vCover;
 
         vec4 mvPosition = modelViewMatrix * vec4(pos, 0.0, 1.0);
@@ -1150,7 +1151,9 @@ export const SHADERS = {
 
       vec3 palette(float t) {
         vec3 tint = vec3(uTintRed, uTintGreen, uTintBlue);
-        return clamp(paletteBase(t) * (tint / 0.58), 0.0, 2.2);
+        vec3 ink = paletteBase(t);
+        float tintAmt = clamp(max(tint.r, max(tint.g, tint.b)), 0.0, 1.0);
+        return mix(ink, ink * tint, tintAmt * 0.45);
       }
 
       float cellRand(vec2 id) {

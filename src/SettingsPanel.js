@@ -8,7 +8,7 @@ import {
   SHADER_IDS,
   getShaderChoices,
 } from './shaders/index.js';
-import { getSpecMap, mergeShaderDefaults, normalizeUiValues } from './uniformMap.js';
+import { getSpecMap, mergeShaderDefaults, normalizeUiValues, roundUiValue } from './uniformMap.js';
 import {
   MIDI_CC_TARGETS,
   MIDI_MAP_NOTE,
@@ -2077,13 +2077,15 @@ export class SettingsPanel {
   }
 
   applyDrift(driftValues) {
-    if (!driftValues || this.musicMode?.enabled) return;
-    const normalized = normalizeUiValues(
-      { ...this.state, ...driftValues },
-      this.state.shader,
-    );
-    this.syncGuiValues(normalized);
-    this.handleValueChange();
+    if (!driftValues) return;
+    const specs = getSpecMap(this.state.shader);
+    for (const [key, value] of Object.entries(driftValues)) {
+      const spec = specs[key];
+      if (!spec) continue;
+      this.state[key] = roundUiValue(Math.max(spec.min, Math.min(spec.max, value)), spec);
+      this.uniformControllers.get(key)?.updateDisplay();
+    }
+    this.visualizer.applyValues(this.getValues());
   }
 
   handleValueChange(rebuild = false, syncSmooth = false) {

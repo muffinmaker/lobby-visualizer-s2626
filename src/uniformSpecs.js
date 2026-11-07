@@ -212,6 +212,8 @@ export const SHADER_UNIFORM_TEMPLATES = {
     uNoiseScale: pct(32, 0.3, 5),
     uTrailAlpha: pct(24, 0.02, 0.25),
     uTrailDecay: { value: 96, min: 0, max: 100, step: 1, kind: 'trailDecay', label: 'Trail decay' },
+    uHueShift: pct(22, 0, 1),
+    uColorSpeed: pct(40, 0, 2),
     uLogoCollider: toggle(0),
     uLogoColliderBounce: pct(48, 0.2, 2.6),
     uPalette: fullPalette(0),

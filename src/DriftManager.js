@@ -145,9 +145,9 @@ export class DriftManager {
     const ch = this.channels.get(key);
     if (!ch || !ch.enabled) return;
     ch.from = value;
+    ch.to = value;
     ch.dir = this.mode === 'rtl' ? 'low' : 'high';
-    ch.to = this.pickTarget(key, ch.spec, value, ch.dir) ?? value;
-    ch.phase = 'blend';
+    ch.phase = 'hold';
     ch.elapsed = 0;
   }
 
@@ -158,6 +158,19 @@ export class DriftManager {
 
     for (const [key, ch] of this.channels) {
       if (!ch.enabled || !ch.spec || !canDrift(ch.spec)) continue;
+
+      if (ch.phase === 'hold') {
+        ch.elapsed += dt;
+        blended[key] = Math.round(ch.from);
+        hasUpdate = true;
+        if (ch.elapsed >= 0.45) {
+          ch.dir = this.mode === 'rtl' ? 'low' : 'high';
+          ch.to = this.pickTarget(key, ch.spec, ch.from, ch.dir) ?? ch.from;
+          ch.phase = 'blend';
+          ch.elapsed = 0;
+        }
+        continue;
+      }
 
       if (ch.phase === 'wait') {
         ch.elapsed += step;
