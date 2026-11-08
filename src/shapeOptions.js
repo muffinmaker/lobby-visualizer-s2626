@@ -88,6 +88,22 @@ export const SPIRO_MOTION_OPTIONS = {
   'Sine ribbon': 6,
 };
 
+export const RIBBON_SHAPE_OPTIONS = {
+  Strip: 0,
+  Ring: 1,
+  Chevron: 2,
+  Helix: 3,
+  Beads: 4,
+};
+
+export const RIBBON_SPIN_OPTIONS = {
+  Tumble: 0,
+  'Counter spin': 1,
+  Spiral: 2,
+  Breathe: 3,
+  Fold: 4,
+};
+
 export const CHAMBER_FORM_OPTIONS = {
   Hall: 0,
   Cylinder: 1,

@@ -18,7 +18,7 @@ import {
   saveMidiMap,
 } from './midiInput.js';
 import { BASE_PALETTE_OPTIONS, SPIRO_PALETTE_OPTIONS } from './uniformSpecs.js';
-import { CHAMBER_FORM_OPTIONS, COLOR_ALONG_OPTIONS, FIELD_SHAPE_OPTIONS, FLOW_MOTION_OPTIONS, PATTERN_OPTIONS, POINT_SHAPE_OPTIONS, SHAPE_OPTIONS, SPACING_OPTIONS, SPIRO_MOTION_OPTIONS, STAMP_SHAPE_OPTIONS, STAR_MOTION_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
+import { CHAMBER_FORM_OPTIONS, COLOR_ALONG_OPTIONS, FIELD_SHAPE_OPTIONS, FLOW_MOTION_OPTIONS, PATTERN_OPTIONS, POINT_SHAPE_OPTIONS, RIBBON_SHAPE_OPTIONS, RIBBON_SPIN_OPTIONS, SHAPE_OPTIONS, SPACING_OPTIONS, SPIRO_MOTION_OPTIONS, STAMP_SHAPE_OPTIONS, STAR_MOTION_OPTIONS, SYMMETRY_OPTIONS, TRAIL_SHAPE_OPTIONS } from './shapeOptions.js';
 import { TEXT_ALIGNS, TEXT_DRIFT_DIRECTIONS, TEXT_EFFECTS, TEXT_FONTS, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from './textOverlay.js';
 import { AUDIO_FEATURES, MUSIC_ROUTES } from './MusicMode.js';
 import { randomBetween, randomizeUniform } from './randomize.js';
@@ -1701,6 +1701,16 @@ export class SettingsPanel {
           }
           this.handleValueChange();
         });
+    } else if (spec.kind === 'ribbonShape') {
+      controller = folder
+        .add(this.state, key, { ...RIBBON_SHAPE_OPTIONS })
+        .name(label)
+        .onChange(() => this.handleValueChange());
+    } else if (spec.kind === 'ribbonSpin') {
+      controller = folder
+        .add(this.state, key, { ...RIBBON_SPIN_OPTIONS })
+        .name(label)
+        .onChange(() => this.handleValueChange());
     } else if (spec.kind === 'chamberForm') {
       controller = folder
         .add(this.state, key, { ...CHAMBER_FORM_OPTIONS })
@@ -2289,7 +2299,7 @@ export class SettingsPanel {
     const choices = { Off: 'off' };
     for (let i = 0; i < 10; i++) choices[`Channel ${i}`] = String(i);
     for (const [key, spec] of Object.entries(specs)) {
-      if (spec?.max == null || spec.kind === 'toggle' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'pointShape' || spec.kind === 'stampShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode' || spec.kind === 'patternType' || spec.kind === 'trailShape' || spec.kind === 'fieldShape' || spec.kind === 'flowMotion' || spec.kind === 'starMotion' || spec.kind === 'spiroMotion' || spec.kind === 'chamberForm' || spec.kind === 'colorMode') {
+      if (spec?.max == null || spec.kind === 'toggle' || spec.kind === 'palette' || spec.kind === 'shape' || spec.kind === 'pointShape' || spec.kind === 'stampShape' || spec.kind === 'symmetry' || spec.kind === 'spacingMode' || spec.kind === 'patternType' || spec.kind === 'trailShape' || spec.kind === 'fieldShape' || spec.kind === 'flowMotion' || spec.kind === 'starMotion' || spec.kind === 'spiroMotion' || spec.kind === 'chamberForm' || spec.kind === 'ribbonShape' || spec.kind === 'ribbonSpin' || spec.kind === 'colorMode') {
         continue;
       }
       const stored = this.musicMode.assignments[key];

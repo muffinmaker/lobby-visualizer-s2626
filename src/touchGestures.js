@@ -33,19 +33,28 @@ function isBlockedTarget(target) {
   );
 }
 
+let lastTouchAt = 0;
+
 function isGesturePointer(event) {
-  if (event.pointerType === 'touch' || event.pointerType === 'pen') return true;
-  // A real touch already owns the gesture. Skip the mouse pointer some browsers
-  // synthesize afterward, or a double-tap is seen as a two-finger pinch.
-  if (event.pointerType === 'mouse') return !isGesturePointer.sawTouch;
-  return false;
+  const type = event.pointerType || 'mouse';
+  if (type === 'touch' || type === 'pen') {
+    lastTouchAt = performance.now();
+    return true;
+  }
+  // Ignore only the compatibility mouse event a browser fires right after a touch.
+  if (type === 'mouse' && performance.now() - lastTouchAt < 700) return false;
+  return true;
+}
+
+function angleOf(a, b) {
+  return Math.atan2(b.y - a.y, b.x - a.x);
 }
 
 const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_SLOP = 28;
 const TAP_MOVE_SLOP = 18;
 
-export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd, onDoubleTap } = {}) {
+export function mountTouchGestures({ onDrag, onPan, onPinch, onRotate, onGestureEnd, onDoubleTap } = {}) {
   const pointers = new Map();
   let drag = null;
   let duo = null;
@@ -57,7 +66,6 @@ export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd, onDou
   }
 
   function onPointerDown(event) {
-    if (event.pointerType === 'touch' || event.pointerType === 'pen') isGesturePointer.sawTouch = true;
     if (!isGesturePointer(event)) return;
     const blocked = isBlockedTarget(event.target);
     pointers.set(event.pointerId, {
@@ -65,6 +73,8 @@ export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd, onDou
       y: event.clientY,
       blocked,
     });
+
+    if (!blocked) event.preventDefault();
 
     if (pointers.size === 1 && !blocked) {
       drag = {
@@ -90,6 +100,7 @@ export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd, onDou
       const center = centroid(pts);
       duo = {
         dist: Math.max(distance(pts[0], pts[1]), 1),
+        angle: angleOf(pts[0], pts[1]),
         x: center.x,
         y: center.y,
         pinchCarry: 0,
@@ -128,7 +139,11 @@ export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd, onDou
     const ratio = dist / duo.dist;
     const panDx = center.x - duo.x;
     const panDy = center.y - duo.y;
+    let turn = angleOf(pts[0], pts[1]) - duo.angle;
+    if (turn > Math.PI) turn -= Math.PI * 2;
+    if (turn < -Math.PI) turn += Math.PI * 2;
     duo.dist = dist;
+    duo.angle = angleOf(pts[0], pts[1]);
     duo.x = center.x;
     duo.y = center.y;
 
@@ -141,6 +156,10 @@ export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd, onDou
     if (Math.abs(panDx) >= 0.2 || Math.abs(panDy) >= 0.2) {
       duo.moved = true;
       onPan?.(panDx, panDy);
+    }
+    if (Math.abs(turn) > 0.01) {
+      duo.moved = true;
+      onRotate?.((turn * 180) / Math.PI);
     }
   }
 
@@ -181,7 +200,7 @@ export function mountTouchGestures({ onDrag, onPan, onPinch, onGestureEnd, onDou
     }
   }
 
-  document.addEventListener('pointerdown', onPointerDown, { passive: true });
+  document.addEventListener('pointerdown', onPointerDown, { passive: false });
   document.addEventListener('pointermove', onPointerMove, { passive: true });
   document.addEventListener('pointerup', finishPointer);
   document.addEventListener('pointercancel', finishPointer);

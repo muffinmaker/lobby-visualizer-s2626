@@ -98,7 +98,7 @@ function mountLogoOverlayAboveCanvas(visualizer) {
   canvas.style.position = 'fixed';
   canvas.style.inset = '0';
   canvas.style.zIndex = '0';
-  canvas.style.pointerEvents = 'none';
+  canvas.style.pointerEvents = 'auto';
 
   overlay.style.zIndex = '15';
   document.body.appendChild(overlay);
@@ -1219,6 +1219,9 @@ async function start() {
     },
     onPan(dx, dy) {
       psyche.adjustPan(dx, dy);
+    },
+    onRotate(degrees) {
+      psyche.adjustRotate(degrees);
     },
     onPinch(steps) {
       psyche.adjustVertical(steps, { silent: true });

@@ -28,7 +28,7 @@ const SHADER_MODS = {
   kaleido: ['uWarp', 'uLineWidth', 'uShapeMorph', 'uCenterStrength'],
   metaballs: ['uEdgeGlow', 'uSoftness', 'uDrift', 'uWarp', 'uNoise'],
   wormhole: ['uTunnelDepth', 'uSwirl', 'uNoise', 'uHorizonGlow', 'uColorSpeed'],
-  ribbons: ['uTwistAmount', 'uThickness', 'uWave', 'uGlow', 'uNoise'],
+  ribbons: ['uTwistAmount', 'uThickness', 'uWave', 'uGlow', 'uNoise', 'uAngle'],
   layers: ['uMix', 'uSpeedOffset', 'uLayerScale', 'uNoise'],
   orb: ['uSpin', 'uWarp', 'uGlow', 'uNoise', 'uZoom'],
   tunnel: ['uTwist', 'uWarp', 'uGlow', 'uZoom'],
