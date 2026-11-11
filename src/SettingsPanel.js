@@ -434,10 +434,10 @@ export class SettingsPanel {
     const dm = this.driftManager;
 
     this.buildMenuSection(pm);
-    this.buildOverlaySection();
     this.buildDisplaySection();
     this.buildDriftSection(dm);
     this.buildGlobalSection();
+    this.buildOverlaySection();
     this.buildColorSection();
     this.rebuildShaderFolder(this.state.shader);
 
@@ -567,6 +567,7 @@ export class SettingsPanel {
     this.visualizer.setEaseSeconds(this.state.easeSeconds);
     this.patchNumberControllers();
     this.stepRemainingDropdowns();
+    this.paintFolderHeaders();
     this.closeAllFolders();
     this.attachAllPresetOverrides();
     this.gui.close();
@@ -940,7 +941,7 @@ export class SettingsPanel {
   }
 
   buildOverlaySection() {
-    const overlay = this.gui.addFolder('Overlay');
+    const overlay = (this.postFolder ?? this.gui).addFolder('Shader B');
     this.overlayFolder = overlay;
     const choices = getShaderChoices();
     const sync = () => {
@@ -1040,10 +1041,6 @@ export class SettingsPanel {
     display.add(this.state, 'easeSeconds', 0, 10, 0.1).name('Ease (s)').onChange((seconds) => {
       this.visualizer.setEaseSeconds(seconds);
     });
-    const post = display.addFolder('Post FX');
-    for (const [key, spec] of Object.entries(POST_UNIFORMS)) {
-      this.addUniformRow(post, key, spec);
-    }
     const resolutionCtrl = display
       .add(this.state, 'resolutionScale', 25, 100, 1)
       .name('Resolution %')
@@ -1118,6 +1115,15 @@ export class SettingsPanel {
     );
     this.globalFolder = this.gui.addFolder('Global');
     this.addUniformControls(this.globalFolder, this.globalSpecs);
+    this.buildPostSection();
+  }
+
+  buildPostSection() {
+    const post = this.gui.addFolder('Post Effects');
+    this.postFolder = post;
+    for (const [key, spec] of Object.entries(POST_UNIFORMS)) {
+      this.addUniformRow(post, key, spec);
+    }
   }
 
   buildColorSection() {
@@ -1153,7 +1159,7 @@ export class SettingsPanel {
     if (!parent) return;
     const collapseEl = this.collapseCtrl?.domElement;
     if (collapseEl) parent.insertBefore(collapseEl, parent.firstElementChild);
-    const order = [this.menuFolder, this.overlayFolder, this.displayFolder, this.globalFolder, this.shaderFolder, this.colorFolder];
+    const order = [this.menuFolder, this.displayFolder, this.globalFolder, this.postFolder, this.colorFolder];
     let cursor = collapseEl ?? null;
     for (const folder of order) {
       const el = folder?.domElement;
@@ -1162,6 +1168,19 @@ export class SettingsPanel {
       else parent.insertBefore(el, cursor.nextSibling);
       cursor = el;
     }
+  }
+
+  paintFolderHeaders() {
+    const folders = this.gui?.foldersRecursive?.() ?? [];
+    folders.forEach((folder, index) => {
+      const title = folder.$title;
+      if (!title || title.classList.contains('gui-title-row')) return;
+      const hue = (index * 47) % 360;
+      title.style.background = `hsl(${hue} 90% 62%)`;
+      title.style.color = '#140814';
+      title.style.fontWeight = '800';
+      title.style.cursor = 'pointer';
+    });
   }
 
   closeAllFolders() {
@@ -1968,7 +1987,7 @@ export class SettingsPanel {
 
     const shader = SHADERS[shaderId];
     mergeShaderDefaults(this.state, shaderId);
-    this.shaderFolder = this.gui.addFolder(shader.label);
+    this.shaderFolder = (this.postFolder ?? this.gui).addFolder(shader.label);
     this.addUniformControls(this.shaderFolder, shader.uniforms);
     this.addModeColorControls(shader.uniforms);
 
@@ -1989,6 +2008,7 @@ export class SettingsPanel {
     this.attachPresetOverride(this.shaderFolder, 'Mode');
     this.patchNumberControllers();
     this.stepRemainingDropdowns();
+    this.paintFolderHeaders();
     const focusKey = this.navigableItems[this.gamepadFocusIndex]?.key;
     this.refreshGamepadMenuAfterRebuild(focusKey);
     this.notifyDriftStateChange();
