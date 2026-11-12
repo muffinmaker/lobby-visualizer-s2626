@@ -101,6 +101,8 @@ function savePresetOverrides(overrides) {
 
 const OVERLAY_KEY = 'lobby-overlay';
 
+const MAX_MIXER_SLOTS = 4;
+
 function loadOverlayPrefs() {
   const fallback = {
     overlayOn: false,
@@ -108,10 +110,29 @@ function loadOverlayPrefs() {
     overlayMix: 45,
     overlayBlend: 'Mix',
     overlayAudio: false,
+    mixers: [{ on: false, shader: 'kaleido', mix: 45, blend: 'Mix', audio: false }],
   };
   try {
-    const raw = localStorage.getItem(OVERLAY_KEY);
-    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+    const raw = JSON.parse(localStorage.getItem(OVERLAY_KEY) || 'null');
+    const base = raw ? { ...fallback, ...raw } : fallback;
+    let mixers = Array.isArray(raw?.mixers) ? raw.mixers : null;
+    if (!mixers?.length) {
+      mixers = [{
+        on: Boolean(base.overlayOn),
+        shader: base.overlayShader,
+        mix: base.overlayMix,
+        blend: base.overlayBlend,
+        audio: Boolean(base.overlayAudio),
+      }];
+    }
+    base.mixers = mixers.slice(0, MAX_MIXER_SLOTS).map((slot) => ({
+      on: Boolean(slot?.on),
+      shader: slot?.shader || 'kaleido',
+      mix: Number.isFinite(slot?.mix) ? slot.mix : 45,
+      blend: slot?.blend || 'Mix',
+      audio: Boolean(slot?.audio),
+    }));
+    return base;
   } catch {
     return fallback;
   }
@@ -147,12 +168,14 @@ function savePerformancePrefs(state) {
 
 function saveOverlayPrefs(state) {
   try {
+    const first = state.mixers?.[0];
     localStorage.setItem(OVERLAY_KEY, JSON.stringify({
-      overlayOn: state.overlayOn,
-      overlayShader: state.overlayShader,
-      overlayMix: state.overlayMix,
-      overlayBlend: state.overlayBlend,
-      overlayAudio: state.overlayAudio,
+      overlayOn: first ? first.on : state.overlayOn,
+      overlayShader: first ? first.shader : state.overlayShader,
+      overlayMix: first ? first.mix : state.overlayMix,
+      overlayBlend: first ? first.blend : state.overlayBlend,
+      overlayAudio: first ? first.audio : state.overlayAudio,
+      mixers: state.mixers,
     }));
   } catch {
     /* ignore */
@@ -556,7 +579,7 @@ export class SettingsPanel {
     cycle.add(this.state, 'randomizeOnCycle').name('Randomize Presets').onChange((v) => {
       pm.randomizeOnCycle = v;
     });
-    cycle.add({ next: () => pm.next() }, 'next').name('Next Preset');
+    cycle.add({ next: () => pm.next() }, 'next').name('▶');
     cycle.add({ random: () => pm.randomPreset() }, 'random').name('Random Preset');
 
     this.applyMenuOpacity(this.state.menuOpacity);
@@ -654,8 +677,8 @@ export class SettingsPanel {
       nextPackLogo: () => this.onLogoPackCycle?.(1),
     };
     logo.add(logoActions, 'addLogo').name('Add image');
-    this.logoPackPrevCtrl = logo.add(logoActions, 'prevPackLogo').name('◀ Prev pack logo');
-    this.logoPackNextCtrl = logo.add(logoActions, 'nextPackLogo').name('Next pack logo ▶');
+    this.logoPackPrevCtrl = logo.add(logoActions, 'prevPackLogo').name('◀');
+    this.logoPackNextCtrl = logo.add(logoActions, 'nextPackLogo').name('▶');
 
     logo
       .add(this.state, 'logoScale', 10, 200, 1)
@@ -886,6 +909,7 @@ export class SettingsPanel {
     this.collapseCtrl = this.gui
       .add({ collapseAll: () => this.closeAllFolders() }, 'collapseAll')
       .name('Collapse all');
+    this.collapseCtrl.domElement.classList.add('collapse-all');
 
     const menu = this.gui.addFolder('Controls');
     this.menuFolder = menu;
@@ -908,8 +932,8 @@ export class SettingsPanel {
       .add({ resetPreset: () => pm.resetToOriginals() }, 'resetPreset')
       .name('Reset preset');
 
-    menu.add({ previousShader: () => fire('lobby-shader-prev') }, 'previousShader').name('Previous shader');
-    menu.add({ nextShader: () => fire('lobby-shader-next') }, 'nextShader').name('Next shader');
+    menu.add({ previousShader: () => fire('lobby-shader-prev') }, 'previousShader').name('◀');
+    menu.add({ nextShader: () => fire('lobby-shader-next') }, 'nextShader').name('▶');
     menu.add({ cyclePreset: () => fire('lobby-preset-next') }, 'cyclePreset').name('Cycle preset');
     menu.add({ savePreset: () => fire('lobby-save-preset') }, 'savePreset').name('Save preset');
     menu.add({ uploadPreset: () => fire('lobby-upload-preset') }, 'uploadPreset').name('Upload preset');
@@ -941,29 +965,76 @@ export class SettingsPanel {
   }
 
   buildOverlaySection() {
-    const overlay = (this.postFolder ?? this.gui).addFolder('Shader B');
+    const overlay = (this.postFolder ?? this.gui).addFolder('Shader Mixer');
     this.overlayFolder = overlay;
-    const choices = getShaderChoices();
-    const sync = () => {
-      saveOverlayPrefs(this.state);
-      this.pushOverlay();
-    };
-    overlay.add(this.state, 'overlayOn').name('Layer B').onChange(sync);
-    overlay.add(this.state, 'overlayShader', choices).name('Mode B').onChange(sync);
-    overlay.add(this.state, 'overlayMix', 0, 100, 1).name('Mix').onChange(sync);
-    const blendCtrl = overlay.add(this.state, 'overlayBlend', { Mix: 'Mix', Add: 'Add', Multiply: 'Multiply' }).name('Blend').onChange(sync);
-    this.stepIfDropdown(overlay, blendCtrl, 'blend');
-    overlay.add(this.state, 'overlayAudio').name('Audio mix').onChange(sync);
-    overlay.add({ swapLayers: () => this.swapOverlayLayers() }, 'swapLayers').name('Swap A and B');
+    this.mixerFolders = [];
+    if (!Array.isArray(this.state.mixers) || !this.state.mixers.length) {
+      this.state.mixers = [{ on: false, shader: 'kaleido', mix: 45, blend: 'Mix', audio: false }];
+    }
+    overlay.add({ add: () => this.addMixerSlot() }, 'add').name('Add shader');
+    this.rebuildMixerSlots();
     this.pushOverlay();
+  }
+
+  addMixerSlot() {
+    if (this.state.mixers.length >= MAX_MIXER_SLOTS) return;
+    const choices = Object.values(getShaderChoices());
+    const used = new Set([this.state.shader, ...this.state.mixers.map((slot) => slot.shader)]);
+    const shader = choices.find((id) => !used.has(id)) || choices[0] || 'kaleido';
+    this.state.mixers.push({ on: true, shader, mix: 40, blend: 'Mix', audio: false });
+    this.rebuildMixerSlots();
+    saveOverlayPrefs(this.state);
+    this.pushOverlay();
+    this.paintFolderHeaders();
+  }
+
+  removeMixerSlot(index) {
+    if (this.state.mixers.length <= 1) return;
+    this.state.mixers.splice(index, 1);
+    this.rebuildMixerSlots();
+    saveOverlayPrefs(this.state);
+    this.pushOverlay();
+    this.paintFolderHeaders();
+  }
+
+  rebuildMixerSlots() {
+    for (const folder of this.mixerFolders ?? []) {
+      try { folder.destroy(); } catch { /* ignore */ }
+    }
+    this.mixerFolders = [];
+    const choices = getShaderChoices();
+    const totalShaders = 1 + this.state.mixers.length;
+    this.state.mixers.forEach((slot, index) => {
+      const folder = this.overlayFolder.addFolder(`Shader ${index + 2}`);
+      this.mixerFolders.push(folder);
+      const sync = () => {
+        saveOverlayPrefs(this.state);
+        this.pushOverlay();
+      };
+      folder.add(slot, 'on').name('On').onChange(sync);
+      const modeCtrl = folder.add(slot, 'shader', choices).name('Mode').onChange(sync);
+      this.stepIfDropdown(folder, modeCtrl, 'mode');
+      folder.add(slot, 'mix', 0, 100, 1).name('Mix').onChange(sync);
+      const blendCtrl = folder
+        .add(slot, 'blend', { Mix: 'Mix', Add: 'Add', Multiply: 'Multiply' })
+        .name('Blend')
+        .onChange(sync);
+      this.stepIfDropdown(folder, blendCtrl, 'blend');
+      folder.add(slot, 'audio').name('Audio mix').onChange(sync);
+      if (this.state.mixers.length > 1) {
+        folder.add({ remove: () => this.removeMixerSlot(index) }, 'remove').name('Remove');
+      }
+      folder.domElement.dataset.help = `Mixer ${index + 2} of ${totalShaders}. Up to 5 shaders.`;
+    });
   }
 
   swapOverlayLayers() {
     const mainId = this.state.shader;
-    const layerId = this.state.overlayShader;
-    if (!layerId || layerId === mainId) return;
-    this.state.overlayOn = true;
-    this.state.overlayShader = mainId;
+    const slot = this.state.mixers?.[0];
+    const layerId = slot?.shader;
+    if (!slot || !layerId || layerId === mainId) return;
+    slot.on = true;
+    slot.shader = mainId;
     this.setShader(layerId);
     saveOverlayPrefs(this.state);
     this.pushOverlay();
@@ -971,19 +1042,21 @@ export class SettingsPanel {
   }
 
   pushOverlay(music = null) {
-    let mix = (this.state.overlayMix ?? 0) / 100;
-    if (this.state.overlayAudio && music?.enabled) {
-      const beat = music.smoothed?.beat || 0;
-      const energy = music.smoothed?.energy || 0;
-      mix = Math.max(0, Math.min(1, mix * 0.3 + beat * 0.8 + energy * 0.45));
-    }
-    const mode = { Mix: 0, Add: 1, Multiply: 2 }[this.state.overlayBlend] ?? 0;
-    this.visualizer.setOverlay({
-      enabled: Boolean(this.state.overlayOn),
-      shaderId: this.state.overlayShader,
-      mix,
-      mode,
+    const layers = (this.state.mixers || []).map((slot) => {
+      let mix = (slot.mix ?? 0) / 100;
+      if (slot.audio && music?.enabled) {
+        const beat = music.smoothed?.beat || 0;
+        const energy = music.smoothed?.energy || 0;
+        mix = Math.max(0, Math.min(1, mix * 0.3 + beat * 0.8 + energy * 0.45));
+      }
+      return {
+        enabled: Boolean(slot.on),
+        shaderId: slot.shader,
+        mix,
+        mode: { Mix: 0, Add: 1, Multiply: 2 }[slot.blend] ?? 0,
+      };
     });
+    this.visualizer.setOverlayLayers(layers);
   }
 
   buildDisplaySection() {
@@ -1159,7 +1232,16 @@ export class SettingsPanel {
     if (!parent) return;
     const collapseEl = this.collapseCtrl?.domElement;
     if (collapseEl) parent.insertBefore(collapseEl, parent.firstElementChild);
-    const order = [this.menuFolder, this.displayFolder, this.globalFolder, this.postFolder, this.colorFolder];
+    const order = [
+      this.menuFolder,
+      this.displayFolder,
+      this.globalFolder,
+      this.postFolder,
+      this.colorFolder,
+      this.musicFolder,
+      this.driftFolder,
+      this.cycleFolder,
+    ];
     let cursor = collapseEl ?? null;
     for (const folder of order) {
       const el = folder?.domElement;
@@ -1175,9 +1257,9 @@ export class SettingsPanel {
     folders.forEach((folder, index) => {
       const title = folder.$title;
       if (!title || title.classList.contains('gui-title-row')) return;
-      const hue = (index * 47) % 360;
-      title.style.background = `hsl(${hue} 90% 62%)`;
-      title.style.color = '#140814';
+      const hue = Math.round((index * 360) / Math.max(folders.length, 1));
+      title.style.background = `hsl(${hue} 78% 80%)`;
+      title.style.color = '#1a1024';
       title.style.fontWeight = '800';
       title.style.cursor = 'pointer';
     });
@@ -1593,7 +1675,7 @@ export class SettingsPanel {
     const driftAllKey = `driftAll_${this.folderDriftActions.length}`;
     const driftAllState = { [driftAllKey]: false };
     const driftAllCtrl = folder.add(driftAllState, driftAllKey).name('Drift all');
-    driftAllCtrl.domElement.classList.add('drift-all-wide');
+    driftAllCtrl.domElement.classList.add('drift-check');
     this.folderDriftActions.push({ ctrl: driftAllCtrl, specs, stateKey: driftAllKey, state: driftAllState });
 
     driftAllCtrl.onChange((enabled) => {
@@ -2232,8 +2314,10 @@ export class SettingsPanel {
       if (index < 0) index = 0;
       controller.setValue(values[(index + delta + values.length) % values.length]);
     };
-    const prevCtrl = folder.add({ prev: () => step(-1) }, 'prev').name(`Previous ${label}`);
-    const nextCtrl = folder.add({ next: () => step(1) }, 'next').name(`Next ${label}`);
+    const prevCtrl = folder.add({ prev: () => step(-1) }, 'prev').name('◀');
+    const nextCtrl = folder.add({ next: () => step(1) }, 'next').name('▶');
+    prevCtrl.domElement.title = `Previous ${label}`;
+    nextCtrl.domElement.title = `Next ${label}`;
     const anchor = controller.domElement;
     const parent = anchor?.parentElement;
     if (parent && prevCtrl.domElement && nextCtrl.domElement) {

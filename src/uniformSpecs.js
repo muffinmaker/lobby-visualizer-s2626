@@ -96,8 +96,8 @@ export const POST_UNIFORMS = {
 
 export const GLOBAL_UNIFORMS = {
   ...BACKGROUND_UNIFORMS,
-  uSpeed: { value: 3, min: 0, max: 100, step: 1, kind: 'speed', shaderMin: 0, shaderMax: 2.4 },
-  uScale: { value: 11, min: 0, max: 100, step: 1, shaderMin: 0.3, shaderMax: 9.1, shaderFar: 34 },
+  uSpeed: { value: 3, min: 0, max: 100, step: 1, kind: 'speed', shaderMin: 0, shaderMax: 1.2 },
+  uScale: { value: 11, min: 0, max: 100, step: 1, shaderMin: 0.075, shaderMax: 9.1, shaderFar: 34 },
   uComplexity: pct(40, 0.2, 3),
   uBrightness: pct(50, 0.2, 2.5),
   uSaturation: pct(67, 0, 1.5),

@@ -182,7 +182,7 @@
       }
 
       .lil-gui .title:not(.gui-title-row) {
-        background: #ffe14a;
+        background: hsl(48 70% 82%);
         color: #140814;
         font-weight: 800;
         cursor: pointer;
@@ -731,10 +731,34 @@
         font-size: 0.75rem;
       }
 
+      .lil-gui .controller.collapse-all {
+        margin: 0;
+        border: 0;
+      }
+
+      .lil-gui .controller.collapse-all > .name {
+        width: 100%;
+        margin: 0;
+        padding: 0.35rem 0.55rem;
+        background: hsl(330 70% 80%);
+        color: #1a1024;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .lil-gui .controller.drift-check {
+        height: auto;
+      }
+
+      .lil-gui .controller.drift-check > .name {
+        width: auto;
+        flex: 1;
+      }
+
       .lil-gui .title.gui-title-row {
         display: flex;
         align-items: flex-start;
-        min-height: 2.1rem;
+        min-height: 2.52rem;
         flex-wrap: nowrap;
         overflow: visible;
         padding: 0.2rem 0.35rem 0.15rem;

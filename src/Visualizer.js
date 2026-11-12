@@ -364,6 +364,7 @@ export class Visualizer {
     this.blackout = false;
     this.strobe = false;
     this.overlay = { enabled: false, shaderId: 'kaleido', mix: 0.5, mode: 0 };
+    this.overlayLayers = [];
     this.mixScene = new THREE.Scene();
     this.mixMaterial = new THREE.ShaderMaterial({
       uniforms: {
@@ -696,6 +697,10 @@ export class Visualizer {
     this.presentTarget = new THREE.WebGLRenderTarget(rw, rh, targetOptions);
     this.overlayTarget?.dispose();
     this.overlayTarget = new THREE.WebGLRenderTarget(rw, rh, targetOptions);
+    this.mixScratch?.dispose();
+    this.mixHold?.dispose();
+    this.mixScratch = new THREE.WebGLRenderTarget(rw, rh, targetOptions);
+    this.mixHold = new THREE.WebGLRenderTarget(rw, rh, targetOptions);
     this.onViewportResize?.();
   }
 
@@ -744,6 +749,25 @@ export class Visualizer {
     if (shaderId) this.overlay.shaderId = shaderId;
     if (mix !== undefined) this.overlay.mix = Math.max(0, Math.min(1, mix));
     if (mode !== undefined) this.overlay.mode = mode;
+    this.overlayLayers = this.overlay.enabled
+      ? [{ enabled: true, shaderId: this.overlay.shaderId, mix: this.overlay.mix, mode: this.overlay.mode }]
+      : [];
+  }
+
+  setOverlayLayers(layers = []) {
+    this.overlayLayers = layers.slice(0, 4).map((layer) => ({
+      enabled: Boolean(layer.enabled),
+      shaderId: layer.shaderId,
+      mix: Math.max(0, Math.min(1, layer.mix ?? 0.5)),
+      mode: layer.mode ?? 0,
+    }));
+    const first = this.overlayLayers.find((layer) => layer.enabled);
+    this.overlay.enabled = Boolean(first);
+    if (first) {
+      this.overlay.shaderId = first.shaderId;
+      this.overlay.mix = first.mix;
+      this.overlay.mode = first.mode;
+    }
   }
 
   showOnly(shaderId) {
@@ -767,28 +791,36 @@ export class Visualizer {
   }
 
   presentMix(baseTexture) {
-    const layerId = this.overlay.shaderId;
-    const active = this.overlay.enabled && layerId && layerId !== this.currentShaderId && this.overlayTarget;
-    if (!active) {
+    const layers = (this.overlayLayers || []).filter(
+      (layer) => layer.enabled && layer.shaderId && layer.shaderId !== this.currentShaderId && this.materials[layer.shaderId],
+    );
+    if (!layers.length || !this.overlayTarget || !this.mixScratch || !this.mixHold) {
       this.present(baseTexture);
       return;
     }
-    const layerMaterial = this.materials[layerId];
-    if (layerMaterial && this.lastSmoothed) this.applySmoothedUniforms(layerMaterial, this.lastSmoothed);
-    this.renderShaderTo(layerId, this.overlayTarget);
-    this.mixMaterial.uniforms.uA.value = baseTexture;
-    this.mixMaterial.uniforms.uB.value = this.overlayTarget.texture;
-    this.mixMaterial.uniforms.uMix.value = this.overlay.mix;
-    this.mixMaterial.uniforms.uMode.value = this.overlay.mode;
-    this.mixMaterial.uniforms.uInvert.value = this.invertColors ? 1 : 0;
-    this.mixMaterial.uniforms.uBlackout.value = this.blackout ? 1 : 0;
-    this.mixMaterial.uniforms.uStrobe.value = this.strobe ? 1 : 0;
-    this.mixMaterial.uniforms.uTime.value = this.animPhase;
-    this.applyPostUniforms(this.mixMaterial);
-    this.renderer.setRenderTarget(null);
-    this.renderer.setClearColor(this.backgroundColor, 1);
-    this.renderer.clear();
-    this.renderer.render(this.mixScene, this.quadCamera);
+    const holds = [this.mixScratch, this.mixHold];
+    let source = baseTexture;
+    layers.forEach((layer, index) => {
+      const layerMaterial = this.materials[layer.shaderId];
+      if (layerMaterial && this.lastSmoothed) this.applySmoothedUniforms(layerMaterial, this.lastSmoothed);
+      this.renderShaderTo(layer.shaderId, this.overlayTarget);
+      const last = index === layers.length - 1;
+      const dest = last ? null : holds[index % 2];
+      this.mixMaterial.uniforms.uA.value = source;
+      this.mixMaterial.uniforms.uB.value = this.overlayTarget.texture;
+      this.mixMaterial.uniforms.uMix.value = layer.mix;
+      this.mixMaterial.uniforms.uMode.value = layer.mode;
+      this.mixMaterial.uniforms.uInvert.value = last && this.invertColors ? 1 : 0;
+      this.mixMaterial.uniforms.uBlackout.value = last && this.blackout ? 1 : 0;
+      this.mixMaterial.uniforms.uStrobe.value = last && this.strobe ? 1 : 0;
+      this.mixMaterial.uniforms.uTime.value = this.animPhase;
+      this.applyPostUniforms(this.mixMaterial);
+      this.renderer.setRenderTarget(dest);
+      this.renderer.setClearColor(this.backgroundColor, 1);
+      this.renderer.clear();
+      this.renderer.render(this.mixScene, this.quadCamera);
+      if (!last) source = dest.texture;
+    });
   }
 
   renderScene(target = null) {

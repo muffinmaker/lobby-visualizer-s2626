@@ -1342,9 +1342,14 @@ async function start() {
       settings.toggleVisible();
     }
     if (e.code === 'KeyF') toggleFullscreen();
-    if (e.code === 'KeyH') togglePerfReadout();
+    if (e.code === 'KeyH' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+      settings.toggleVisible();
+    }
     if (e.code === 'KeyP') setPerformanceMode(!performance.on);
-    if (e.code === 'KeyM') setMidiEnabled(!midi?.enabled);
+    if (e.code === 'KeyM' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+      const label = settings.cycleMenuPosition();
+      if (label) showGamepadToast(`Menu: ${label}`);
+    }
     if (e.code === 'ArrowRight') psyche.adjustHorizontal(1);
     if (e.code === 'ArrowLeft') psyche.adjustHorizontal(-1);
     if (e.code === 'ArrowUp') psyche.adjustVertical(1);
