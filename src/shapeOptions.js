@@ -24,6 +24,120 @@ export const TRAIL_SHAPE_OPTIONS = {
   Smear: 11,
 };
 
+export const PATTERN_OPTIONS = {
+  'Concentric ripples': 0,
+  'Double-slit': 1,
+  'Single-slit': 2,
+  'Grid moiré': 3,
+  Interference: 4,
+  Spokes: 5,
+};
+
+export const SPACING_OPTIONS = {
+  Linear: 0,
+  Exponential: 1,
+  Logarithmic: 2,
+  Radial: 3,
+  Wave: 4,
+};
+
+export const SYMMETRY_OPTIONS = {
+  Rotational: 0,
+  Mirrored: 1,
+  'Double mirror': 2,
+  'Mirror array': 3,
+};
+
+export const FIELD_SHAPE_OPTIONS = {
+  Rectangle: 0,
+  Circle: 1,
+  Triangle: 2,
+  Diamond: 3,
+  Hexagon: 4,
+  Star: 5,
+  Ring: 6,
+  Heart: 7,
+  Cross: 8,
+};
+
+export const COLOR_ALONG_OPTIONS = {
+  'Along path': 0,
+  'By speed': 1,
+  'By angle': 2,
+  Noise: 3,
+  Bands: 4,
+  'Gradient phase': 5,
+};
+
+export const STAR_MOTION_OPTIONS = {
+  Spiro: 0,
+  'Star orbit': 1,
+  Lissajous: 2,
+  'Figure 8': 3,
+  Spiral: 4,
+  Rose: 5,
+};
+
+export const SPIRO_MOTION_OPTIONS = {
+  Hypotrochoid: 0,
+  Lissajous: 1,
+  Rose: 2,
+  'Figure 8': 3,
+  Spiral: 4,
+  Ellipse: 5,
+  'Sine ribbon': 6,
+};
+
+export const RIBBON_SHAPE_OPTIONS = {
+  Strip: 0,
+  Ring: 1,
+  Chevron: 2,
+  Helix: 3,
+  Beads: 4,
+};
+
+export const RIBBON_SPIN_OPTIONS = {
+  Tumble: 0,
+  'Counter spin': 1,
+  Spiral: 2,
+  Breathe: 3,
+  Fold: 4,
+};
+
+export const CHAMBER_FORM_OPTIONS = {
+  Hall: 0,
+  Cylinder: 1,
+  Dome: 2,
+  Torus: 3,
+  Crystal: 4,
+  Stack: 5,
+};
+
+export const FLOW_MOTION_OPTIONS = {
+  Flow: 0,
+  Sine: 1,
+  Saw: 2,
+  Triangle: 3,
+  Square: 4,
+  Pulse: 5,
+  Orbit: 6,
+  Lissajous: 7,
+  Spiral: 8,
+};
+
+export const POINT_SHAPE_OPTIONS = {
+  Circle: 0,
+  Square: 1,
+  Triangle: 2,
+  Diamond: 3,
+  Star: 4,
+  Hexagon: 5,
+  Ring: 6,
+  Cross: 7,
+  Chevron: 8,
+  Petal: 9,
+};
+
 export const STAMP_SHAPE_OPTIONS = {
   Rectangle: 0,
   Polygon: 1,

@@ -1,3 +1,5 @@
+import { SAVE_ICON_SVG } from './saveIcon.js';
+
 const FLASH_MS = 1000;
 
 function flashButton(btn) {
@@ -11,11 +13,12 @@ function flashButton(btn) {
   flashButton._timers.set(btn, timer);
 }
 
-function createBtn(label, title, className) {
+function createBtn(label, title, className, { html = false } = {}) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = className;
-  btn.textContent = label;
+  if (html) btn.innerHTML = label;
+  else btn.textContent = label;
   btn.setAttribute('aria-label', title);
   btn.title = title;
   btn.addEventListener('click', (event) => event.stopPropagation());
@@ -85,11 +88,6 @@ export function mountMobileBar(handlers) {
   const transport = document.createElement('div');
   transport.className = 'transport-cluster';
 
-  const settingsBtn = createBtn('Sliders', 'Show sliders', 'transport-btn phone-settings-btn');
-  settingsBtn.setAttribute('aria-pressed', 'false');
-  settingsBtn.setAttribute('aria-expanded', 'false');
-  bindBtn(settingsBtn, handlers.onSettings);
-
   const shaderNav = createNavGroup({
     label: handlers.getShaderLabel?.() ?? 'Shader',
     prevTitle: 'Previous shader',
@@ -101,16 +99,12 @@ export function mountMobileBar(handlers) {
     labelPosition: 'between',
   });
 
-  const presetNav = createNavGroup({
-    label: handlers.getPresetLabel?.() ?? '—',
-    prevTitle: 'Previous preset',
-    nextTitle: 'Next preset',
-    onPrev: handlers.onPresetPrev,
-    onNext: handlers.onPresetNext,
-    labelClassName: 'transport-preset-label',
-    size: 'secondary',
-    orientation: 'vertical',
-  });
+  const presetBtn = createBtn(
+    handlers.getPresetLabel?.() ?? '—',
+    'Cycle preset',
+    'transport-btn transport-preset-btn',
+  );
+  bindBtn(presetBtn, handlers.onPresetNext);
 
   const driftAll = createBtn(
     '↻',
@@ -127,8 +121,11 @@ export function mountMobileBar(handlers) {
     'Auto-cycle presets — toggle autoplay',
     'transport-btn autocycle-btn',
   );
-  const save = createBtn('💾', 'Save preset', 'transport-btn save-btn');
+  const save = createBtn(SAVE_ICON_SVG, 'Save preset', 'transport-btn save-btn', { html: true });
+  const upload = createBtn('↑', 'Upload preset JSON', 'transport-btn upload-btn');
   const info = createBtn('i', 'Tutorial', 'transport-btn info-btn');
+  const help = createBtn('?', 'Help — hover a control to read what it does', 'transport-btn help-btn');
+  help.setAttribute('aria-pressed', 'false');
   const hideBtn = createBtn('Hide', 'Hide menu', 'transport-btn phone-hide-btn');
 
   driftAll.setAttribute('aria-pressed', 'false');
@@ -139,22 +136,16 @@ export function mountMobileBar(handlers) {
   bindBtn(smooth, handlers.onSmoothTransitionsToggle);
   bindBtn(autocycle, handlers.onAutoCycleToggle);
   bindBtn(save, handlers.onSave);
+  bindBtn(upload, handlers.onUpload);
   bindBtn(info, handlers.onInfo);
+  help.addEventListener('click', () => handlers.onHelpToggle?.());
   bindBtn(hideBtn, handlers.onHide);
 
   const actions = document.createElement('div');
   actions.className = 'title-actions';
-  actions.append(save, info, hideBtn);
+  actions.append(save, upload, info, help, hideBtn);
 
-  transport.append(
-    settingsBtn,
-    shaderNav.group,
-    presetNav.group,
-    driftAll,
-    smooth,
-    autocycle,
-    actions,
-  );
+  transport.append(shaderNav.group, presetBtn, driftAll, smooth, autocycle, actions);
   transport.addEventListener('click', (event) => event.stopPropagation());
   transport.addEventListener('pointerdown', (event) => event.stopPropagation());
 
@@ -182,25 +173,19 @@ export function mountMobileBar(handlers) {
   const controls = {
     shaderPrev: shaderNav.prev,
     shaderNext: shaderNav.next,
-    presetPrev: presetNav.prev,
-    presetNext: presetNav.next,
+    presetNext: presetBtn,
     driftAll,
     smoothTransitions: smooth,
     autocycle,
     save,
+    upload,
     info,
-    settings: settingsBtn,
+    help,
     hide: hideBtn,
     show: showBtn,
   };
 
   function setSettingsOpen(open) {
-    settingsBtn.textContent = open ? 'Close' : 'Sliders';
-    settingsBtn.title = open ? 'Hide sliders' : 'Show sliders';
-    settingsBtn.setAttribute('aria-label', settingsBtn.title);
-    settingsBtn.setAttribute('aria-pressed', String(open));
-    settingsBtn.setAttribute('aria-expanded', String(open));
-    settingsBtn.classList.toggle('is-active', open);
     document.body.classList.toggle('phone-sheet', open);
   }
 
@@ -224,9 +209,11 @@ export function mountMobileBar(handlers) {
     },
     setPresetLabel(current, total) {
       const text = total > 0 ? `${current}/${total}` : '—';
-      const titleText = total > 0 ? `Preset ${current} of ${total}` : 'No presets for this shader';
-      presetNav.groupLabel.textContent = text;
-      presetNav.groupLabel.setAttribute('title', titleText);
+      const titleText = total > 0 ? `Preset ${current} of ${total}. Click to cycle.` : 'No presets for this shader';
+      presetBtn.textContent = text;
+      presetBtn.title = titleText;
+      presetBtn.setAttribute('aria-label', titleText);
+      presetBtn.disabled = total <= 0;
     },
     setDriftAllActive(active) {
       setPressed(driftAll, active);

@@ -24,6 +24,9 @@ const PSYCHE_PROFILES = {
   ribbons: {
     horizontal: { key: 'uRibbonCount', label: 'Ribbons' },
   },
+  layers: {
+    horizontal: { key: 'uLayerCount', label: 'Layers' },
+  },
 };
 
 function getZoomEntry(shaderId) {
@@ -71,6 +74,7 @@ export function createGamepadPsyche({ settings, onToast }) {
   const dragCarryY = { value: 0 };
   const panCarryX = { value: 0 };
   const panCarryY = { value: 0 };
+  const rotateCarry = { value: 0 };
   let lastGestureLabel = '';
 
   function getProfile(shaderId = settings.state.shader) {
@@ -81,7 +85,9 @@ export function createGamepadPsyche({ settings, onToast }) {
     const controller = entry.global
       ? settings.gui.controllersRecursive().find((c) => c.property === entry.key)
       : settings.uniformControllers.get(entry.key);
-    controller?.setValue(next);
+    if (!controller) return;
+    controller.setValue(next);
+    controller.updateDisplay();
   }
 
   function nudgeEntry(entry, delta) {
@@ -107,10 +113,12 @@ export function createGamepadPsyche({ settings, onToast }) {
 
   function adjustVertical(delta, { silent = false } = {}) {
     const entry = getZoomEntry(settings.state.shader);
-    const result = nudgeEntry(entry, delta);
+    const spec = getSpec(settings, entry.key, entry.global);
+    // Pinch apart and Arrow Up zoom in. Inverted sliders store zoom-out at the high end.
+    const signed = spec?.invert ? -delta : delta;
+    const result = nudgeEntry(entry, signed);
     if (!result) return null;
 
-    const spec = getSpec(settings, entry.key, entry.global);
     applyChanges([result], Boolean(spec?.rebuild));
     if (!silent) onToast?.(`${result.label} ${result.value}`);
     return [result];
@@ -182,8 +190,8 @@ export function createGamepadPsyche({ settings, onToast }) {
     const yEntry = { key: 'uPanY', label: 'Look Y', global: true };
     const changes = [];
 
-    const xSteps = consumeAxis(panCarryX, dx, 12);
-    const ySteps = consumeAxis(panCarryY, -dy, 12);
+    const xSteps = consumeAxis(panCarryX, dx, 3);
+    const ySteps = consumeAxis(panCarryY, -dy, 3);
 
     if (xSteps) {
       const result = nudgeEntry(xEntry, xSteps);
@@ -201,11 +209,27 @@ export function createGamepadPsyche({ settings, onToast }) {
     return changes;
   }
 
+  function adjustRotate(deltaDegrees) {
+    const shaderId = settings.state.shader;
+    const specs = getSpecMap(shaderId);
+    const choice = ['uRotate', 'uTwistAmount', 'uTwist', 'uSpin'].find((key) => specs[key]);
+    if (!choice) return null;
+    const labels = { uRotate: 'Rotate', uTwistAmount: 'Twist', uTwist: 'Twist', uSpin: 'Spin' };
+    const steps = consumeAxis(rotateCarry, deltaDegrees, 6);
+    if (!steps) return null;
+    const result = nudgeEntry({ key: choice, label: labels[choice] }, steps);
+    if (!result) return null;
+    applyChanges([result], false);
+    lastGestureLabel = `${result.label} ${result.value}`;
+    return [result];
+  }
+
   function resetGestureCarry() {
     dragCarryX.value = 0;
     dragCarryY.value = 0;
     panCarryX.value = 0;
     panCarryY.value = 0;
+    rotateCarry.value = 0;
   }
 
   function toastLastGesture() {
@@ -218,6 +242,7 @@ export function createGamepadPsyche({ settings, onToast }) {
     adjustHorizontal,
     adjustSlideDrag,
     adjustPan,
+    adjustRotate,
     resetGestureCarry,
     toastLastGesture,
     getProfile,

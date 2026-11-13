@@ -21,7 +21,7 @@ const SPOCKS_DRIFT_UI_RANGES = {
 };
 
 const SPIRO_DRIFT_UI_RANGES = {
-  uOrbitCount: [3, 8],
+  uOrbitCount: [8, 80],
   uTwist: [12, 55],
   uPulse: [4, 45],
   uZoom: [48, 78],
@@ -55,20 +55,6 @@ export function randomizeSpecs(specs, target = {}, keys = null, { allowRebuild =
   }
 
   return result;
-}
-
-export function randomizeGlobal(state = {}) {
-  return randomizeSpecs(GLOBAL_UNIFORMS, state);
-}
-
-export function randomizeShader(shaderId, state = {}) {
-  const shader = SHADERS[shaderId];
-  if (!shader) return state;
-  return randomizeSpecs(shader.uniforms, state);
-}
-
-export function randomizeAll(shaderId, state = {}) {
-  return randomizeShader(shaderId, randomizeGlobal(state));
 }
 
 export function getSpecsForScope(scope, shaderId) {

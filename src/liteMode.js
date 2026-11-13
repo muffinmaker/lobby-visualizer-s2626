@@ -54,7 +54,7 @@ export function applyLiteLimits(shaderId, values) {
   if (next.uPointSize !== undefined) {
     next.uPointSize = clamp(next.uPointSize, LITE_LIMITS.pointSizeMax);
   }
-  if (next.uComplexity !== undefined) {
+  if (next.uComplexity !== undefined && shaderId !== 'spiro') {
     next.uComplexity = clamp(next.uComplexity, LITE_LIMITS.complexityMax);
   }
   if (next.uBrightness !== undefined) {
@@ -62,13 +62,31 @@ export function applyLiteLimits(shaderId, values) {
   }
 
   const specs = getSpecMap(shaderId);
-  for (const key of ['uSegments', 'uRingCount', 'uBallCount', 'uRibbonCount', 'uChevrons']) {
+  for (const key of ['uSegments', 'uRingCount', 'uBallCount', 'uRibbonCount', 'uChevrons', 'uLayerCount']) {
     if (next[key] === undefined || !specs[key]) continue;
     const max = Math.min(specs[key].max, specs[key].max <= 6 ? specs[key].max : 6);
     next[key] = clamp(next[key], max, specs[key].min ?? 2);
   }
 
   return next;
+}
+
+/** Short, mode-aware note about what is costing the GPU right now. */
+export function describeModeLoad(shaderId, state = {}) {
+  const bits = [];
+  if (shaderId === 'spiro') bits.push(`${state.uOrbitCount ?? 0} orbits`);
+  if (shaderId === 'flow') bits.push(`particle level ${state.uParticleCount ?? 0}`);
+  if (shaderId === 'kaleido') bits.push(`${state.uRingCount ?? 0} rings`);
+  if (shaderId === 'spocks') bits.push(`${state.uIterations ?? 0} layers`);
+  if (shaderId === 'metaballs') bits.push(`${state.uBallCount ?? 0} blobs`);
+  if (shaderId === 'wormhole') bits.push(`${state.uChevrons ?? 0} ribs`);
+  if (shaderId === 'ribbons') bits.push(`${state.uRibbonCount ?? 0} ribbons`);
+  if (shaderId === 'layers') bits.push(`${state.uLayerCount ?? 0} stacked patterns`);
+  if ((state.motionTrails ?? 0) > 0 && !state.liteMode) bits.push('motion trails');
+  if ((state.uBloom ?? 0) > 55) bits.push('high bloom');
+  bits.push(`${Math.round(state.resolutionScale ?? 100)}% resolution`);
+  if (state.liteMode) bits.push('lite caps');
+  return bits.join(' · ');
 }
 
 export function snapshotLiteRestoreFields(values) {
