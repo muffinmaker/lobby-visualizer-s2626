@@ -736,14 +736,54 @@
         border: 0;
       }
 
+      .lil-gui.root > .children > .controller.collapse-all {
+        position: sticky;
+        top: 0;
+        z-index: 6;
+        margin: 0;
+      }
+
       .lil-gui .controller.collapse-all > .name {
         width: 100%;
         margin: 0;
         padding: 0.35rem 0.55rem;
-        background: hsl(330 70% 80%);
-        color: #1a1024;
+        background: #111;
+        color: #fff;
         font-weight: 800;
         cursor: pointer;
+      }
+
+      .header-extra {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        padding: 0.2rem 0.35rem 0.35rem;
+      }
+
+      .header-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem 0.4rem;
+        align-items: center;
+      }
+
+      .header-action {
+        flex: 1;
+        border: 0;
+        background: #161616;
+        color: #fff;
+        font: inherit;
+        font-weight: 700;
+        padding: 0.2rem 0.45rem;
+        cursor: pointer;
+      }
+
+      .header-drift label {
+        display: inline-flex;
+        gap: 0.15rem;
+        align-items: center;
+        font-size: 0.68rem;
+        color: #1a1024;
       }
 
       .lil-gui .controller.drift-check {

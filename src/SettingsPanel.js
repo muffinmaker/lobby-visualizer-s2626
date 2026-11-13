@@ -7,6 +7,7 @@ import {
   POST_UNIFORMS,
   SHADER_IDS,
   getShaderChoices,
+  getShaderLabel,
 } from './shaders/index.js';
 import { getSpecMap, mergeShaderDefaults, normalizeUiValues, roundUiValue } from './uniformMap.js';
 import {
@@ -110,21 +111,12 @@ function loadOverlayPrefs() {
     overlayMix: 45,
     overlayBlend: 'Mix',
     overlayAudio: false,
-    mixers: [{ on: false, shader: 'kaleido', mix: 45, blend: 'Mix', audio: false }],
+    mixers: [],
   };
   try {
     const raw = JSON.parse(localStorage.getItem(OVERLAY_KEY) || 'null');
     const base = raw ? { ...fallback, ...raw } : fallback;
-    let mixers = Array.isArray(raw?.mixers) ? raw.mixers : null;
-    if (!mixers?.length) {
-      mixers = [{
-        on: Boolean(base.overlayOn),
-        shader: base.overlayShader,
-        mix: base.overlayMix,
-        blend: base.overlayBlend,
-        audio: Boolean(base.overlayAudio),
-      }];
-    }
+    const mixers = Array.isArray(raw?.mixers) ? raw.mixers : [];
     base.mixers = mixers.slice(0, MAX_MIXER_SLOTS).map((slot) => ({
       on: Boolean(slot?.on),
       shader: slot?.shader || 'kaleido',
@@ -965,13 +957,18 @@ export class SettingsPanel {
   }
 
   buildOverlaySection() {
-    const overlay = (this.postFolder ?? this.gui).addFolder('Shader Mixer');
+    const overlay = this.gui.addFolder('Shader Mixer');
     this.overlayFolder = overlay;
     this.mixerFolders = [];
-    if (!Array.isArray(this.state.mixers) || !this.state.mixers.length) {
-      this.state.mixers = [{ on: false, shader: 'kaleido', mix: 45, blend: 'Mix', audio: false }];
-    }
-    overlay.add({ add: () => this.addMixerSlot() }, 'add').name('Add shader');
+    if (!Array.isArray(this.state.mixers)) this.state.mixers = [];
+    const collapseShaders = overlay.add({
+      collapse: () => {
+        this.shaderFolder?.close();
+        for (const folder of this.mixerFolders ?? []) folder.close();
+      },
+    }, 'collapse').name('Collapse shaders');
+    collapseShaders.domElement.classList.add('collapse-shaders');
+    overlay.add({ add: () => this.addMixerSlot() }, 'add').name('+ Add shader');
     this.rebuildMixerSlots();
     this.pushOverlay();
   }
@@ -1005,14 +1002,18 @@ export class SettingsPanel {
     const choices = getShaderChoices();
     const totalShaders = 1 + this.state.mixers.length;
     this.state.mixers.forEach((slot, index) => {
-      const folder = this.overlayFolder.addFolder(`Shader ${index + 2}`);
+      const folder = this.overlayFolder.addFolder(getShaderLabel(slot.shader));
       this.mixerFolders.push(folder);
       const sync = () => {
         saveOverlayPrefs(this.state);
         this.pushOverlay();
       };
       folder.add(slot, 'on').name('On').onChange(sync);
-      const modeCtrl = folder.add(slot, 'shader', choices).name('Mode').onChange(sync);
+      const modeCtrl = folder.add(slot, 'shader', choices).name('Mode').onChange((id) => {
+        folder.title(getShaderLabel(id));
+        sync();
+        this.paintFolderHeaders();
+      });
       this.stepIfDropdown(folder, modeCtrl, 'mode');
       folder.add(slot, 'mix', 0, 100, 1).name('Mix').onChange(sync);
       const blendCtrl = folder
@@ -1236,6 +1237,7 @@ export class SettingsPanel {
       this.menuFolder,
       this.displayFolder,
       this.globalFolder,
+      this.overlayFolder,
       this.postFolder,
       this.colorFolder,
       this.musicFolder,
@@ -1263,6 +1265,154 @@ export class SettingsPanel {
       title.style.fontWeight = '800';
       title.style.cursor = 'pointer';
     });
+    this.wireHeaderRows();
+  }
+
+  wireHeaderRows() {
+    const actions = [
+      [this.musicFolder, 'Music', () => this.musicEnabledCtrl?.setValue(!this.state.musicEnabled)],
+      [this.cycleFolder, 'Auto cycle', () => this.autoCycleCtrl?.setValue(!this.state.autoCycle)],
+      [this.textFolder, 'Text', () => this.textEnabledCtrl?.setValue(!this.state.textEnabled)],
+      [this.displayFolder, 'FPS lock', () => {
+        const ctrl = this.gui.controllersRecursive().find((c) => c.property === 'fpsLock');
+        ctrl?.setValue(!this.state.fpsLock);
+      }],
+      [this.driftFolder, 'Speed auto', () => {
+        const ctrl = this.gui.controllersRecursive().find((c) => c.property === 'driftSpeedAuto');
+        ctrl?.setValue(!this.state.driftSpeedAuto);
+      }],
+      [this.globalFolder, 'Reset defaults', () => this.resetSpecGroup(this.globalSpecs)],
+      [this.colorFolder, 'Clear colors', () => this.clearColors()],
+      [this.postFolder, 'Post off', () => this.resetSpecGroup(POST_UNIFORMS)],
+      [this.shaderFolder, 'Reset mode', () => this.resetSpecGroup(this.shaderFolder ? SHADERS[this.state.shader]?.uniforms : null)],
+      [this.overlayFolder, 'Mixers off', () => {
+        for (const slot of this.state.mixers || []) slot.on = false;
+        this.rebuildMixerSlots();
+        saveOverlayPrefs(this.state);
+        this.pushOverlay();
+        this.paintFolderHeaders();
+      }],
+      [this.logoFolder, 'Logo', () => this.toggleLogoPack()],
+      [this.menuFolder, 'MIDI', () => document.dispatchEvent(new CustomEvent('lobby-midi'))],
+    ];
+    for (const [folder, label, action] of actions) {
+      if (!folder) continue;
+      this.mountHeaderRows(folder, label, action);
+    }
+    for (const folder of this.mixerFolders ?? []) {
+      const onCtrl = folder.controllers?.find((c) => c.property === 'on');
+      this.mountHeaderRows(folder, onCtrl?.getValue?.() ? 'On' : 'Off', () => {
+        onCtrl?.setValue(!onCtrl.getValue());
+      });
+    }
+  }
+
+  mountHeaderRows(folder, actionLabel, onAction) {
+    const title = folder?.$title;
+    if (!title) return;
+    let extra = folder.domElement.querySelector(':scope > .header-extra');
+    if (!extra) {
+      extra = document.createElement('div');
+      extra.className = 'header-extra';
+      const stop = (event) => event.stopPropagation();
+      extra.addEventListener('pointerdown', stop);
+      extra.addEventListener('click', stop);
+      title.insertAdjacentElement('afterend', extra);
+    }
+    extra.replaceChildren();
+    const toggleRow = document.createElement('div');
+    toggleRow.className = 'header-row';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'header-action';
+    button.textContent = actionLabel;
+    button.addEventListener('click', () => onAction?.());
+    toggleRow.append(button);
+
+    const driftRow = document.createElement('div');
+    driftRow.className = 'header-row header-drift';
+    const pairs = this.driftPairsForFolder(folder);
+    if (pairs.length) {
+      const allLabel = document.createElement('label');
+      allLabel.className = 'header-drift-all';
+      const allBox = document.createElement('input');
+      allBox.type = 'checkbox';
+      allBox.checked = pairs.every(([key]) => this.driftManager.isEnabled(key));
+      allBox.addEventListener('change', () => {
+        const specs = Object.fromEntries(pairs);
+        this.setFolderDrift(specs, allBox.checked);
+        for (const [key, spec] of pairs) {
+          const toggle = this.driftToggles.get(key);
+          if (!toggle) continue;
+          const on = this.driftManager.isEnabled(key);
+          toggle.checked = on;
+          toggle.parentElement?.classList.toggle('is-active', on);
+          void spec;
+        }
+        this.wireHeaderRows();
+      });
+      allLabel.append(allBox, document.createTextNode('Drift'));
+      driftRow.append(allLabel);
+      for (const [key, spec] of pairs) {
+        const label = document.createElement('label');
+        label.title = this.labelFor(key, spec);
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.checked = this.driftManager.isEnabled(key);
+        box.addEventListener('change', () => {
+          this.driftManager.setEnabled(key, spec, box.checked, this.state[key]);
+          const toggle = this.driftToggles.get(key);
+          if (toggle) {
+            toggle.checked = box.checked;
+            toggle.parentElement?.classList.toggle('is-active', box.checked);
+          }
+        });
+        const name = document.createElement('span');
+        name.textContent = this.labelFor(key, spec);
+        label.append(box, name);
+        driftRow.append(label);
+      }
+    }
+    extra.append(toggleRow);
+    if (pairs.length) extra.append(driftRow);
+  }
+
+  driftPairsForFolder(folder) {
+    const specs = getSpecMap(this.state.shader);
+    const pairs = [];
+    for (const controller of folder.controllers || []) {
+      const key = controller.property;
+      const spec = specs[key] || this.globalSpecs?.[key] || this.colorSpecs?.[key];
+      if (key && canDrift(spec)) pairs.push([key, spec]);
+    }
+    return pairs;
+  }
+
+  resetSpecGroup(specs) {
+    if (!specs) return;
+    for (const [key, spec] of Object.entries(specs)) {
+      if (spec?.value == null) continue;
+      this.state[key] = spec.value;
+      this.uniformControllers.get(key)?.updateDisplay();
+    }
+    this.handleValueChange(false, true);
+  }
+
+  clearColors() {
+    this.state.uPalette = 0;
+    this.state.uInvert = 0;
+    this.state.uWhiteness = 0;
+    this.state.uBlackness = 0;
+    this.state.uSaturation = GLOBAL_UNIFORMS.uSaturation?.value ?? 67;
+    if (this.invertInput) this.invertInput.checked = false;
+    this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    this.handleValueChange(false, true);
+  }
+
+  toggleLogoPack() {
+    const choices = Object.values(this.logoPackController?._values || {}).filter((id) => id && id !== 'none');
+    const next = this.state.logoPack && this.state.logoPack !== 'none' ? 'none' : (choices[0] || 'none');
+    this.logoPackController?.setValue(next);
   }
 
   closeAllFolders() {
@@ -2069,7 +2219,7 @@ export class SettingsPanel {
 
     const shader = SHADERS[shaderId];
     mergeShaderDefaults(this.state, shaderId);
-    this.shaderFolder = (this.postFolder ?? this.gui).addFolder(shader.label);
+    this.shaderFolder = (this.overlayFolder ?? this.gui).addFolder(shader.label);
     this.addUniformControls(this.shaderFolder, shader.uniforms);
     this.addModeColorControls(shader.uniforms);
 
