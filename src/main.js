@@ -1343,7 +1343,11 @@ async function start() {
     }
     if (e.code === 'KeyF') toggleFullscreen();
     if (e.code === 'KeyH' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
-      settings.toggleVisible();
+      const hide = settings.visible !== false;
+      if (hide) settings.setVisible(false);
+      else settings.setVisible(true);
+      perfHidden = hide;
+      document.getElementById('perf-readout')?.classList.toggle('is-hidden', hide);
     }
     if (e.code === 'KeyP') setPerformanceMode(!performance.on);
     if (e.code === 'KeyM' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {

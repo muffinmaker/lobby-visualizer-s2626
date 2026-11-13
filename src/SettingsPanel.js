@@ -669,8 +669,6 @@ export class SettingsPanel {
       nextPackLogo: () => this.onLogoPackCycle?.(1),
     };
     logo.add(logoActions, 'addLogo').name('Add image');
-    this.logoPackPrevCtrl = logo.add(logoActions, 'prevPackLogo').name('◀');
-    this.logoPackNextCtrl = logo.add(logoActions, 'nextPackLogo').name('▶');
 
     logo
       .add(this.state, 'logoScale', 10, 200, 1)
@@ -701,6 +699,7 @@ export class SettingsPanel {
       .onChange((value) => {
         this.onLogoPackSymbolChange?.(value);
       });
+    this.stepIfDropdown(logo, this.logoPackSymbolController, 'pack symbol');
 
     this.logoPackVariantController = logo
       .add(this.state, 'logoPackVariant', { White: 'white', Black: 'black' })
@@ -708,6 +707,9 @@ export class SettingsPanel {
       .onChange((value) => {
         this.onLogoPackVariantChange?.(value);
       });
+    if (this.logoPackVariantController?.domElement) {
+      this.logoPackVariantController.domElement.dataset.stepped = '1';
+    }
 
     this.logoPackDriftController = logo
       .add(this.state, 'logoPackDrift')
@@ -770,8 +772,6 @@ export class SettingsPanel {
     this.logoPackDriftSpeedCtrl?.disable(!packActive || !drift);
     this.logoPackVariantController?.disable(!packActive);
     this.logoPackTextVisibleCtrl?.disable(!packActive);
-    this.logoPackPrevCtrl?.disable(!packActive);
-    this.logoPackNextCtrl?.disable(!packActive);
     this.logoPackSymbolController.updateDisplay();
   }
 
@@ -1042,7 +1042,14 @@ export class SettingsPanel {
       this.stepIfDropdown(folder, blendCtrl, 'blend');
       folder.add(slot, 'audio').name('Audio mix').onChange(sync);
       this.pinShaderRemove(folder, index);
-      folder.domElement.dataset.help = `Mixer ${index + 2} of ${totalShaders}. Up to 5 shaders. The first shader stays.`;
+      this.attachPresetOverride(folder, `Mixer ${index}`);
+      slot.frozen = Boolean(this.presetOverrides?.[`Mixer ${index}`]);
+      const freeze = folder.$title?.querySelector('.preset-override input');
+      freeze?.addEventListener('change', () => {
+        slot.frozen = Boolean(freeze.checked);
+        saveOverlayPrefs(this.state);
+      });
+      folder.domElement.dataset.help = `${getShaderLabel(slot.shader)}. Mixer ${index + 2} of ${totalShaders}. The lock keeps Music and Drift from changing this slot.`;
     });
   }
 
@@ -1062,7 +1069,7 @@ export class SettingsPanel {
   pushOverlay(music = null) {
     const layers = (this.state.mixers || []).map((slot) => {
       let mix = (slot.mix ?? 0) / 100;
-      if (slot.audio && music?.enabled) {
+      if (slot.audio && music?.enabled && !slot.frozen) {
         const beat = music.smoothed?.beat || 0;
         const energy = music.smoothed?.energy || 0;
         mix = Math.max(0, Math.min(1, mix * 0.3 + beat * 0.8 + energy * 0.45));
@@ -1282,156 +1289,107 @@ export class SettingsPanel {
       title.style.fontWeight = '800';
       title.style.cursor = 'pointer';
     });
-    this.wireHeaderRows();
+    this.attachSectionResets();
+    this.fillHelpTips();
   }
 
-  wireHeaderRows() {
-    const actions = [
-      [this.musicFolder, 'Music', () => this.musicEnabledCtrl?.setValue(!this.state.musicEnabled)],
-      [this.cycleFolder, 'Auto cycle', () => this.autoCycleCtrl?.setValue(!this.state.autoCycle)],
-      [this.textFolder, 'Text', () => this.textEnabledCtrl?.setValue(!this.state.textEnabled)],
-      [this.displayFolder, 'FPS lock', () => {
-        const ctrl = this.gui.controllersRecursive().find((c) => c.property === 'fpsLock');
-        ctrl?.setValue(!this.state.fpsLock);
+  attachSectionResets() {
+    const sections = [
+      [this.globalFolder, this.globalSpecs],
+      [this.colorFolder, this.colorSpecs],
+      [this.postFolder, POST_UNIFORMS],
+      [this.shaderFolder, SHADERS[this.state.shader]?.uniforms],
+      [this.displayFolder, {
+        qualityStep: { value: 0 },
+        resolutionScale: { value: 100 },
+        motionTrails: { value: 100 },
+        trailsNeverDecay: { value: false },
+        menuOpacity: { value: 80 },
       }],
-      [this.driftFolder, 'Speed auto', () => {
-        const ctrl = this.gui.controllersRecursive().find((c) => c.property === 'driftSpeedAuto');
-        ctrl?.setValue(!this.state.driftSpeedAuto);
+      [this.driftFolder, {
+        driftInterval: { value: 90 },
+        driftDuration: { value: 55 },
+        driftSpeed: { value: 30 },
+        driftSpeedAuto: { value: true },
+        driftLimit: { value: 2 },
       }],
-      [this.globalFolder, 'Reset defaults', () => this.resetSpecGroup(this.globalSpecs)],
-      [this.colorFolder, 'Clear colors', () => this.clearColors()],
-      [this.postFolder, 'Post off', () => this.resetSpecGroup(POST_UNIFORMS)],
-      [this.shaderFolder, 'Reset mode', () => this.resetSpecGroup(this.shaderFolder ? SHADERS[this.state.shader]?.uniforms : null)],
-      [this.overlayFolder, 'Mixers off', () => {
-        for (const slot of this.state.mixers || []) slot.on = false;
-        this.rebuildMixerSlots();
-        saveOverlayPrefs(this.state);
-        this.pushOverlay();
-        this.paintFolderHeaders();
-      }],
-      [this.logoFolder, 'Logo', () => this.toggleLogoPack()],
-      [this.menuFolder, 'MIDI', () => document.dispatchEvent(new CustomEvent('lobby-midi'))],
     ];
-    for (const [folder, label, action] of actions) {
-      if (!folder) continue;
-      this.mountHeaderRows(folder, label, action);
-    }
-    for (const folder of this.mixerFolders ?? []) {
-      const onCtrl = folder.controllers?.find((c) => c.property === 'on');
-      this.mountHeaderRows(folder, onCtrl?.getValue?.() ? 'On' : 'Off', () => {
-        onCtrl?.setValue(!onCtrl.getValue());
-      });
+    for (const [folder, specs] of sections) {
+      this.attachResetButton(folder, () => this.resetSpecGroup(specs));
     }
   }
 
-  mountHeaderRows(folder, actionLabel, onAction) {
+  attachResetButton(folder, onReset) {
     const title = folder?.$title;
-    if (!title) return;
-    let extra = folder.domElement.querySelector(':scope > .header-extra');
-    if (!extra) {
-      extra = document.createElement('div');
-      extra.className = 'header-extra';
-      const stop = (event) => event.stopPropagation();
-      extra.addEventListener('pointerdown', stop);
-      extra.addEventListener('click', stop);
-      const children = folder.domElement.querySelector(':scope > .children');
-      if (children) children.prepend(extra);
-      else title.insertAdjacentElement('afterend', extra);
-    }
-    extra.replaceChildren();
-    const toggleRow = document.createElement('div');
-    toggleRow.className = 'header-row';
+    if (!title || title.querySelector(':scope > .section-reset')) return;
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'header-action';
-    button.textContent = actionLabel;
-    button.addEventListener('click', () => onAction?.());
-    toggleRow.append(button);
-
-    const driftRow = document.createElement('div');
-    driftRow.className = 'header-row header-drift';
-    const pairs = this.driftPairsForFolder(folder);
-    if (pairs.length) {
-      const allLabel = document.createElement('label');
-      allLabel.className = 'header-drift-all';
-      const allBox = document.createElement('input');
-      allBox.type = 'checkbox';
-      allBox.checked = pairs.every(([key]) => this.driftManager.isEnabled(key));
-      allBox.addEventListener('change', () => {
-        const specs = Object.fromEntries(pairs);
-        this.setFolderDrift(specs, allBox.checked);
-        for (const [key, spec] of pairs) {
-          const toggle = this.driftToggles.get(key);
-          if (!toggle) continue;
-          const on = this.driftManager.isEnabled(key);
-          toggle.checked = on;
-          toggle.parentElement?.classList.toggle('is-active', on);
-          void spec;
-        }
-        this.wireHeaderRows();
-      });
-      allLabel.append(allBox, document.createTextNode('Drift'));
-      driftRow.append(allLabel);
-      for (const [key, spec] of pairs) {
-        const label = document.createElement('label');
-        label.title = this.labelFor(key, spec);
-        const box = document.createElement('input');
-        box.type = 'checkbox';
-        box.checked = this.driftManager.isEnabled(key);
-        box.addEventListener('change', () => {
-          this.driftManager.setEnabled(key, spec, box.checked, this.state[key]);
-          const toggle = this.driftToggles.get(key);
-          if (toggle) {
-            toggle.checked = box.checked;
-            toggle.parentElement?.classList.toggle('is-active', box.checked);
-          }
-        });
-        const name = document.createElement('span');
-        name.textContent = this.labelFor(key, spec);
-        label.append(box, name);
-        driftRow.append(label);
-      }
-    }
-    extra.append(toggleRow);
-    if (pairs.length) extra.append(driftRow);
-  }
-
-  driftPairsForFolder(folder) {
-    const specs = getSpecMap(this.state.shader);
-    const pairs = [];
-    for (const controller of folder.controllers || []) {
-      const key = controller.property;
-      const spec = specs[key] || this.globalSpecs?.[key] || this.colorSpecs?.[key];
-      if (key && canDrift(spec)) pairs.push([key, spec]);
-    }
-    return pairs;
+    button.className = 'section-reset';
+    button.textContent = 'Reset';
+    button.title = 'Reset this section to defaults';
+    const stop = (event) => event.stopPropagation();
+    button.addEventListener('pointerdown', stop);
+    button.addEventListener('click', (event) => {
+      stop(event);
+      onReset?.();
+    });
+    title.append(button);
   }
 
   resetSpecGroup(specs) {
     if (!specs) return;
     for (const [key, spec] of Object.entries(specs)) {
-      if (spec?.value == null) continue;
+      if (!spec || spec.value == null || this.state[key] === undefined) continue;
       this.state[key] = spec.value;
       this.uniformControllers.get(key)?.updateDisplay();
     }
+    this.gui?.controllersRecursive?.().forEach((controller) => {
+      if (controller.property && Object.prototype.hasOwnProperty.call(this.state, controller.property)) {
+        controller.updateDisplay();
+      }
+    });
     this.handleValueChange(false, true);
   }
 
-  clearColors() {
-    this.state.uPalette = 0;
-    this.state.uInvert = 0;
-    this.state.uWhiteness = 0;
-    this.state.uBlackness = 0;
-    this.state.uSaturation = GLOBAL_UNIFORMS.uSaturation?.value ?? 67;
-    if (this.invertInput) this.invertInput.checked = false;
-    this.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
-    this.handleValueChange(false, true);
-  }
-
-  toggleLogoPack() {
-    const choices = Object.values(this.logoPackController?._values || {}).filter((id) => id && id !== 'none');
-    const next = this.state.logoPack && this.state.logoPack !== 'none' ? 'none' : (choices[0] || 'none');
-    this.logoPackController?.setValue(next);
+  fillHelpTips() {
+    const named = {
+      musicEnabled: 'Turn Music Mode on or off.',
+      musicSource: 'Microphone hears the room. Tab audio uses a shared browser tab.',
+      musicSensitivity: 'How strongly the music moves linked controls.',
+      musicResponse: 'How quickly the meters follow the sound.',
+      musicDriveBpm: 'Beat used when the microphone is quiet. 0 follows the mic only.',
+      musicLevel: 'Current loudness. Stays at 0 when the mic is silent.',
+      musicStatus: 'Music Mode status.',
+      autoCycle: 'Automatically advance presets.',
+      cycleInterval: 'Seconds between automatic preset changes.',
+      smoothTransitions: 'Cross-fade between presets.',
+      transitionDuration: 'How long a preset cross-fade takes.',
+      randomizeOnCycle: 'Shuffle preset values when auto cycle advances.',
+      shader: 'Main shader. Previous and next arrows step the list.',
+      preset: 'Saved look for the current shader.',
+      textEnabled: 'Show or hide notepad text on the picture.',
+      logoPack: 'Logo pack. None hides the pack.',
+      fpsLock: 'Lower resolution when the frame rate drops.',
+      fpsTarget: 'Frame rate the lock tries to hold.',
+      easeSeconds: 'How long sliders take to glide to a new value.',
+      driftInterval: 'Pause between drift moves.',
+      driftDuration: 'How long a drift move takes.',
+      driftSpeed: 'Drift speed when Speed Auto is off.',
+      driftSpeedAuto: 'Let Music Mode set the drift speed.',
+      driftMode: 'Random, left to right, right to left, or ping-pong.',
+      driftLimit: 'How far drift stays from the ends of a slider.',
+      menuPosition: 'Corner of the screen for this menu. M cycles the corners.',
+      menuScale: 'Size of this menu.',
+      menuOpacity: 'How solid the menu background is.',
+      qualityStep: 'Full, Balanced, or Lite quality.',
+    };
+    this.gui?.controllersRecursive?.().forEach((controller) => {
+      const el = controller.domElement;
+      if (!el || el.dataset.help) return;
+      const key = controller.property;
+      const label = controller._name || key || 'Control';
+      el.dataset.help = named[key] || (key ? `${label}.` : `${label}.`);
+    });
   }
 
   closeAllFolders() {
