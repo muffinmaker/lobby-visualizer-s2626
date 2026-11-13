@@ -583,7 +583,7 @@ export class SettingsPanel {
     this.patchNumberControllers();
     this.stepRemainingDropdowns();
     this.paintFolderHeaders();
-    this.closeAllFolders();
+    this.gui.foldersRecursive().forEach((folder) => folder.open());
     this.attachAllPresetOverrides();
     this.gui.close();
   }
@@ -986,12 +986,30 @@ export class SettingsPanel {
   }
 
   removeMixerSlot(index) {
-    if (this.state.mixers.length <= 1) return;
+    if (!this.state.mixers?.[index]) return;
     this.state.mixers.splice(index, 1);
     this.rebuildMixerSlots();
     saveOverlayPrefs(this.state);
     this.pushOverlay();
     this.paintFolderHeaders();
+  }
+
+  pinShaderRemove(folder, index) {
+    const title = folder?.$title;
+    if (!title) return;
+    title.querySelector(':scope > .shader-remove')?.remove();
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'shader-remove';
+    button.textContent = '−';
+    button.title = 'Remove shader';
+    const stop = (event) => event.stopPropagation();
+    button.addEventListener('pointerdown', stop);
+    button.addEventListener('click', (event) => {
+      stop(event);
+      this.removeMixerSlot(index);
+    });
+    title.append(button);
   }
 
   rebuildMixerSlots() {
@@ -1011,6 +1029,7 @@ export class SettingsPanel {
       folder.add(slot, 'on').name('On').onChange(sync);
       const modeCtrl = folder.add(slot, 'shader', choices).name('Mode').onChange((id) => {
         folder.title(getShaderLabel(id));
+        this.pinShaderRemove(folder, index);
         sync();
         this.paintFolderHeaders();
       });
@@ -1022,10 +1041,8 @@ export class SettingsPanel {
         .onChange(sync);
       this.stepIfDropdown(folder, blendCtrl, 'blend');
       folder.add(slot, 'audio').name('Audio mix').onChange(sync);
-      if (this.state.mixers.length > 1) {
-        folder.add({ remove: () => this.removeMixerSlot(index) }, 'remove').name('Remove');
-      }
-      folder.domElement.dataset.help = `Mixer ${index + 2} of ${totalShaders}. Up to 5 shaders.`;
+      this.pinShaderRemove(folder, index);
+      folder.domElement.dataset.help = `Mixer ${index + 2} of ${totalShaders}. Up to 5 shaders. The first shader stays.`;
     });
   }
 
@@ -1317,7 +1334,9 @@ export class SettingsPanel {
       const stop = (event) => event.stopPropagation();
       extra.addEventListener('pointerdown', stop);
       extra.addEventListener('click', stop);
-      title.insertAdjacentElement('afterend', extra);
+      const children = folder.domElement.querySelector(':scope > .children');
+      if (children) children.prepend(extra);
+      else title.insertAdjacentElement('afterend', extra);
     }
     extra.replaceChildren();
     const toggleRow = document.createElement('div');
@@ -2235,8 +2254,8 @@ export class SettingsPanel {
     }
 
     this.placeMenuOrder();
-    this.shaderFolder?.close();
-    this.colorFolder?.close();
+    this.shaderFolder?.open();
+    this.colorFolder?.open();
     this.attachPresetOverride(this.shaderFolder, 'Mode');
     this.patchNumberControllers();
     this.stepRemainingDropdowns();

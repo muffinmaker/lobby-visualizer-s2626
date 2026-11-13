@@ -182,9 +182,24 @@
       }
 
       .lil-gui .title:not(.gui-title-row) {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
         background: hsl(48 70% 82%);
         color: #140814;
         font-weight: 800;
+        cursor: pointer;
+      }
+
+      .lil-gui .shader-remove {
+        margin-left: auto;
+        border: 0;
+        background: #111;
+        color: #fff;
+        font-weight: 800;
+        width: 1.45rem;
+        height: 1.45rem;
+        line-height: 1;
         cursor: pointer;
       }
 
